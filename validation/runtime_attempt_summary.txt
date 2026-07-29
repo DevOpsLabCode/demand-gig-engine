@@ -1,0 +1,5 @@
+Django runtime attempt exit code: 1
+NPM install/build prerequisite attempt exit code: 1
+Docker availability attempt exit code: 127
+
+These are environment-blocked checks, not passes. See TEST_REPORT.md.

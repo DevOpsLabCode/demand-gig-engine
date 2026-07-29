@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: demandgig
+      POSTGRES_USER: demandgig
+      POSTGRES_PASSWORD: demandgig
+    volumes:
+      - demandgig_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demandgig"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DEBUG: "true"
+      SECRET_KEY: local-only-secret
+      DATABASE_URL: postgresql://demandgig:demandgig@db:5432/demandgig
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      PAYMENT_PROVIDER: fake
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      VITE_API_BASE: http://localhost:8000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  demandgig_db:

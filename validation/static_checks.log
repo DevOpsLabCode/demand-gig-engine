@@ -1,0 +1,34 @@
+PASS: Required file exists: README.md
+PASS: Required file exists: TEST_REPORT.md
+PASS: Required file exists: docker-compose.yml
+PASS: Required file exists: Dockerfile.backend
+PASS: Required file exists: Dockerfile.frontend
+PASS: Required file exists: backend/manage.py
+PASS: Required file exists: backend/requirements.txt
+PASS: Required file exists: frontend/package.json
+PASS: Parsed 27 Python files
+PASS: Valid JSON: frontend/package.json
+PASS: Valid JSON: frontend/tsconfig.json
+PASS: Compose defines db/backend/frontend services
+PASS: Backend waits for healthy database
+PASS: Migration chain is sequential: 0001, 0002, 0003
+PASS: Campaign-scoped pledge idempotency exists in model and migration
+PASS: Frontend API contains /campaigns/
+PASS: Frontend API contains /facebook/config/
+PASS: Frontend API contains /facebook/login/
+PASS: Frontend API contains /facebook/pages/
+PASS: Backend exposes CampaignViewSet
+PASS: Backend exposes facebook_config
+PASS: Backend exposes facebook_login
+PASS: Backend exposes facebook_pages
+PASS: Backend exposes stripe_webhook
+PASS: Campaign API uses slug lookup expected by frontend
+PASS: PNG valid: 01-landing-and-seed.png (1440x2400)
+PASS: PNG valid: 02-campaign-detail.png (1440x1800)
+PASS: PNG valid: 03-mobile-campaign.png (390x2700)
+PASS: Combined README/screenshots PDF exists
+PASS: PDF header is valid
+PASS: PDF EOF marker is present
+PASS: pdfinfo opens the combined PDF
+
+Summary: 32 passed, 0 failed
