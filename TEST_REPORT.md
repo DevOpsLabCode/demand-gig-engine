@@ -137,3 +137,10 @@ The GitHub Actions definitions were hardened and statically validated:
 - Shell syntax, Python compilation, the repository's 52 static checks, and two standalone VibesMeet contract tests passed locally.
 
 The complete Django/pytest matrix and external scanners require GitHub-hosted package/network access and therefore remain the definitive runtime checks after the commit is pushed.
+
+## Security workflow correction
+
+- GitHub Actions references use current runnable majors: checkout/setup-python/setup-node v7, upload-artifact v6, Dependency Review v5, and CodeQL v4.
+- Checkov no longer relies on severity names without a Prisma Cloud API key. A full SARIF scan is report-only and a focused Docker/GitHub Actions/secrets baseline is blocking.
+- Django production settings are checked with `manage.py check --deploy --fail-level WARNING`.
+- The application workflow generates an ephemeral Django test secret instead of storing a secret-like literal in workflow YAML.

@@ -1,27 +1,34 @@
 # Security Testing
 
-The repository includes automated GitHub security checks in addition to the application test and coverage workflow.
+The repository runs automated security checks in GitHub Actions in addition to the application test and coverage workflow.
 
 ## GitHub Actions workflows
 
 ### Security tests
 
-`.github/workflows/security.yml` runs on pushes and pull requests to `main`, every Tuesday, and on manual dispatch.
+`.github/workflows/security.yml` runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch.
 
-It contains independent jobs for:
+Independent jobs run in parallel:
 
-- **Checkov:** scans Terraform, CloudFormation, Kubernetes, Helm, Bicep/ARM, Serverless, Dockerfiles, GitHub Actions, OpenAPI documents, and committed secrets. It uploads SARIF and blocks high or critical findings.
-- **Bandit:** scans production Python source and blocks high-severity findings with medium-or-higher confidence.
-- **pip-audit:** checks Python runtime requirements against published vulnerability advisories.
-- **npm audit:** checks production frontend dependencies and blocks high or critical vulnerabilities.
-- **Workflow validation:** checks workflow YAML structure, approved action major versions, and shell syntax.
-- **Security gate:** provides one aggregate status check that fails when any required security job fails.
+- **Workflow security validation:** parses every workflow, rejects unapproved action majors, and checks the local shell scripts.
+- **Checkov:** creates a full IaC/SARIF report and enforces a blocking baseline for Dockerfiles, GitHub Actions, and committed-secret detection.
+- **Bandit:** scans production Python and blocks high-severity findings with medium-or-higher confidence.
+- **pip-audit:** resolves `backend/requirements.txt` and blocks known vulnerable Python runtime dependencies.
+- **Django deployment check:** runs `manage.py check --deploy --fail-level WARNING` with production security settings.
+- **npm audit:** resolves frontend metadata without lifecycle scripts and blocks high or critical production vulnerabilities.
+- **Security gate:** provides one aggregate required status check.
 
 Reports are retained as GitHub Actions artifacts for 14 days.
 
+### Checkov policy
+
+The full Checkov scan covers Terraform, CloudFormation, Kubernetes, Helm, Bicep/ARM, Serverless, Dockerfiles, GitHub Actions, OpenAPI, and secrets. It is report-only so the repository receives complete SARIF results even while future infrastructure is being designed.
+
+The blocking Checkov gate covers Dockerfiles, GitHub Actions, and secret scanning. It does not use severity-based filtering because Checkov severity names require a Prisma Cloud API key. Any failure in the blocking scope fails the job. `CKV_GHA_5` and `CKV_GHA_6` remain skipped until the project publishes release artifacts that require Cosign signing and SBOM attestations.
+
 ### CodeQL
 
-`.github/workflows/codeql.yml` performs GitHub CodeQL analysis for Python and JavaScript/TypeScript. Findings appear under **Security → Code scanning** when code scanning is available for the repository.
+`.github/workflows/codeql.yml` performs CodeQL analysis for Python and JavaScript/TypeScript. Findings appear under **Security → Code scanning** when code scanning is available for the repository.
 
 ### Dependency review
 
@@ -31,7 +38,7 @@ Reports are retained as GitHub Actions artifacts for 14 days.
 
 `.github/dependabot.yml` checks Python, npm, Docker, and GitHub Actions dependencies weekly.
 
-## Recommended GitHub repository settings
+## Recommended repository settings
 
 Under **Settings → Code security and analysis**, enable:
 
@@ -41,7 +48,7 @@ Under **Settings → Code security and analysis**, enable:
 - Secret scanning
 - Push protection
 
-Under branch protection or rulesets for `main`, require:
+Under branch protection or a ruleset for `main`, require:
 
 - `Application tests / Backend / Python 3.12`
 - `Application tests / Frontend type-check and build`
@@ -51,14 +58,10 @@ Under branch protection or rulesets for `main`, require:
 
 ## Local execution
 
-Install and run all security tools:
+Install and run the same security tools locally:
 
 ```bash
 ./scripts/security_scan.sh
 ```
 
-The local script exits nonzero when workflow validation, Checkov, Bandit, pip-audit, or npm audit fails.
-
-## Checkov policy
-
-Checkov reports all findings but makes the GitHub job blocking at `HIGH` severity and above. The two artifact-signing checks `CKV_GHA_5` and `CKV_GHA_6` are temporarily skipped because the project does not yet publish signed release artifacts. Remove those skips when release artifact signing and SBOM attestations are introduced.
+The script exits nonzero when workflow validation, the blocking Checkov scan, Bandit, pip-audit, or npm audit fails.

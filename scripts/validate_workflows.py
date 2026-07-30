@@ -17,7 +17,7 @@ SUPPORTED_ACTIONS = {
     "actions/checkout": "v7",
     "actions/setup-python": "v7",
     "actions/setup-node": "v7",
-    "actions/upload-artifact": "v7",
+    "actions/upload-artifact": "v6",
     "actions/dependency-review-action": "v5",
     "github/codeql-action/init": "v4",
     "github/codeql-action/analyze": "v4",
