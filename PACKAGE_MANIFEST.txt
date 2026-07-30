@@ -1,3 +1,4 @@
+.github/workflows/python-package.yml
 .gitignore
 Dockerfile.backend
 Dockerfile.frontend
@@ -44,13 +45,18 @@ backend/integrations/vibesmeet/tests/test_contract.py
 backend/integrations/vibesmeet/types.py
 backend/integrations/vibesmeet/webhooks.py
 backend/manage.py
+backend/requirements-dev.txt
 backend/requirements.txt
 docker-compose.yml
 docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf
+docs/VIBESMEET_FULL_MARKET_STUDY.md
 docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md
 docs/examples/vibesmeet-event-handoff.example.json
 docs/examples/vibesmeet-webhook.example.json
+docs/multi_acc_diagram_draft.png
 docs/openapi/vibesmeet-bridge.openapi.yaml
+docs/prod_Diagram2.png
+docs/prod_diagram_draft.png
 docs/schemas/vibesmeet-event-handoff.schema.json
 docs/schemas/vibesmeet-webhook-envelope.schema.json
 frontend/.env.example
@@ -71,6 +77,7 @@ frontend/src/types.ts
 frontend/src/vite-env.d.ts
 frontend/tsconfig.json
 frontend/vite.config.ts
+pytest.ini
 screenshots/01-landing-and-seed.png
 screenshots/02-campaign-detail.png
 screenshots/03-mobile-campaign.png
