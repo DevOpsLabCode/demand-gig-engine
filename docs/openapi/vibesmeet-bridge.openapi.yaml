@@ -1,0 +1,198 @@
+openapi: 3.1.0
+info:
+  title: Proposed Demand Gig Engine × VibesMeet Partner Contract
+  version: 0.1.0
+  description: >-
+    Contract proposal for discussion with VibesMeet. Endpoint availability,
+    names, authentication, permissions, and payloads must be confirmed before
+    production use.
+servers:
+  - url: https://api.vibesmeet.example
+    description: Placeholder partner API host
+security:
+  - bearerAuth: []
+paths:
+  /v1/partner/health:
+    get:
+      operationId: getPartnerHealth
+      responses:
+        '200':
+          description: Integration service is available
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/partner/capabilities:
+    get:
+      operationId: getPartnerCapabilities
+      responses:
+        '200':
+          description: Supported partner capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  capabilities:
+                    type: array
+                    items: {type: string}
+                required: [capabilities]
+  /v1/partner/events/drafts:
+    post:
+      operationId: createDraftEvent
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/vibesmeet-event-handoff.schema.json'
+      responses:
+        '201':
+          description: Draft event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventReference'
+        '409':
+          description: Idempotency or state conflict
+  /v1/partner/events/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      operationId: getPartnerEvent
+      responses:
+        '200':
+          description: Current event resource
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    patch:
+      operationId: updatePartnerEvent
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventReference'
+  /v1/partner/events/{eventId}/reservation-claims:batchCreate:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createReservationClaims
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claims]
+              properties:
+                claims:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        '202':
+          description: Claim batch accepted
+  /v1/partner/events/{eventId}/publish-requests:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: requestEventPublish
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '202':
+          description: Publish request accepted
+  /v1/partner/events/{eventId}/orders/summary:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      operationId: getOrderSummary
+      responses:
+        '200':
+          description: Aggregated order and refund summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/partner/events/{eventId}/attendance/summary:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      operationId: getAttendanceSummary
+      responses:
+        '200':
+          description: Aggregated verified attendance summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/partner/events/{eventId}/payouts/summary:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      operationId: getPayoutSummary
+      responses:
+        '200':
+          description: Aggregated split and payout summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema: {type: string}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 200}
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 200}
+  schemas:
+    EventReference:
+      type: object
+      required: [id, version, status]
+      properties:
+        id: {type: string}
+        version: {type: string}
+        status: {type: string}
+        public_url: {type: [string, 'null'], format: uri}

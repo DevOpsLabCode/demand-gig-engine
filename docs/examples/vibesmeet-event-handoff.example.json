@@ -1,0 +1,109 @@
+{
+  "campaign_id": "7d138ba5-40d3-4b0d-8e5f-b8b57cbf7600",
+  "campaign_version": "12",
+  "organizer_external_id": "vm_org_123",
+  "title": "Bring Band X to New York",
+  "description": "A demand-validated live show proposed by the community.",
+  "timezone": "America/New_York",
+  "starts_at": "2026-10-17T20:00:00-04:00",
+  "ends_at": "2026-10-17T23:30:00-04:00",
+  "venue": {
+    "external_id": "vm_venue_456",
+    "name": "Example Hall",
+    "space_name": "Main Room",
+    "address": "123 Example Street",
+    "city": "New York",
+    "country": "United States"
+  },
+  "artists": [
+    {
+      "external_id": "vm_artist_789",
+      "name": "Band X",
+      "role": "headliner",
+      "contract_status": "signed"
+    }
+  ],
+  "capacity": 500,
+  "currency": "USD",
+  "ticket_types": [
+    {
+      "code": "ga",
+      "name": "General Admission",
+      "price": "50.00",
+      "currency": "USD",
+      "inventory": 450,
+      "reserved_for_supporters": 150,
+      "sales_start": "2026-08-15T10:00:00-04:00",
+      "sales_end": "2026-10-17T21:00:00-04:00"
+    },
+    {
+      "code": "vip",
+      "name": "VIP",
+      "price": "125.00",
+      "currency": "USD",
+      "inventory": 50,
+      "reserved_for_supporters": 10,
+      "sales_start": "2026-08-15T10:00:00-04:00",
+      "sales_end": "2026-10-17T20:00:00-04:00"
+    }
+  ],
+  "reservation_claims": [
+    {
+      "reservation_id": "pledge_001",
+      "supporter_external_id": "vm_user_001",
+      "supporter_email": "fan@example.com",
+      "quantity": 2,
+      "credit_amount": "50.00",
+      "currency": "USD",
+      "ticket_type_code": "ga",
+      "conversion_deadline": "2026-08-22T23:59:59-04:00",
+      "referral_code": "NYCFANS",
+      "source": "facebook_group"
+    }
+  ],
+  "revenue_splits": [
+    {
+      "participant_external_id": "vm_org_123",
+      "participant_type": "organization",
+      "basis_points": 6500,
+      "role": "organizer"
+    },
+    {
+      "participant_external_id": "vm_artist_789",
+      "participant_type": "artist",
+      "basis_points": 2500,
+      "role": "artist"
+    },
+    {
+      "participant_external_id": "vm_venue_456",
+      "participant_type": "venue",
+      "basis_points": 1000,
+      "role": "venue"
+    }
+  ],
+  "sponsor_opportunity": {
+    "campaign_id": "7d138ba5-40d3-4b0d-8e5f-b8b57cbf7600",
+    "verified_supporters": 621,
+    "deposit_backed_supporters": 204,
+    "target_market": "New York metropolitan area"
+  },
+  "attribution": {
+    "primary_source": "facebook_group",
+    "community_count": 7,
+    "top_referral_code": "NYCFANS"
+  },
+  "readiness": {
+    "state": "READY",
+    "snapshot_version": "5",
+    "critical_gates_passed": true
+  },
+  "accessibility": {
+    "wheelchair_accessible": true,
+    "accessible_ticket_inventory": 10
+  },
+  "policy": {
+    "reservation_conversion_strategy": "claim_credit",
+    "reschedule_requires_reconsent": true,
+    "refund_policy_version": "2026-07"
+  }
+}

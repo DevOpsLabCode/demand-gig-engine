@@ -6,6 +6,8 @@ from .views import (
     facebook_login,
     facebook_pages,
     stripe_webhook,
+    vibesmeet_config,
+    vibesmeet_webhook,
 )
 
 router = DefaultRouter()
@@ -17,4 +19,6 @@ urlpatterns = [
     path("facebook/login/", facebook_login, name="facebook-login"),
     path("facebook/pages/", facebook_pages, name="facebook-pages"),
     path("payments/stripe/webhook/", stripe_webhook, name="stripe-webhook"),
+    path("vibesmeet/config/", vibesmeet_config, name="vibesmeet-config"),
+    path("vibesmeet/webhook/", vibesmeet_webhook, name="vibesmeet-webhook"),
 ]

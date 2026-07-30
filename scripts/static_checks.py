@@ -34,7 +34,14 @@ def check_python() -> None:
 
 
 def check_json() -> None:
-    for rel in ["frontend/package.json", "frontend/tsconfig.json"]:
+    for rel in [
+        "frontend/package.json",
+        "frontend/tsconfig.json",
+        "docs/schemas/vibesmeet-event-handoff.schema.json",
+        "docs/schemas/vibesmeet-webhook-envelope.schema.json",
+        "docs/examples/vibesmeet-event-handoff.example.json",
+        "docs/examples/vibesmeet-webhook.example.json",
+    ]:
         try:
             json.loads((ROOT / rel).read_text(encoding="utf-8"))
             PASSES.append(f"Valid JSON: {rel}")
@@ -107,9 +114,9 @@ def check_contracts() -> None:
     api = (ROOT / "frontend/src/api.ts").read_text(encoding="utf-8")
     urls = (ROOT / "backend/gigs/urls.py").read_text(encoding="utf-8")
     views = (ROOT / "backend/gigs/views.py").read_text(encoding="utf-8")
-    for fragment in ["/campaigns/", "/facebook/config/", "/facebook/login/", "/facebook/pages/"]:
+    for fragment in ["/campaigns/", "/facebook/config/", "/facebook/login/", "/facebook/pages/", "/vibesmeet/config/"]:
         check(fragment in api, f"Frontend API contains {fragment}")
-    for symbol in ["CampaignViewSet", "facebook_config", "facebook_login", "facebook_pages", "stripe_webhook"]:
+    for symbol in ["CampaignViewSet", "facebook_config", "facebook_login", "facebook_pages", "stripe_webhook", "vibesmeet_config", "vibesmeet_webhook"]:
         check(symbol in urls or symbol in views, f"Backend exposes {symbol}")
     check('lookup_field = "slug"' in views, "Campaign API uses slug lookup expected by frontend")
 
@@ -124,10 +131,35 @@ def check_required_files() -> None:
         "backend/manage.py",
         "backend/requirements.txt",
         "frontend/package.json",
+        "docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md",
+        "docs/openapi/vibesmeet-bridge.openapi.yaml",
+        "docs/schemas/vibesmeet-event-handoff.schema.json",
+        "docs/schemas/vibesmeet-webhook-envelope.schema.json",
+        "docs/examples/vibesmeet-event-handoff.example.json",
+        "docs/examples/vibesmeet-webhook.example.json",
+        "backend/integrations/vibesmeet/client.py",
+        "backend/integrations/vibesmeet/webhooks.py",
     ]
     for rel in required:
         check((ROOT / rel).exists(), f"Required file exists: {rel}")
 
+
+
+def check_vibesmeet_bridge() -> None:
+    blueprint = (ROOT / "docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md").read_text(encoding="utf-8")
+    client = (ROOT / "backend/integrations/vibesmeet/client.py").read_text(encoding="utf-8")
+    webhook = (ROOT / "backend/integrations/vibesmeet/webhooks.py").read_text(encoding="utf-8")
+    openapi = (ROOT / "docs/openapi/vibesmeet-bridge.openapi.yaml").read_text(encoding="utf-8")
+    if yaml is not None:
+        try:
+            parsed_openapi = yaml.safe_load(openapi)
+            check(parsed_openapi.get("openapi") == "3.1.0", "Proposed VibesMeet OpenAPI document parses")
+        except Exception as exc:
+            ERRORS.append(f"VibesMeet OpenAPI parse failed: {exc}")
+    check("Product boundary" in blueprint and "Missing-module catalog" in blueprint, "VibesMeet blueprint documents ownership and missing modules")
+    check("Idempotency-Key" in client and "X-Correlation-ID" in client, "VibesMeet client sends idempotency and correlation headers")
+    check("verify_signature" in webhook, "VibesMeet webhook parser verifies signatures")
+    check("Contract proposal" in openapi and "/v1/partner/events/drafts" in openapi, "Proposed VibesMeet OpenAPI contract is present")
 
 def main() -> int:
     check_required_files()
@@ -136,6 +168,7 @@ def main() -> int:
     check_compose()
     check_migrations()
     check_contracts()
+    check_vibesmeet_bridge()
     check_screenshots()
     check_pdf()
 

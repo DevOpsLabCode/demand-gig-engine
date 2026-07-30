@@ -105,3 +105,11 @@ META_PIXEL_ID = os.getenv("META_PIXEL_ID", "")
 META_CONVERSIONS_API_TOKEN = os.getenv("META_CONVERSIONS_API_TOKEN", "")
 META_TEST_EVENT_CODE = os.getenv("META_TEST_EVENT_CODE", "")
 META_DEFAULT_SHARE_IMAGE = os.getenv("META_DEFAULT_SHARE_IMAGE", "")
+
+# VibesMeet partner integration. Endpoint contract is proposed and must be
+# confirmed with VibesMeet before production use.
+VIBESMEET_BASE_URL = os.getenv("VIBESMEET_BASE_URL", "")
+VIBESMEET_ACCESS_TOKEN = os.getenv("VIBESMEET_ACCESS_TOKEN", "")
+VIBESMEET_WEBHOOK_SECRET = os.getenv("VIBESMEET_WEBHOOK_SECRET", "")
+VIBESMEET_WEBHOOK_TOLERANCE_SECONDS = int(os.getenv("VIBESMEET_WEBHOOK_TOLERANCE_SECONDS", "300"))
+VIBESMEET_TIMEOUT_SECONDS = float(os.getenv("VIBESMEET_TIMEOUT_SECONDS", "15"))

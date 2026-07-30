@@ -100,3 +100,16 @@ export interface FacebookShareLink {
   campaign_url: string;
   share_dialog_url: string;
 }
+
+export interface VibesMeetConfig {
+  enabled: boolean;
+  webhook_configured: boolean;
+  base_url: string;
+  contract_status: string;
+  supports: {
+    outbound_client: boolean;
+    signed_webhook_inbox: boolean;
+    external_resource_mapping: boolean;
+    reservation_conversion: string;
+  };
+}

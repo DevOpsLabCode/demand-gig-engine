@@ -213,3 +213,89 @@ class CampaignEvent(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class IntegrationSyncStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    SYNCED = "synced", "Synced"
+    CONFLICT = "conflict", "Conflict"
+    FAILED = "failed", "Failed"
+    DISCONNECTED = "disconnected", "Disconnected"
+
+
+class ExternalResourceLink(models.Model):
+    """Durable mapping between a local record and a partner resource."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    provider = models.CharField(max_length=40, default="vibesmeet")
+    local_resource_type = models.CharField(max_length=80)
+    local_resource_id = models.CharField(max_length=180)
+    remote_resource_type = models.CharField(max_length=80)
+    remote_resource_id = models.CharField(max_length=180)
+    remote_version = models.CharField(max_length=100, blank=True)
+    sync_status = models.CharField(
+        max_length=20,
+        choices=IntegrationSyncStatus.choices,
+        default=IntegrationSyncStatus.PENDING,
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "local_resource_type", "local_resource_id", "remote_resource_type"],
+                name="int_local_resource_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["provider", "remote_resource_type", "remote_resource_id"],
+                name="int_remote_resource_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["provider", "sync_status"], name="int_provider_status_idx"),
+        ]
+
+
+class IntegrationWebhookStatus(models.TextChoices):
+    RECEIVED = "received", "Received"
+    PROCESSED = "processed", "Processed"
+    QUARANTINED = "quarantined", "Quarantined"
+    FAILED = "failed", "Failed"
+
+
+class IntegrationWebhookEvent(models.Model):
+    """Idempotent webhook inbox for partner events and replay."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    provider = models.CharField(max_length=40, default="vibesmeet")
+    event_id = models.CharField(max_length=180)
+    event_type = models.CharField(max_length=160)
+    resource_type = models.CharField(max_length=80, blank=True)
+    resource_id = models.CharField(max_length=180, blank=True)
+    resource_version = models.CharField(max_length=100, blank=True)
+    sequence = models.BigIntegerField(default=0)
+    payload = models.JSONField(default=dict)
+    status = models.CharField(
+        max_length=20,
+        choices=IntegrationWebhookStatus.choices,
+        default=IntegrationWebhookStatus.RECEIVED,
+    )
+    error = models.TextField(blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "event_id"],
+                name="int_provider_event_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["provider", "status", "received_at"], name="int_webhook_queue_idx"),
+            models.Index(fields=["provider", "resource_type", "resource_id"], name="int_webhook_resource_idx"),
+        ]
+        ordering = ["received_at"]

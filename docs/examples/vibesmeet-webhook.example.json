@@ -1,0 +1,20 @@
+{
+  "id": "evt_vm_01K1E7DAW0M8ZB2VW9Q7D1HNC3",
+  "type": "vibesmeet.event.published",
+  "occurred_at": "2026-08-15T14:05:12Z",
+  "sequence": 18,
+  "resource": {
+    "type": "event",
+    "id": "vm_event_123",
+    "version": "19"
+  },
+  "partner_reference": {
+    "campaign_id": "7d138ba5-40d3-4b0d-8e5f-b8b57cbf7600",
+    "correlation_id": "handoff_01K1E72DBTPQH6S1CGB7Y8W8TG"
+  },
+  "data": {
+    "status": "published",
+    "public_url": "https://www.vibesmeet.com/events/example-event"
+  },
+  "environment": "production"
+}

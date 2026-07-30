@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demand-gig-engine.local/schemas/vibesmeet-webhook-envelope.schema.json",
+  "title": "Proposed VibesMeet Partner Webhook Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "occurred_at", "sequence", "resource", "partner_reference", "data", "environment"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "type": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "sequence": {"type": "integer", "minimum": 0},
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "version"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string"}
+      }
+    },
+    "partner_reference": {
+      "type": "object",
+      "properties": {
+        "campaign_id": {"type": ["string", "null"]},
+        "correlation_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "data": {"type": "object"},
+    "environment": {"type": "string", "enum": ["development", "test", "staging", "production"]}
+  }
+}

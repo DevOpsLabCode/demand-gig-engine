@@ -1,9 +1,12 @@
 from html import escape
+import json
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -16,7 +19,15 @@ from .facebook import (
     send_conversion_event,
     verify_facebook_user,
 )
-from .models import DemandCampaign, Pledge, PledgeStatus
+from .models import (
+    DemandCampaign,
+    ExternalResourceLink,
+    IntegrationSyncStatus,
+    IntegrationWebhookEvent,
+    IntegrationWebhookStatus,
+    Pledge,
+    PledgeStatus,
+)
 from .serializers import (
     CampaignSerializer,
     ConfirmationSerializer,
@@ -30,6 +41,9 @@ from .serializers import (
     SponsorCreateSerializer,
     SponsorSerializer,
 )
+from integrations.vibesmeet.exceptions import VibesMeetAuthError, VibesMeetValidationError
+from integrations.vibesmeet.webhooks import parse_verified_webhook
+
 from .services import (
     CampaignStateError,
     confirm_artist,
@@ -341,3 +355,137 @@ def stripe_webhook(request):
                     pledge.status = PledgeStatus.FAILED
                     pledge.save(update_fields=["status", "updated_at"])
     return HttpResponse(status=200)
+
+
+@api_view(["GET"])
+def vibesmeet_config(request):
+    """Expose non-secret integration readiness for the organizer UI."""
+    return Response(
+        {
+            "enabled": bool(settings.VIBESMEET_BASE_URL and settings.VIBESMEET_ACCESS_TOKEN),
+            "webhook_configured": bool(settings.VIBESMEET_WEBHOOK_SECRET),
+            "base_url": settings.VIBESMEET_BASE_URL,
+            "contract_status": "proposed_pending_vibesmeet_confirmation",
+            "supports": {
+                "outbound_client": True,
+                "signed_webhook_inbox": True,
+                "external_resource_mapping": True,
+                "reservation_conversion": "contract_defined_not_wired",
+            },
+        }
+    )
+
+
+@api_view(["POST"])
+@transaction.atomic
+def vibesmeet_webhook(request):
+    """Verify and persist one proposed VibesMeet partner webhook event.
+
+    Processing is deliberately conservative: known events are recorded and
+    linked to a campaign, while unknown events are quarantined for review.
+    Business-state transitions should be added only after the VibesMeet event
+    contract is finalized.
+    """
+    if not settings.VIBESMEET_WEBHOOK_SECRET:
+        return Response({"detail": "VibesMeet webhook is not configured."}, status=503)
+
+    timestamp = request.headers.get("X-VibesMeet-Timestamp", "")
+    signature = request.headers.get("X-VibesMeet-Signature", "")
+    try:
+        envelope = parse_verified_webhook(
+            raw_body=request.body,
+            timestamp=timestamp,
+            signature=signature,
+            secret=settings.VIBESMEET_WEBHOOK_SECRET,
+            tolerance_seconds=settings.VIBESMEET_WEBHOOK_TOLERANCE_SECONDS,
+        )
+    except VibesMeetAuthError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+    except VibesMeetValidationError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        raw_payload = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raw_payload = {}
+
+    webhook, created = IntegrationWebhookEvent.objects.get_or_create(
+        provider="vibesmeet",
+        event_id=envelope.event_id,
+        defaults={
+            "event_type": envelope.event_type,
+            "resource_type": envelope.resource_type,
+            "resource_id": envelope.resource_id,
+            "resource_version": envelope.resource_version,
+            "sequence": envelope.sequence,
+            "payload": raw_payload,
+        },
+    )
+    if not created:
+        return Response(
+            {
+                "accepted": True,
+                "duplicate": True,
+                "event_id": webhook.event_id,
+                "status": webhook.status,
+            }
+        )
+
+    campaign = None
+    campaign_id = str(envelope.partner_reference.get("campaign_id") or "")
+    if campaign_id:
+        try:
+            campaign = DemandCampaign.objects.filter(pk=campaign_id).first()
+        except (TypeError, ValueError, DjangoValidationError):
+            campaign = None
+
+    if campaign is not None:
+        log_event(
+            campaign,
+            "vibesmeet.webhook.received",
+            event_id=envelope.event_id,
+            event_type=envelope.event_type,
+            resource_type=envelope.resource_type,
+            resource_id=envelope.resource_id,
+            resource_version=envelope.resource_version,
+            sequence=envelope.sequence,
+        )
+        if envelope.resource_type and envelope.resource_id:
+            try:
+                # Use a savepoint so a mapping conflict does not poison the
+                # outer webhook transaction.
+                with transaction.atomic():
+                    ExternalResourceLink.objects.update_or_create(
+                        provider="vibesmeet",
+                        local_resource_type="demand_campaign",
+                        local_resource_id=str(campaign.id),
+                        remote_resource_type=envelope.resource_type,
+                        defaults={
+                            "remote_resource_id": envelope.resource_id,
+                            "remote_version": envelope.resource_version,
+                            "sync_status": IntegrationSyncStatus.SYNCED,
+                            "last_synced_at": timezone.now(),
+                        },
+                    )
+            except IntegrityError:
+                webhook.status = IntegrationWebhookStatus.QUARANTINED
+                webhook.error = "Remote resource is already mapped to another local record."
+
+    if webhook.status != IntegrationWebhookStatus.QUARANTINED:
+        webhook.status = (
+            IntegrationWebhookStatus.QUARANTINED
+            if envelope.event_type.startswith("unknown:")
+            else IntegrationWebhookStatus.PROCESSED
+        )
+    webhook.processed_at = timezone.now()
+    webhook.save(update_fields=["status", "error", "processed_at"])
+
+    return Response(
+        {
+            "accepted": True,
+            "duplicate": False,
+            "event_id": webhook.event_id,
+            "status": webhook.status,
+            "campaign_mapped": campaign is not None,
+        }
+    )

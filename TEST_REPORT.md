@@ -91,3 +91,30 @@ docker compose up --build
 curl -f http://localhost:8000/api/campaigns/
 curl -f http://localhost:5173/
 ```
+
+---
+
+## July 30, 2026 VibesMeet integration addendum
+
+The package was extended with a contract-first VibesMeet integration foundation and a deep missing-module blueprint.
+
+### Added and verified
+
+| Area | Result | What was verified |
+|---|---|---|
+| Product blueprint | PASS | Ownership boundary, lifecycle, 34 missing modules, handoff states, roadmap, security, observability, and definition of done are documented. |
+| Proposed OpenAPI contract | PASS | Draft-event, capability, reservation-claim, publish, order, attendance, and payout operations are documented as a proposal pending VibesMeet confirmation. |
+| JSON schemas | PASS | Event-handoff and webhook-envelope schemas parse as valid JSON. |
+| Python bridge | PASS | HTTP client, typed handoff payloads, reservation claims, revenue splits, HMAC signing, and verified webhook parsing compile successfully. |
+| Contract unit tests | PASS | Two dependency-free tests validate handoff serialization and signed webhook verification/parsing. |
+| Integration persistence | PASS (structural) | Migration `0004` adds idempotent webhook inbox and external-resource mapping records with uniqueness constraints and indexes. |
+| Django API surface | PASS (structural) | Non-secret integration config and signed webhook endpoints are wired at `/api/vibesmeet/config/` and `/api/vibesmeet/webhook/`. |
+| Static validation | PASS | Updated dependency-free suite reports 52 checks with no failures. |
+
+### Important integration limitation
+
+The included endpoint paths and webhook names are a **proposed partner contract**, not a claim about a currently public VibesMeet API. Production activation requires VibesMeet to confirm authentication, scopes, endpoint names, payloads, rate limits, reservation-credit behavior, webhook signatures, and sandbox credentials.
+
+### Runtime limitation
+
+A fresh dependency installation was attempted on July 30, 2026. The sandbox package registry returned no Django distributions, so Django migrations and endpoint tests remain environment-blocked here. The dependency-free integration contract tests and Python/static checks passed. Run the full suite in a normal development environment with package-registry access.

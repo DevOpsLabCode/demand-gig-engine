@@ -832,3 +832,27 @@ Propose the gig → prove the audience → verify money and sponsors → confirm
 ```
 
 That is the core Open Concert concept and the missing demand-validation layer that can sit in front of VibesMeet Event OS and SponsorOS.
+
+---
+
+# Deep VibesMeet integration and missing-module blueprint
+
+The expanded product and integration design is documented in:
+
+- [`docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md`](docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md)
+- [`docs/openapi/vibesmeet-bridge.openapi.yaml`](docs/openapi/vibesmeet-bridge.openapi.yaml)
+- [`docs/schemas/vibesmeet-event-handoff.schema.json`](docs/schemas/vibesmeet-event-handoff.schema.json)
+- [`docs/schemas/vibesmeet-webhook-envelope.schema.json`](docs/schemas/vibesmeet-webhook-envelope.schema.json)
+- [`backend/integrations/vibesmeet/`](backend/integrations/vibesmeet/)
+
+The proposed boundary is:
+
+```text
+Demand Gig Engine owns demand validation, feasibility, artist/venue assembly,
+readiness, and pre-confirmation reservations.
+
+VibesMeet owns confirmed-event ticketing, checkout, secure QR access, payouts,
+verified attendance, and post-event reporting.
+```
+
+The integration scaffold is deliberately contract-first. It does not assume that the proposed private VibesMeet endpoint names are already available. Authentication, scopes, payloads, rate limits, webhooks, and reservation-credit behavior must be confirmed with VibesMeet before production use.

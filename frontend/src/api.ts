@@ -8,6 +8,7 @@ import type {
   PledgeInput,
   PledgeResult,
   SponsorInput,
+  VibesMeetConfig,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
@@ -44,6 +45,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   facebookConfig: () => request<FacebookConfig>("/facebook/config/"),
+  vibesMeetConfig: () => request<VibesMeetConfig>("/vibesmeet/config/"),
   facebookLogin: (accessToken: string) =>
     request<FacebookProfile>("/facebook/login/", {
       method: "POST",

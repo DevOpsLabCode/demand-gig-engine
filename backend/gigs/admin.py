@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import CampaignEvent, DemandCampaign, Pledge, SponsorCommitment
+from .models import (
+    CampaignEvent,
+    DemandCampaign,
+    ExternalResourceLink,
+    IntegrationWebhookEvent,
+    Pledge,
+    SponsorCommitment,
+)
 
 
 @admin.register(DemandCampaign)
@@ -26,3 +33,18 @@ class SponsorCommitmentAdmin(admin.ModelAdmin):
 class CampaignEventAdmin(admin.ModelAdmin):
     list_display = ("campaign", "event_type", "created_at")
     readonly_fields = ("campaign", "event_type", "payload", "created_at")
+
+
+@admin.register(ExternalResourceLink)
+class ExternalResourceLinkAdmin(admin.ModelAdmin):
+    list_display = ("provider", "local_resource_type", "local_resource_id", "remote_resource_type", "remote_resource_id", "sync_status", "last_synced_at")
+    list_filter = ("provider", "sync_status", "local_resource_type", "remote_resource_type")
+    search_fields = ("local_resource_id", "remote_resource_id")
+
+
+@admin.register(IntegrationWebhookEvent)
+class IntegrationWebhookEventAdmin(admin.ModelAdmin):
+    list_display = ("provider", "event_type", "resource_type", "resource_id", "status", "received_at", "processed_at")
+    list_filter = ("provider", "status", "event_type", "resource_type")
+    search_fields = ("event_id", "resource_id")
+    readonly_fields = ("provider", "event_id", "event_type", "resource_type", "resource_id", "resource_version", "sequence", "payload", "received_at", "processed_at")

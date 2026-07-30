@@ -3648,3 +3648,17 @@ Plant the seed
 ```
 
 That is the long-term Open Concert / VibesMeet opportunity: a complete operating system and marketplace for making live events happen from verified audience demand.
+
+---
+
+# VibesMeet integration and missing-module companion blueprint
+
+The detailed module-by-module gap analysis, product ownership boundary, lifecycle, handoff contract, reservation-conversion model, proposed webhook events, data-model additions, UI modules, security controls, and phased delivery plan are maintained in:
+
+- [`docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md`](docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md)
+- [`docs/openapi/vibesmeet-bridge.openapi.yaml`](docs/openapi/vibesmeet-bridge.openapi.yaml)
+- [`docs/schemas/vibesmeet-event-handoff.schema.json`](docs/schemas/vibesmeet-event-handoff.schema.json)
+- [`docs/schemas/vibesmeet-webhook-envelope.schema.json`](docs/schemas/vibesmeet-webhook-envelope.schema.json)
+- [`backend/integrations/vibesmeet/`](backend/integrations/vibesmeet/)
+
+This companion blueprint explicitly adds modules that were previously missing or not deep enough, including identity federation, external-resource mapping, capability negotiation, campaign moderation, duplicate merging, preference polling, confidence-adjusted demand, target economics, artist offers, venue holds, tour routing, rider parsing, travel and hospitality, compliance, readiness gates, reservation-to-ticket conversion, ticket cohorts, cancellation/reschedule orchestration, incident management, sponsor activation evidence, reconciliation, and the post-event demand learning loop.
