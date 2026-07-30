@@ -21,8 +21,6 @@ Fans can register their intent, reserve a place, or pay a refundable deposit. Sp
 
 When the threshold is missed or the artist and venue cannot be confirmed under the published terms, deposits are refunded.
 
----
-
 ## Included
 
 ### Demand-campaign platform
@@ -62,8 +60,6 @@ When the threshold is missed or the artist and venue cannot be confirmed under t
 - Browser/server event IDs for deduplication
 - Website, app, and physical attendance/check-in conversion events
 - Facebook source data in the immutable campaign audit log
-
----
 
 # Facebook integration strategy
 
@@ -114,9 +110,7 @@ This project implements the strongest supported alternative:
 Official Meta reference:
 
 - https://developers.facebook.com/docs/graph-api/changelog/version19.0/
-
----
-
+  
 # Recommended organizer workflow
 
 ## Phase 1 — Plant the seed
@@ -306,7 +300,6 @@ POST /api/campaigns/<slug>/facebook/track-conversion/
 
 This gives organizers a complete measurement chain from Facebook discovery through real-world attendance.
 
----
 
 # Facebook integration matrix
 
@@ -332,7 +325,6 @@ This gives organizers a complete measurement chain from Facebook discovery throu
 | WhatsApp promotion | Campaign URL | Use tracked links for chats and communities |
 | Offline attendance attribution | Yes | Custom Conversions API event with `physical_store` action source |
 
----
 
 # Facebook App setup
 
