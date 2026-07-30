@@ -500,7 +500,6 @@ curl -X POST http://localhost:8000/api/campaigns/bring-band-x-to-new-york/facebo
   }'
 ```
 
----
 
 # Open Graph sharing
 
@@ -526,8 +525,6 @@ Official sharing documentation:
 
 - https://developers.facebook.com/documentation/sharing/web
 - https://developers.facebook.com/documentation/sharing/reference/share-dialog/
-
----
 
 # Meta Pixel and Conversions API
 
@@ -560,8 +557,6 @@ The core campaign flow never depends on Meta attribution availability. A Meta AP
 
 The reference implementation hashes email addresses with SHA-256 before sending them to Conversions API. A production system should additionally handle consent, cookies, `_fbp`, `_fbc`, client IP, user agent, regional restrictions, and data-processing terms in accordance with applicable law and Meta requirements.
 
----
-
 # Campaign state machine
 
 ```text
@@ -582,8 +577,6 @@ COMPLETED
 COLLECTING + deadline missed → REFUNDING → REFUNDED
 Any pre-live cancellation      → REFUNDING → REFUNDED
 ```
-
----
 
 # Run with Docker
 
@@ -632,8 +625,6 @@ cd frontend
 npm install
 npm run dev
 ```
-
----
 
 # Core API examples
 
@@ -703,7 +694,6 @@ curl -X POST http://localhost:8000/api/campaigns/bring-band-x-to-new-york/finali
   -H 'Content-Type: application/json' -d '{"event_id":"vibesmeet-event-123"}'
 ```
 
----
 
 # Stripe configuration
 
@@ -763,7 +753,6 @@ SponsorOS consumes:
 - QR attendance
 - Sponsor impressions and post-event reporting
 
----
 
 
 # Testing and validation
