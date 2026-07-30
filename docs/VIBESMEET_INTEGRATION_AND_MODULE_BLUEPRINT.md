@@ -5,8 +5,6 @@
 **Date:** July 30, 2026  
 **Integration posture:** Contract-first; VibesMeet private API capabilities must be confirmed before production implementation.
 
----
-
 # 1. Executive product definition
 
 The Demand Gig Engine should not become another ordinary event listing or ticketing product. Its unique purpose is to reduce event-production risk before a normal event exists.
@@ -30,8 +28,6 @@ The combined product becomes a demand-to-event operating system:
 - **VibesMeet SponsorOS:** uses verified demand and attendance data to match, package, activate, and report sponsorships.
 
 This avoids duplicating VibesMeet capabilities and gives VibesMeet a differentiated upstream demand-generation engine.
-
----
 
 # 2. Public VibesMeet capabilities that shape the integration
 
