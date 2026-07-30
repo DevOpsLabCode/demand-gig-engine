@@ -857,3 +857,22 @@ python -m pytest backend -v
 ```
 
 The command fails automatically when measured coverage is below 90% and writes `coverage.xml` for GitHub Actions.
+
+## Automated security testing
+
+GitHub Actions now runs a layered security suite:
+
+- **CodeQL** for Python and JavaScript/TypeScript semantic code analysis
+- **Checkov** for Dockerfiles, GitHub Actions, secrets, and future Terraform/Kubernetes/cloud IaC
+- **Bandit** for high-severity Python security patterns
+- **pip-audit** and **npm audit** for vulnerable dependencies
+- **Dependency Review** to block vulnerable runtime dependencies introduced by pull requests
+- **Dependabot** for weekly Python, npm, Docker, and GitHub Actions updates
+
+Run the same scanner set locally with:
+
+```bash
+./scripts/security_scan.sh
+```
+
+Repository administrators must separately enable GitHub secret scanning, push protection, Dependabot alerts/security updates, and branch-protection requirements. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md).
