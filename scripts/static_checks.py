@@ -114,11 +114,19 @@ def check_contracts() -> None:
     api = (ROOT / "frontend/src/api.ts").read_text(encoding="utf-8")
     urls = (ROOT / "backend/gigs/urls.py").read_text(encoding="utf-8")
     views = (ROOT / "backend/gigs/views.py").read_text(encoding="utf-8")
-    for fragment in ["/campaigns/", "/facebook/config/", "/facebook/login/", "/facebook/pages/", "/vibesmeet/config/"]:
+    auth_views = (ROOT / "backend/gigs/auth_views.py").read_text(encoding="utf-8")
+    social_auth = (ROOT / "backend/gigs/social_auth.py").read_text(encoding="utf-8")
+    settings = (ROOT / "backend/config/settings.py").read_text(encoding="utf-8")
+    for fragment in ["/campaigns/", "/auth/config/", "/auth/profile/", "/auth/logout/", "/facebook/config/", "/facebook/login/", "/facebook/pages/", "/vibesmeet/config/"]:
         check(fragment in api, f"Frontend API contains {fragment}")
     for symbol in ["CampaignViewSet", "facebook_config", "facebook_login", "facebook_pages", "stripe_webhook", "vibesmeet_config", "vibesmeet_webhook"]:
         check(symbol in urls or symbol in views, f"Backend exposes {symbol}")
     check('lookup_field = "slug"' in views, "Campaign API uses slug lookup expected by frontend")
+    check("def health" in auth_views and 'path("health/"' in urls, "Backend exposes an ALB/container health endpoint")
+    check("google" in social_auth and "facebook" in social_auth and "instagram" in social_auth and "tiktok" in social_auth, "Social auth lists Google/Facebook/Instagram/TikTok")
+    check("django-allauth" in (ROOT / "backend/requirements.txt").read_text(encoding="utf-8"), "Django allauth dependency is declared")
+    check("allauth.socialaccount.providers.tiktok" in settings, "All social providers are registered in Django settings")
+    check("IsCampaignOwnerOrStaff" in views and "owner_actions" in views, "Campaign lifecycle actions enforce owner/staff authorization")
 
 
 def check_required_files() -> None:
@@ -139,6 +147,15 @@ def check_required_files() -> None:
         "docs/examples/vibesmeet-webhook.example.json",
         "backend/integrations/vibesmeet/client.py",
         "backend/integrations/vibesmeet/webhooks.py",
+        "backend/gigs/auth_views.py",
+        "backend/gigs/social_auth.py",
+        "backend/gigs/permissions.py",
+        "backend/gigs/tests/test_auth.py",
+        "docs/SOCIAL_AUTHENTICATION.md",
+        "docs/AWS_PRODUCTION_ARCHITECTURE.md",
+        "docs/aws-production-architecture.svg",
+        "docs/social-auth-flow.svg",
+        "scripts/run_all_tests.sh",
     ]
     for rel in required:
         check((ROOT / rel).exists(), f"Required file exists: {rel}")

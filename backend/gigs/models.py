@@ -2,10 +2,39 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+
+
+class AccountType(models.TextChoices):
+    FAN = "fan", "Fan"
+    BAND = "band", "Band / artist"
+    VENUE = "venue", "Venue"
+    ORGANIZER = "organizer", "Organizer / promoter"
+    RENTAL = "rental", "Equipment rental"
+    SPONSOR = "sponsor", "Sponsor"
+
+
+class GigUserProfile(models.Model):
+    """Application profile shared by fans, bands, venues, and organizers."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name="gig_profile", on_delete=models.CASCADE)
+    account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.FAN)
+    display_name = models.CharField(max_length=160, blank=True)
+    company_name = models.CharField(max_length=180, blank=True)
+    avatar_url = models.URLField(blank=True)
+    bio = models.TextField(blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=80, blank=True)
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.display_name or self.user.get_full_name() or self.user.get_username()
 
 
 class CampaignStatus(models.TextChoices):
@@ -30,6 +59,13 @@ class GoalType(models.TextChoices):
 
 class DemandCampaign(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="owned_campaigns",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=180)
     slug = models.SlugField(max_length=210, unique=True, blank=True)
     pitch = models.TextField()
@@ -137,6 +173,13 @@ class PledgeStatus(models.TextChoices):
 
 class Pledge(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supporter_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="gig_pledges",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     campaign = models.ForeignKey(DemandCampaign, related_name="pledges", on_delete=models.CASCADE)
     supporter_name = models.CharField(max_length=160)
     supporter_email = models.EmailField()
@@ -184,6 +227,13 @@ class SponsorStatus(models.TextChoices):
 
 class SponsorCommitment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    contact_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="gig_sponsorships",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     campaign = models.ForeignKey(DemandCampaign, related_name="sponsorships", on_delete=models.CASCADE)
     sponsor_name = models.CharField(max_length=180)
     contact_name = models.CharField(max_length=160)

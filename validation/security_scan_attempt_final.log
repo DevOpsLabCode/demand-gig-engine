@@ -1,0 +1,25 @@
+=== Security script attempt ===
+WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Looking in indexes: https://reader:****@packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/pypi/pypi-public/simple
+ERROR: Could not find a version that satisfies the requirement bandit<2.0,>=1.8 (from versions: none)
+ERROR: No matching distribution found for bandit<2.0,>=1.8
+Validated 4 GitHub Actions workflow files.
+./scripts/security_scan.sh: line 13: checkov: command not found
+./scripts/security_scan.sh: line 27: checkov: command not found
+./scripts/security_scan.sh: line 40: pip-audit: command not found
+./scripts/security_scan.sh: line 43: bandit: command not found
+npm error code E404
+npm error 404 Not Found - GET https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/@stripe%2freact-stripe-js
+npm error 404
+npm error 404  '@stripe/react-stripe-js@latest' is not in this registry.
+npm error 404
+npm error 404 Note that you can also install from a
+npm error 404 tarball, folder, http url, or git url.
+npm error A complete log of this run can be found in: /home/oai/.npm/_logs/2026-07-30T19_03_46_014Z-debug-0.log
+npm error code ENOLOCK
+npm error audit This command requires an existing lockfile.
+npm error audit Try creating one first with: npm i --package-lock-only
+npm error audit Original error: loadVirtual requires existing shrinkwrap file
+npm error A complete log of this run can be found in: /home/oai/.npm/_logs/2026-07-30T19_03_46_476Z-debug-0.log
+
+Security scan exit codes: workflows=0 checkov-report=127 checkov-gate=127 pip-audit=127 bandit=127 npm=1

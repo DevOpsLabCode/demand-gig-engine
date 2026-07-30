@@ -3,6 +3,7 @@ import { ArrowRight, BadgeDollarSign, Building2, Music2, Sprout, Users } from "l
 import { api } from "./api";
 import { CampaignCard } from "./components/CampaignCard";
 import { CreateCampaignForm } from "./components/CreateCampaignForm";
+import { AuthPanel } from "./components/AuthPanel";
 import type { Campaign, CampaignCreate, PledgeInput, PledgeResult, SponsorInput } from "./types";
 import { initMetaPixel } from "./meta";
 
@@ -52,6 +53,7 @@ export default function App() {
     <main>
       <header className="hero">
         <nav><div className="brand"><Music2 /> Open Concert × VibesMeet</div><span>Demand-driven events</span></nav>
+        <AuthPanel />
         <div className="hero-copy">
           <span className="eyebrow">Do not book first and hope.</span>
           <h1>Prove the audience.<br />Then make the gig happen.</h1>

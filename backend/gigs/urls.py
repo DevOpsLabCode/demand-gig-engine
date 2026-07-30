@@ -1,3 +1,4 @@
+from .auth_views import auth_config, auth_logout, auth_profile, health
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -14,7 +15,11 @@ router = DefaultRouter()
 router.register("campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
+    path("health/", health, name="health"),
     path("", include(router.urls)),
+    path("auth/config/", auth_config, name="auth-config"),
+    path("auth/profile/", auth_profile, name="auth-profile"),
+    path("auth/logout/", auth_logout, name="auth-logout"),
     path("facebook/config/", facebook_config, name="facebook-config"),
     path("facebook/login/", facebook_login, name="facebook-login"),
     path("facebook/pages/", facebook_pages, name="facebook-pages"),

@@ -1,0 +1,7 @@
+test_handoff_serializes_and_validates (backend.integrations.vibesmeet.tests.test_contract.VibesMeetContractTests.test_handoff_serializes_and_validates) ... ok
+test_signed_webhook_parses (backend.integrations.vibesmeet.tests.test_contract.VibesMeetContractTests.test_signed_webhook_parses) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK

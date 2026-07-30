@@ -3,6 +3,7 @@ from .models import (
     CampaignEvent,
     DemandCampaign,
     ExternalResourceLink,
+    GigUserProfile,
     IntegrationWebhookEvent,
     Pledge,
     SponsorCommitment,
@@ -48,3 +49,10 @@ class IntegrationWebhookEventAdmin(admin.ModelAdmin):
     list_filter = ("provider", "status", "event_type", "resource_type")
     search_fields = ("event_id", "resource_id")
     readonly_fields = ("provider", "event_id", "event_type", "resource_type", "resource_id", "resource_version", "sequence", "payload", "received_at", "processed_at")
+
+
+@admin.register(GigUserProfile)
+class GigUserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "display_name", "account_type", "company_name", "verified", "updated_at")
+    list_filter = ("account_type", "verified", "country")
+    search_fields = ("user__username", "user__email", "display_name", "company_name")

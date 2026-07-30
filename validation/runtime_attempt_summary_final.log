@@ -1,0 +1,4 @@
+python_dependency_install_exit=1
+npm_install_exit=1
+run_full_tests_exit=1
+security_scan_exit=1

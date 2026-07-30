@@ -4,3 +4,9 @@ django-cors-headers>=4.4,<5.0
 psycopg[binary]>=3.2,<3.3
 stripe>=11.0,<13.0
 python-dotenv>=1.0,<2.0
+
+django-allauth[socialaccount]>=65.18,<66.0
+
+redis>=5.2,<7.0
+gunicorn>=23.0,<24.0
+whitenoise>=6.9,<7.0

@@ -6,6 +6,21 @@ A production-minded reference implementation of the missing Open Concert / Vibes
 
 This is not ordinary ticketing. A campaign proves real demand before an organizer assumes the full cost and risk of booking the artist, venue, production, security, insurance, travel, and promotion.
 
+## Current release summary
+
+This package now combines the demand-driven gig workflow with production-oriented identity, authorization, AWS deployment, testing, and security controls:
+
+- Social sign-in and account linking with Google, Facebook, Instagram, and TikTok through `django-allauth`.
+- Gig profiles for fans, bands/artists, venues, organizers/promoters, equipment-rental companies, and sponsors.
+- Authenticated campaign ownership; owner/staff authorization for launch, edit, confirmation, finalization, refund, deletion, conversion tracking, and Facebook Page publishing.
+- Authenticated pledge and sponsor attribution while anonymous support remains available.
+- CSRF-protected session APIs, a lightweight `/api/health/` endpoint, and provider credentials loaded only from environment variables.
+- Production backend container using Gunicorn and WhiteNoise; Docker Compose passes OAuth configuration into the backend.
+- AWS production blueprint covering CloudFront, WAF, ALB, ECS Fargate, RDS/RDS Proxy, Redis, SQS/DLQs, EventBridge, Secrets Manager, observability, backups, and multi-account governance.
+- GitHub Actions for Python 3.10–3.12, frontend build, 90% coverage enforcement, CodeQL, Checkov, Bandit, dependency audits, dependency review, and an aggregate security gate.
+
+The detailed implementation notes are in [`SOCIAL_AUTH_AWS_CHANGELOG.md`](SOCIAL_AUTH_AWS_CHANGELOG.md), [`docs/SOCIAL_AUTHENTICATION.md`](docs/SOCIAL_AUTHENTICATION.md), and [`docs/AWS_PRODUCTION_ARCHITECTURE.md`](docs/AWS_PRODUCTION_ARCHITECTURE.md).
+
 ## Product idea
 
 A fan, artist, promoter, venue, sponsor, or community administrator proposes a gig such as:
@@ -757,54 +772,61 @@ SponsorOS consumes:
 
 # Testing and validation
 
-Install backend development dependencies and run the same pytest suite used by GitHub Actions:
+### Run the complete application suite
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r backend/requirements-dev.txt
-python -m pytest -v
-```
-
-Run the dependency-free package checks:
-
-```bash
-python scripts/static_checks.py
-```
-
-Run the complete backend, frontend, migration, and optional Docker validation in a normal development environment:
-
-```bash
+python -m pip install -r requirements.txt
 ./scripts/run_full_tests.sh
 ```
 
-The full results, limitations, and corrections made during validation are documented in [`TEST_REPORT.md`](TEST_REPORT.md). The combined README and product screenshots are included at [`docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf`](docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf).
+This runs dependency-free structural checks, GitHub workflow validation, shell validation, Django configuration and migration checks, blocking Flake8 rules, pytest with line/branch coverage, the frontend TypeScript/Vite build, and Docker Compose configuration validation when Docker is available.
+
+### Run application and security tests
+
+```bash
+./scripts/run_all_tests.sh
+```
+
+The security phase runs Checkov, Bandit, pip-audit, npm audit, and workflow validation. CodeQL and pull-request dependency review run in GitHub Actions because they depend on GitHub's code-scanning environment.
+
+### Run individual checks
+
+```bash
+python scripts/static_checks.py
+python scripts/validate_workflows.py
+python -m pytest backend -v
+./scripts/security_scan.sh
+```
+
+Backend CI requires at least **90% line and branch coverage** for the business-logic scope defined in [`COVERAGE_POLICY.md`](COVERAGE_POLICY.md). The current package contains 74 Python test functions, including expanded social-auth, ownership, profile, health-check, pledge, and sponsor attribution tests.
+
+The previous GitHub baseline completed 84 tests plus 7 subtests with 99.37% coverage before the final social-auth expansion. The new social-auth package must be pushed as a new commit so GitHub can perform the definitive Django/Allauth, frontend, and security execution. This sandbox could not download Django or npm dependencies, so blocked runtime checks are reported honestly in [`TEST_REPORT.md`](TEST_REPORT.md) rather than counted as passes.
+
+The combined README and product screenshots remain available at [`docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf`](docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf).
 
 ---
 
 # Production security and hardening
 
-1. Add VibesMeet authentication, role-based authorization, and organizer verification.
-2. Protect all Facebook Page and conversion endpoints with organizer/admin permissions.
-3. Never persist user or Page access tokens in plaintext.
-4. Use encrypted token storage or a secrets vault when long-lived Page access is required.
-5. Rotate, revoke, and monitor Meta tokens.
-6. Validate that a connected user has the necessary Page task before publishing.
-7. Add CSRF, OAuth `state`, nonce, redirect allowlists, and session binding.
-8. Run Conversions API events through an idempotent asynchronous queue.
-9. Store Meta event IDs and prevent duplicate submissions.
-10. Add rate limits to share-link generation, Login verification, Page publishing, and conversion endpoints.
-11. Do not allow arbitrary untrusted URLs in Page posts without validation.
-12. Add consent management for Pixel and advertising measurement.
-13. Add a payout ledger using double-entry accounting.
-14. Run refunds asynchronously with retries and dead-letter handling.
-15. Add tax, refund, cancellation, chargeback, age, privacy, sanctions, and accessibility rules.
-16. Have counsel approve campaign and deposit-conversion terms.
-17. Do not claim funds are held in escrow unless a compliant escrow arrangement exists.
-18. Add artist and venue contract upload, e-signature, insurance, permit, and capacity workflows.
-19. Add fraud controls, velocity limits, bot detection, email verification, and sponsor due diligence.
-20. Add metrics, tracing, backups, secret management, security scanning, and incident response.
+Implemented controls include session authentication, OAuth state handling through Allauth, CSRF-protected mutations, environment-only provider secrets, campaign owner/staff authorization, secure-cookie/HSTS production defaults, Gunicorn, non-root containers, Checkov, Bandit, CodeQL, dependency auditing, workflow validation, and a required security gate.
+
+Remaining production work:
+
+1. Add organization membership and granular RBAC beyond campaign owner/staff checks.
+2. Require recent reauthentication for account linking, settlement changes, refunds, and destructive actions.
+3. Add rate limiting and bot protection for `/accounts/*`, `/api/auth/*`, pledges, sponsors, and publishing endpoints.
+4. Store long-lived publishing tokens only in encrypted, scoped connection records; login tokens remain unstored by default.
+5. Run payment, refund, notification, provider-webhook, and Meta conversion work asynchronously through SQS with retries and DLQs.
+6. Add durable idempotency for external events, a double-entry payout ledger, and reconciliation reporting.
+7. Add consent management, privacy/deletion workflows, retention schedules, and regional data-processing controls.
+8. Add organization verification, sponsor due diligence, fraud/velocity controls, and sanctions screening where required.
+9. Add contract, insurance, permit, production-rider, capacity, accessibility, cancellation, and chargeback workflows.
+10. Complete provider review and staging smoke tests for each Google, Meta/Instagram, and TikTok application before enabling it in production.
+11. Protect production with WAF managed/rate rules, GuardDuty, Security Hub, Inspector, Config, CloudTrail, centralized logs, and tested backups.
+12. Obtain legal review of refundable commitment, deposit conversion, tax, payout, privacy, and event-cancellation terms.
 
 ---
 
@@ -862,3 +884,12 @@ The command fails automatically when measured coverage is below 90% and writes `
 
 GitHub Actions runs Checkov, Bandit, pip-audit, npm audit, CodeQL, dependency review, and workflow validation. The aggregate **Security gate** can be required in branch protection. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md) for scanner scope, enforcement levels, reports, and repository settings.
 
+
+
+## Social authentication
+
+The gig module now supports Google, Facebook, Instagram, and TikTok login through `django-allauth`. Social identities map to one local profile with fan, band, venue, organizer, rental, or sponsor account types. Authenticated users can link additional providers, campaign creation requires login, and lifecycle actions are restricted to the campaign owner or staff. See [`docs/SOCIAL_AUTHENTICATION.md`](docs/SOCIAL_AUTHENTICATION.md) for provider callbacks, environment variables, production setup, and the [`social-auth flow diagram`](docs/social-auth-flow.svg).
+
+## AWS production architecture
+
+The recommended production topology is documented in [`docs/AWS_PRODUCTION_ARCHITECTURE.md`](docs/AWS_PRODUCTION_ARCHITECTURE.md), with a rendered diagram in [`docs/aws-production-architecture.svg`](docs/aws-production-architecture.svg).

@@ -2,6 +2,12 @@ export type GoalType = "supporters" | "money" | "both";
 
 export interface Campaign {
   id: string;
+  owner: {
+    id: number;
+    display_name: string;
+    account_type: AccountType;
+    avatar_url: string;
+  } | null;
   title: string;
   slug: string;
   pitch: string;
@@ -112,4 +118,41 @@ export interface VibesMeetConfig {
     external_resource_mapping: boolean;
     reservation_conversion: string;
   };
+}
+
+
+export type AccountType = "fan" | "band" | "venue" | "organizer" | "rental" | "sponsor";
+
+export interface AuthProvider {
+  id: "google" | "facebook" | "instagram" | "tiktok";
+  label: string;
+  icon: string;
+  enabled: boolean;
+  login_url: string;
+  callback_path: string;
+}
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  avatar_url: string;
+  account_type: AccountType;
+  company_name: string;
+  bio: string;
+  city: string;
+  country: string;
+  verified: boolean;
+  linked_providers: string[];
+}
+
+export interface AuthConfig {
+  authenticated: boolean;
+  user: AuthUser | null;
+  providers: AuthProvider[];
+  csrf_token: string;
+  account_types: Array<{ value: AccountType; label: string }>;
 }

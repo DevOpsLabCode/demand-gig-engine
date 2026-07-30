@@ -60,3 +60,25 @@ small { color: #85818d; }.message { color: #84e0c1 !important; }.error { color: 
 @media (max-width: 800px) { .facebook-grid { grid-template-columns: 1fr; } .facebook-actions > *, .page-publisher > * { width: 100%; } .page-publisher select { min-width: 0; } }
 .facebook-hub-links { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
 .facebook-hub-links a { color: #cfe0ff; border: 1px solid #35558b; background: rgba(24,119,242,.10); border-radius: 999px; padding: 8px 12px; text-decoration: none; font-size: 13px; font-weight: 750; }
+
+
+.auth-panel { margin-top: 24px; padding: 16px; border: 1px solid #34313e; border-radius: 16px; background: rgba(12,11,18,.82); backdrop-filter: blur(12px); display: grid; gap: 12px; max-width: 860px; }
+.auth-heading, .linked-providers, .auth-logout { display: flex; align-items: center; gap: 8px; }
+.auth-providers { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; }
+.social-login { border: 1px solid #484451; border-radius: 11px; padding: 11px 14px; color: white; background: #1b1922; font-weight: 800; }
+.social-login.google { background: #fff; color: #222; }
+.social-login.facebook { background: #1877f2; border-color: #1877f2; }
+.social-login.instagram { background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); border: 0; }
+.social-login.tiktok { background: #050505; border-color: #3d3d3d; }
+.social-login:disabled { opacity: .38; cursor: not-allowed; filter: grayscale(1); }
+.auth-panel.authenticated { grid-template-columns: minmax(220px, 1fr) auto auto auto; align-items: center; }
+.auth-user { display: flex; align-items: center; gap: 10px; }
+.auth-user img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+.auth-user div { display: grid; }
+.auth-user span, .linked-providers { color: #aaa7b3; font-size: 12px; }
+.auth-panel select { min-width: 170px; }
+.auth-logout { border: 1px solid #514a60; border-radius: 10px; padding: 10px 12px; background: transparent; color: white; font-weight: 750; }
+@media (max-width: 800px) { .auth-providers, .auth-panel.authenticated { grid-template-columns: 1fr; } }
+
+.auth-connect { display: flex; flex-wrap: wrap; gap: 6px; }
+.auth-link { border: 1px solid #514a60; border-radius: 999px; padding: 6px 9px; background: #18151f; color: #ddd8e8; font-size: 11px; font-weight: 750; }

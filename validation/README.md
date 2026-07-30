@@ -1,13 +1,23 @@
 # Validation artifacts
 
-- `static_checks.log` - original dependency-free structural checks
-- `python_compile.log` - backend syntax compilation
-- `typescript_check.log` - TypeScript source check with dependency declarations
-- `secret_scan.log` - credential-pattern scan
-- `pdf_preflight.log` and `pdf_inspect.log` - final 26-page PDF verification
-- `runtime_attempt_summary.txt` - framework tests blocked by this sandbox
-- `django_runtime_attempt.log`, `npm_runtime_attempt.log`, and `docker_runtime_attempt.log` - exact environment errors
+The `*_final.log` files correspond to the July 30, 2026 validation of the social-auth/AWS production package.
 
-See the root `TEST_REPORT.md` for interpretation and the complete test plan.
-- `static_checks_vibesmeet.log` - 52 dependency-free structural and integration checks
-- `vibesmeet_contract_tests.log` - dependency-free handoff serialization and signed-webhook tests added July 30, 2026
+Executed successfully:
+
+- `static_checks_final.log` — 69 dependency-free repository checks
+- `github_actions_validation_final.log` — four workflow files
+- `python_compile_final.log` — backend and script bytecode compilation
+- `shell_syntax_final.log` — application/security test scripts
+- `vibesmeet_contract_tests_final.log` — two standalone contract tests
+- `typescript_syntax_final.log` — 12 TypeScript/TSX source files
+- `secret_scan_final.log` — high-confidence credential-pattern scan
+
+Attempted but blocked by this sandbox:
+
+- `python_dependency_install_attempt_final.log`
+- `npm_install_attempt_final.log`
+- `run_full_tests_attempt_final.log`
+- `security_scan_attempt_final.log`
+- `runtime_attempt_summary_final.log`
+
+The blocked logs show package-mirror or missing-tool failures, not application test failures. See the root [`TEST_REPORT.md`](../TEST_REPORT.md) for interpretation and the exact commands to run in GitHub Actions or an internet-connected development environment.

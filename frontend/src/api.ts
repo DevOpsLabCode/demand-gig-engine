@@ -9,12 +9,16 @@ import type {
   PledgeResult,
   SponsorInput,
   VibesMeetConfig,
+  AuthConfig,
+  AuthUser,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
+let serverCsrfToken = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -28,21 +32,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+function csrfHeaders(): Record<string, string> {
+  const token = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("csrftoken="))
+    ?.split("=")[1];
+  const value = token ? decodeURIComponent(token) : serverCsrfToken;
+  return value ? { "X-CSRFToken": value } : {};
+}
+
 export const api = {
+  authConfig: async () => {
+    const config = await request<AuthConfig>("/auth/config/");
+    serverCsrfToken = config.csrf_token;
+    return config;
+  },
+  updateAuthProfile: (data: Partial<AuthUser>) => request<AuthUser>("/auth/profile/", { method: "PATCH", body: JSON.stringify(data), headers: csrfHeaders() }),
+  logout: () => request<void>("/auth/logout/", { method: "POST", body: "{}", headers: csrfHeaders() }),
   listCampaigns: () => request<Campaign[]>("/campaigns/"),
   createCampaign: (data: CampaignCreate) =>
-    request<Campaign>("/campaigns/", { method: "POST", body: JSON.stringify(data) }),
+    request<Campaign>("/campaigns/", { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() }),
   launchCampaign: (slug: string) =>
-    request<Campaign>(`/campaigns/${slug}/launch/`, { method: "POST", body: "{}" }),
+    request<Campaign>(`/campaigns/${slug}/launch/`, { method: "POST", body: "{}", headers: csrfHeaders() }),
   pledge: (slug: string, data: PledgeInput) =>
     request<PledgeResult>(`/campaigns/${slug}/pledge/`, {
       method: "POST",
       body: JSON.stringify(data),
+      headers: csrfHeaders(),
     }),
   sponsor: (slug: string, data: SponsorInput) =>
     request<unknown>(`/campaigns/${slug}/sponsor/`, {
       method: "POST",
       body: JSON.stringify(data),
+      headers: csrfHeaders(),
     }),
   facebookConfig: () => request<FacebookConfig>("/facebook/config/"),
   vibesMeetConfig: () => request<VibesMeetConfig>("/vibesmeet/config/"),
@@ -50,16 +72,19 @@ export const api = {
     request<FacebookProfile>("/facebook/login/", {
       method: "POST",
       body: JSON.stringify({ access_token: accessToken }),
+      headers: csrfHeaders(),
     }),
   facebookPages: (accessToken: string) =>
     request<FacebookPage[]>("/facebook/pages/", {
       method: "POST",
       body: JSON.stringify({ access_token: accessToken }),
+      headers: csrfHeaders(),
     }),
   facebookShareLink: (slug: string, data: { group_name?: string; referral_code?: string; source?: string }) =>
     request<FacebookShareLink>(`/campaigns/${slug}/facebook/share-link/`, {
       method: "POST",
       body: JSON.stringify(data),
+      headers: csrfHeaders(),
     }),
   publishFacebookPage: (
     slug: string,
@@ -74,5 +99,6 @@ export const api = {
   ) => request<{ post_id: string; campaign_url: string }>(`/campaigns/${slug}/facebook/publish-page/`, {
     method: "POST",
     body: JSON.stringify(data),
+    headers: csrfHeaders(),
   }),
 };

@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
@@ -19,6 +20,7 @@ from .facebook import (
     send_conversion_event,
     verify_facebook_user,
 )
+from .permissions import IsCampaignOwnerOrStaff
 from .models import (
     DemandCampaign,
     ExternalResourceLink,
@@ -59,9 +61,35 @@ from .services import (
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
-    queryset = DemandCampaign.objects.all()
+    queryset = DemandCampaign.objects.select_related("owner", "owner__gig_profile").all()
     serializer_class = CampaignSerializer
     lookup_field = "slug"
+
+    owner_actions = {
+        "update",
+        "partial_update",
+        "destroy",
+        "launch",
+        "confirm_artist_action",
+        "confirm_venue_action",
+        "finalize",
+        "refund",
+        "facebook_track_conversion",
+        "facebook_publish_page",
+    }
+
+    def get_permissions(self):
+        if self.action == "create":
+            permission_classes = [IsAuthenticated]
+        elif self.action in self.owner_actions:
+            permission_classes = [IsAuthenticated, IsCampaignOwnerOrStaff]
+        else:
+            permission_classes = [AllowAny]
+        return [permission() for permission in permission_classes]
+
+    def perform_create(self, serializer):
+        owner = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(owner=owner)
 
     @action(detail=True, methods=["post"])
     def launch(self, request, slug=None):
@@ -78,7 +106,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
         serializer = PledgeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            pledge, client_secret = create_pledge(campaign.id, serializer.validated_data)
+            pledge_data = dict(serializer.validated_data)
+            if request.user.is_authenticated:
+                pledge_data["supporter_user"] = request.user
+            pledge, client_secret = create_pledge(campaign.id, pledge_data)
             return Response(
                 {"pledge": PledgeSerializer(pledge).data, "client_secret": client_secret},
                 status=status.HTTP_201_CREATED,
@@ -92,7 +123,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
         serializer = SponsorCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            sponsorship = create_sponsorship(campaign.id, serializer.validated_data)
+            sponsor_data = dict(serializer.validated_data)
+            if request.user.is_authenticated:
+                sponsor_data["contact_user"] = request.user
+            sponsorship = create_sponsorship(campaign.id, sponsor_data)
             return Response(SponsorSerializer(sponsorship).data, status=status.HTTP_201_CREATED)
         except CampaignStateError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)

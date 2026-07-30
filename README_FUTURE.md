@@ -1161,6 +1161,12 @@ Sensitive actions require stronger permissions and recent authentication:
 
 ---
 
+# Implemented identity baseline
+
+The current gig module already supports Google, Facebook, Instagram, and TikTok sign-in through Django Allauth, provider linking, one local gig profile, authenticated campaign ownership, and owner/staff campaign-management authorization. Account type is profile classification—not sufficient authorization by itself—and the `verified` flag cannot be self-assigned through the public profile API.
+
+The following section describes the next identity and connected-service layer, not functionality that should be assumed complete.
+
 # Future authentication and connected services
 
 ## Sign-on providers
@@ -1219,9 +1225,9 @@ Suggested connection record:
 {
   "organization_id": "org_123",
   "provider": "youtube",
-  "external_account_id": "UC...",
+  "external_account_id": "example-channel-id",
   "scopes": ["youtube.upload"],
-  "": "vault-reference",
+  "encrypted_refresh_token": "vault-reference",
   "status": "connected",
   "last_verified_at": "2026-07-30T10:00:00Z",
   "last_error_code": null

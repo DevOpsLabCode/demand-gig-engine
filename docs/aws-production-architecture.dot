@@ -1,0 +1,115 @@
+digraph DemandGigAWS {
+  graph [rankdir=TB, newrank=true, bgcolor="#07111F", fontname="Arial", fontsize=24, pad=0.35, nodesep=0.42, ranksep=0.62, compound=true, splines=spline, label="Demand Gig Engine — AWS Production Architecture", labelloc=t, fontcolor="white", size="16,10!", ratio=fill];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=10, color="#64748B", fillcolor="#172033", fontcolor="white", margin="0.13,0.09"];
+  edge [color="#91A4BE", arrowsize=0.65, penwidth=1.15];
+
+  users [label="Customers\nFans • Bands • Venues • Organizers\nRentals • Sponsors", shape=oval, fillcolor="#312E81", color="#A78BFA"];
+  idps [label="Social IdPs\nGoogle • Facebook\nInstagram • TikTok", fillcolor="#4A1D4A", color="#F0ABFC"];
+  partners [label="Business integrations\nStripe • VibesMeet • Meta APIs", fillcolor="#164E63", color="#67E8F9"];
+  cicd [label="GitHub Actions\nTests • 90% coverage\nCodeQL • Checkov • OIDC", fillcolor="#1F2937", color="#CBD5E1"];
+  operator [label="Operator access\nIAM Identity Center\nOptional Cognito/OIDC", fillcolor="#3B2354", color="#C084FC"];
+  {rank=same; users; idps; partners; cicd; operator}
+
+  subgraph cluster_edge {
+    label="EDGE — ONE PUBLIC HOSTNAME: gig.example.com"; color="#2563EB"; fontcolor="#93C5FD"; style="rounded";
+    route [label="Route 53\nDNS + health checks", fillcolor="#12365B", color="#60A5FA"];
+    waf [label="AWS WAF + Shield Standard\nmanaged rules • auth rate limits\nbot/IP controls", fillcolor="#4A1F2C", color="#FB7185"];
+    cf [label="CloudFront + ACM\nTLS • CDN • two origins\n/* → S3\n/api,/accounts,/admin,/share → ALB", fillcolor="#12365B", color="#60A5FA"];
+    route -> waf -> cf;
+  }
+
+  subgraph cluster_prod {
+    label="PRODUCTION ACCOUNT — CONTROL TOWER / ORGANIZATIONS"; color="#10B981"; fontcolor="#6EE7B7"; style="rounded";
+
+    spa [label="Private S3 SPA origin\nReact • CloudFront OAC\nSSE-KMS • versioning", fillcolor="#113B2D", color="#34D399"];
+
+    subgraph cluster_vpc {
+      label="VPC — THREE AVAILABILITY ZONES"; color="#22C55E"; fontcolor="#86EFAC"; style="rounded,dashed";
+
+      subgraph cluster_public {
+        label="PUBLIC SUBNETS"; color="#F59E0B"; fontcolor="#FCD34D"; style="rounded";
+        alb [label="Application Load Balancer\nHTTPS origin • health checks\nalb-sg: CloudFront only", fillcolor="#4A351A", color="#FBBF24"];
+        nat [label="NAT Gateway per AZ\ncontrolled OAuth/API egress", fillcolor="#4A351A", color="#FBBF24"];
+        igw [label="Internet Gateway", fillcolor="#4A351A", color="#FBBF24"];
+        {rank=same; alb; nat; igw}
+      }
+
+      subgraph cluster_app {
+        label="PRIVATE APPLICATION SUBNETS — NO PUBLIC IPs"; color="#0EA5E9"; fontcolor="#7DD3FC"; style="rounded";
+        web [label="ECS Fargate Web/API — min 3\nDjango • DRF • django-allauth\nOAuth callbacks • campaigns • payments\napp-sg: ALB only", fillcolor="#0E3A54", color="#38BDF8"];
+        worker [label="ECS Fargate Workers\nwebhooks • refunds • notifications\npartner sync • queue autoscaling", fillcolor="#0E3A54", color="#38BDF8"];
+        scheduler [label="EventBridge Scheduler\ncampaign expiry • reconciliation\none-off ECS tasks", fillcolor="#164E63", color="#2DD4BF"];
+        endpoints [label="VPC endpoints\nECR • S3 • Logs • Secrets\nKMS • SSM", fillcolor="#273244", color="#94A3B8"];
+        {rank=same; web; worker; scheduler; endpoints}
+      }
+
+      subgraph cluster_data {
+        label="ISOLATED DATA SUBNETS — NO INTERNET ROUTE"; color="#A855F7"; fontcolor="#D8B4FE"; style="rounded";
+        proxy [label="RDS Proxy\nconnection pooling\napp-sg → proxy only", fillcolor="#3B2354", color="#C084FC"];
+        db [label="RDS PostgreSQL Multi-AZ\nAurora optional when justified\nKMS • PITR • backups", fillcolor="#3B2354", color="#C084FC"];
+        redis [label="ElastiCache Redis Multi-AZ\nTLS • cached DB sessions • cache\nrate limits • worker coordination", fillcolor="#4A1F2C", color="#FB7185"];
+        {rank=same; proxy; db; redis}
+      }
+
+      alb -> web;
+      web -> proxy -> db;
+      web -> redis;
+      worker -> redis;
+      web -> nat -> igw;
+    }
+
+    subgraph cluster_managed {
+      label="MANAGED SERVICES"; color="#F59E0B"; fontcolor="#FCD34D"; style="rounded";
+      queues [label="SQS queues + DLQs\npayments • OAuth/account events\nwebhooks • refunds", fillcolor="#4A351A", color="#F59E0B"];
+      events [label="EventBridge bus\ndomain events + fan-out", fillcolor="#4A351A", color="#F59E0B"];
+      secrets [label="Secrets Manager + KMS\nOAuth • Stripe • DB credentials", fillcolor="#4A1F2C", color="#FB7185"];
+      media [label="S3 media / exports / evidence\nversioning • lifecycle • KMS", fillcolor="#113B2D", color="#34D399"];
+      ses [label="Amazon SES\ntransactional email", fillcolor="#164E63", color="#2DD4BF"];
+      ecr [label="Amazon ECR\nimmutable images\nInspector scanning", fillcolor="#4A351A", color="#FBBF24"];
+      obs [label="CloudWatch + X-Ray / OTel\nlogs • metrics • traces • alarms", fillcolor="#12365B", color="#60A5FA"];
+      backup [label="AWS Backup\nRDS + S3 policies\ncross-account copy", fillcolor="#273244", color="#94A3B8"];
+      {rank=same; queues; events; secrets; media}
+      {rank=same; ses; ecr; obs; backup}
+    }
+
+    spa -> alb [style=invis, weight=5];
+    web -> queues;
+    queues -> worker;
+    web -> events;
+    events -> worker;
+    scheduler -> worker;
+    web -> secrets;
+    worker -> secrets;
+    web -> media;
+    worker -> media;
+    web -> ses;
+    web -> obs;
+    worker -> obs;
+    db -> backup;
+    media -> backup;
+    endpoints -> ecr [style=dashed];
+    endpoints -> secrets [style=dashed];
+  }
+
+  subgraph cluster_gov {
+    label="CENTRAL SECURITY + LOG ARCHIVE ACCOUNTS"; color="#EF4444"; fontcolor="#FCA5A5"; style="rounded";
+    security [label="Security Tooling\nSecurity Hub • GuardDuty • Config\nDetective • Access Analyzer", fillcolor="#451A24", color="#FB7185"];
+    archive [label="Log Archive\nOrg CloudTrail • WAF/ALB/CloudFront logs\nS3 Object Lock • restricted access", fillcolor="#451A24", color="#FB7185"];
+    {rank=same; security; archive}
+  }
+
+  users -> route;
+  operator -> route [style=dashed];
+  cf -> spa;
+  cf -> alb;
+  idps -> cf [color="#D8B4FE"];
+  igw -> idps [color="#D8B4FE"];
+  igw -> partners [color="#67E8F9"];
+  cicd -> ecr;
+  ecr -> web;
+  ecr -> worker;
+  cf -> archive;
+  alb -> archive;
+  obs -> archive;
+  security -> archive;
+}

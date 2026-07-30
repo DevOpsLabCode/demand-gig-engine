@@ -90,6 +90,7 @@ def create_pledge(campaign_id, data: dict) -> tuple[Pledge, str]:
 
     pledge = Pledge.objects.create(
         campaign=campaign,
+        supporter_user=data.get("supporter_user"),
         supporter_name=data["supporter_name"],
         supporter_email=data["supporter_email"],
         quantity=data.get("quantity", 1),

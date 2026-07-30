@@ -1,9 +1,10 @@
 from django.utils import timezone
 from rest_framework import serializers
-from .models import DemandCampaign, Pledge, SponsorCommitment
+from .models import DemandCampaign, GigUserProfile, Pledge, SponsorCommitment
 
 
 class CampaignSerializer(serializers.ModelSerializer):
+    owner = serializers.SerializerMethodField()
     active_supporter_count = serializers.IntegerField(read_only=True)
     committed_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     target_reached = serializers.BooleanField(read_only=True)
@@ -12,7 +13,7 @@ class CampaignSerializer(serializers.ModelSerializer):
     class Meta:
         model = DemandCampaign
         fields = [
-            "id", "title", "slug", "pitch", "artist_name", "city", "country", "proposed_date",
+            "id", "owner", "title", "slug", "pitch", "artist_name", "city", "country", "proposed_date",
             "deadline", "goal_type", "supporter_target", "amount_target", "suggested_deposit",
             "currency", "status", "artist_confirmed", "venue_confirmed", "confirmed_artist_details",
             "confirmed_venue_details", "event_id", "organizer_name", "organizer_email",
@@ -21,9 +22,21 @@ class CampaignSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = [
+            "owner",
             "slug", "status", "artist_confirmed", "venue_confirmed", "confirmed_artist_details",
             "confirmed_venue_details", "event_id", "created_at", "updated_at",
         ]
+
+    def get_owner(self, obj):
+        if not obj.owner_id:
+            return None
+        profile = getattr(obj.owner, "gig_profile", None)
+        return {
+            "id": obj.owner_id,
+            "display_name": (profile.display_name if profile else "") or obj.owner.get_full_name() or obj.owner.get_username(),
+            "account_type": profile.account_type if profile else "fan",
+            "avatar_url": profile.avatar_url if profile else "",
+        }
 
     def validate_deadline(self, value):
         if value <= timezone.now():
@@ -43,6 +56,26 @@ class CampaignSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class GigUserProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GigUserProfile
+        fields = [
+            "account_type",
+            "display_name",
+            "company_name",
+            "avatar_url",
+            "bio",
+            "city",
+            "country",
+        ]
+
+    def validate(self, attrs):
+        for field in ("display_name", "company_name", "bio", "city", "country"):
+            if field in attrs and isinstance(attrs[field], str):
+                attrs[field] = attrs[field].strip()
+        return attrs
+
+
 class PledgeCreateSerializer(serializers.Serializer):
     supporter_name = serializers.CharField(max_length=160)
     supporter_email = serializers.EmailField()
@@ -58,7 +91,7 @@ class PledgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pledge
         fields = "__all__"
-        read_only_fields = ["campaign", "status", "payment_provider", "payment_reference"]
+        read_only_fields = ["campaign", "supporter_user", "status", "payment_provider", "payment_reference"]
 
 
 class SponsorCreateSerializer(serializers.Serializer):
@@ -73,7 +106,7 @@ class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
         model = SponsorCommitment
         fields = "__all__"
-        read_only_fields = ["campaign", "status", "payment_reference"]
+        read_only_fields = ["campaign", "contact_user", "status", "payment_reference"]
 
 
 class ConfirmationSerializer(serializers.Serializer):

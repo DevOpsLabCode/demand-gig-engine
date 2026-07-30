@@ -1,0 +1,8 @@
+=== Python dependency installation attempt ===
+WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Looking in indexes: https://reader:****@packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/pypi/pypi-public/simple
+Requirement already satisfied: pip in ./.venv-test/lib/python3.13/site-packages (25.1.1)
+WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Looking in indexes: https://reader:****@packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/pypi/pypi-public/simple
+ERROR: Could not find a version that satisfies the requirement Django<5.3,>=5.1 (from versions: none)
+ERROR: No matching distribution found for Django<5.3,>=5.1
