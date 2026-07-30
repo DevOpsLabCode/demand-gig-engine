@@ -122,3 +122,18 @@ A fresh dependency installation was attempted on July 30, 2026. The sandbox pack
 ## 90% business-logic coverage gate
 
 The test suite now includes targeted branch tests for Meta/Facebook API transport behavior, campaign calculations, serializer validation, payment-provider selection, campaign state errors, payment/refund failures, sponsor refunds, and due-campaign expiration. CI enforces a minimum of 90.00% line and branch coverage for the production business-logic scope defined in `COVERAGE_POLICY.md` and `.coveragerc`.
+
+## GitHub Actions execution validation — July 30, 2026
+
+The GitHub Actions definitions were hardened and statically validated:
+
+- Four workflow YAML files parsed successfully.
+- Official action references use Node 24-compatible major versions.
+- Backend dependencies are installed explicitly before Django/pytest execution.
+- Backend tests run independently on Python 3.10, 3.11, and 3.12.
+- The frontend installs dependencies, performs TypeScript checking, and builds with Vite on Node.js 22.
+- Checkov, pip-audit, Bandit, and npm audit run as independent jobs and always upload their own reports when produced.
+- Checkov SARIF publication is best-effort; the Checkov policy result remains enforced even if GitHub code scanning is unavailable.
+- Shell syntax, Python compilation, the repository's 52 static checks, and two standalone VibesMeet contract tests passed locally.
+
+The complete Django/pytest matrix and external scanners require GitHub-hosted package/network access and therefore remain the definitive runtime checks after the commit is pushed.

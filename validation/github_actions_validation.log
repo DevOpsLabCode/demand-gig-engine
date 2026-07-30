@@ -1,0 +1,17 @@
+GitHub Actions validation report
+Generated: 2026-07-30
+
+Validated 4 GitHub Actions workflow files.
+PASS: bash syntax: scripts/run_full_tests.sh
+PASS: bash syntax: scripts/security_scan.sh
+PASS: Python compilation: backend and scripts
+PASS: VibesMeet standalone contract tests
+test_handoff_serializes_and_validates (backend.integrations.vibesmeet.tests.test_contract.VibesMeetContractTests.test_handoff_serializes_and_validates) ... ok
+test_signed_webhook_parses (backend.integrations.vibesmeet.tests.test_contract.VibesMeetContractTests.test_signed_webhook_parses) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK
+
+External dependency installation, Checkov, Bandit, pip-audit, npm audit, CodeQL, and the full Django pytest matrix require GitHub-hosted package/network access and were not executed in this sandbox.

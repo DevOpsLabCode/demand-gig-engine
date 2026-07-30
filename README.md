@@ -875,4 +875,4 @@ Run the same scanner set locally with:
 ./scripts/security_scan.sh
 ```
 
-Repository administrators must separately enable GitHub secret scanning, push protection, Dependabot alerts/security updates, and branch-protection requirements. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md).
+Repository administrators must separately enable GitHub secret scanning, push protection, Dependabot alerts/security updates, and branch-protection requirements. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md). The included workflows also validate their own YAML/action versions, run backend tests across Python 3.10–3.12, build the frontend on Node.js 22, and run each security scanner independently so one failure does not hide the other reports.

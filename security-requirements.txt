@@ -2,3 +2,6 @@
 bandit[toml]>=1.8,<2.0
 checkov>=3.2,<4.0
 pip-audit>=2.7,<3.0
+
+# GitHub Actions workflow validation.
+PyYAML>=6.0,<7.0
