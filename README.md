@@ -847,3 +847,13 @@ verified attendance, and post-event reporting.
 ```
 
 The integration scaffold is deliberately contract-first. It does not assume that the proposed private VibesMeet endpoint names are already available. Authentication, scopes, payloads, rate limits, webhooks, and reservation-credit behavior must be confirmed with VibesMeet before production use.
+
+### Coverage quality gate
+
+Backend CI enforces **100% line and branch coverage for production business logic**. The exact measured modules and the narrowly defined framework/bootstrap exclusions are documented in [`COVERAGE_POLICY.md`](COVERAGE_POLICY.md).
+
+```bash
+python -m pytest backend -v
+```
+
+The command fails automatically when measured coverage is below 100% and writes `coverage.xml` for GitHub Actions.

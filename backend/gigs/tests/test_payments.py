@@ -39,3 +39,12 @@ class PaymentProviderTests(SimpleTestCase):
             self.assertEqual(p.refund(payment_reference='pi'),'re')
             self.assertEqual(p.finalize(payment_reference='pi'),'pi')
             self.assertEqual(p.get_client_secret(payment_reference='pi'),'')
+    @override_settings(PAYMENT_PROVIDER='stripe', STRIPE_SECRET_KEY='sk_test')
+    def test_provider_selection_stripe(self):
+        fake=SimpleNamespace(
+            PaymentIntent=SimpleNamespace(create=Mock(), retrieve=Mock()),
+            Refund=SimpleNamespace(create=Mock()), api_key=None,
+        )
+        with patch.dict('sys.modules', {'stripe': fake}):
+            self.assertIsInstance(get_payment_provider(), StripePaymentProvider)
+

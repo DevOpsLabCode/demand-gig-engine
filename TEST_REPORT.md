@@ -118,3 +118,7 @@ The included endpoint paths and webhook names are a **proposed partner contract*
 ### Runtime limitation
 
 A fresh dependency installation was attempted on July 30, 2026. The sandbox package registry returned no Django distributions, so Django migrations and endpoint tests remain environment-blocked here. The dependency-free integration contract tests and Python/static checks passed. Run the full suite in a normal development environment with package-registry access.
+
+## 100% business-logic coverage gate
+
+The test suite now includes targeted branch tests for Meta/Facebook API transport behavior, campaign calculations, serializer validation, payment-provider selection, campaign state errors, payment/refund failures, sponsor refunds, and due-campaign expiration. CI enforces 100.00% line and branch coverage for the production business-logic scope defined in `COVERAGE_POLICY.md` and `.coveragerc`.

@@ -1,11 +1,13 @@
-.flake8
+.coveragerc
 .github/workflows/python-package.yml
 .gitignore
+COVERAGE_POLICY.md
 Dockerfile.backend
 Dockerfile.frontend
 README.md
 README_FUTURE.md
 TEST_REPORT.md
+apply-ci-fix.sh
 backend/.env.example
 backend/config/__init__.py
 backend/config/settings.py
@@ -31,7 +33,11 @@ backend/gigs/services.py
 backend/gigs/tests/__init__.py
 backend/gigs/tests/test_campaign_flow.py
 backend/gigs/tests/test_facebook.py
+backend/gigs/tests/test_facebook_coverage.py
+backend/gigs/tests/test_model_serializer_coverage.py
+backend/gigs/tests/test_payments.py
 backend/gigs/tests/test_serializers.py
+backend/gigs/tests/test_service_edge_coverage.py
 backend/gigs/urls.py
 backend/gigs/views.py
 backend/integrations/__init__.py
@@ -43,6 +49,7 @@ backend/integrations/vibesmeet/exceptions.py
 backend/integrations/vibesmeet/signing.py
 backend/integrations/vibesmeet/tests/__init__.py
 backend/integrations/vibesmeet/tests/test_contract.py
+backend/integrations/vibesmeet/tests/test_edge_cases.py
 backend/integrations/vibesmeet/types.py
 backend/integrations/vibesmeet/webhooks.py
 backend/manage.py
