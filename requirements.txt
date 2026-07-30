@@ -1,0 +1,3 @@
+# Root compatibility dependency file for GitHub Actions and developer tooling.
+# The backend development requirements include Django, pytest-django, and flake8.
+-r backend/requirements-dev.txt

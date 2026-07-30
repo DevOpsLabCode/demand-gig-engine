@@ -78,6 +78,7 @@ frontend/src/vite-env.d.ts
 frontend/tsconfig.json
 frontend/vite.config.ts
 pytest.ini
+requirements.txt
 screenshots/01-landing-and-seed.png
 screenshots/02-campaign-detail.png
 screenshots/03-mobile-campaign.png
