@@ -99,6 +99,7 @@ class FacebookPagePublishSerializer(FacebookShareLinkSerializer):
     page_access_token = serializers.CharField(max_length=4096, write_only=True)
     message = serializers.CharField(max_length=5000, required=False, allow_blank=True)
 
+
 class FacebookConversionSerializer(serializers.Serializer):
     event_name = serializers.CharField(max_length=80)
     event_id = serializers.CharField(max_length=180)

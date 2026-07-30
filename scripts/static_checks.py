@@ -144,7 +144,6 @@ def check_required_files() -> None:
         check((ROOT / rel).exists(), f"Required file exists: {rel}")
 
 
-
 def check_vibesmeet_bridge() -> None:
     blueprint = (ROOT / "docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md").read_text(encoding="utf-8")
     client = (ROOT / "backend/integrations/vibesmeet/client.py").read_text(encoding="utf-8")
@@ -160,6 +159,7 @@ def check_vibesmeet_bridge() -> None:
     check("Idempotency-Key" in client and "X-Correlation-ID" in client, "VibesMeet client sends idempotency and correlation headers")
     check("verify_signature" in webhook, "VibesMeet webhook parser verifies signatures")
     check("Contract proposal" in openapi and "/v1/partner/events/drafts" in openapi, "Proposed VibesMeet OpenAPI contract is present")
+
 
 def main() -> int:
     check_required_files()
