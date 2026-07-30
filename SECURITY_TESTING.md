@@ -1,66 +1,64 @@
 # Security Testing
 
-The repository uses layered security checks because no single scanner covers application code, dependencies, secrets, workflows, containers, and infrastructure configuration.
+The repository includes automated GitHub security checks in addition to the application test and coverage workflow.
 
-## GitHub Actions controls
+## GitHub Actions workflows
 
-| Control | Purpose | Enforcement |
-|---|---|---|
-| CodeQL | Semantic analysis of Python and JavaScript/TypeScript | GitHub code-scanning alerts |
-| Checkov | Dockerfile, GitHub Actions, IaC, and secret-policy checks | High and critical findings fail CI; SARIF upload is best-effort |
-| Bandit | Python security-pattern analysis | Runs in an independent job; high severity with medium-or-higher confidence fails CI |
-| pip-audit | Python dependency CVEs | Runs in an independent job; any confirmed vulnerability fails CI |
-| npm audit | Frontend production dependency CVEs | High and critical findings fail CI |
-| Dependency Review | Prevents vulnerable runtime dependencies in pull requests | High and critical additions fail PR checks |
-| Dependabot | Updates Python, npm, Docker, and GitHub Actions dependencies | Weekly pull requests |
+### Security tests
 
-Checkov runs directly from the Python package rather than a third-party container action. This reduces the number of external GitHub Actions that receive workflow execution privileges. Each scanner runs in a separate job, so a dependency-audit failure does not prevent Bandit, Checkov, or npm audit from producing their own results.
+`.github/workflows/security.yml` runs on pushes and pull requests to `main`, every Tuesday, and on manual dispatch.
 
-`CKV_GHA_5` and `CKV_GHA_6` are excluded because this repository uploads test and scanner reports, not executable release artifacts. Production release artifacts should be signed and attested before delivery.
+It contains independent jobs for:
+
+- **Checkov:** scans Terraform, CloudFormation, Kubernetes, Helm, Bicep/ARM, Serverless, Dockerfiles, GitHub Actions, OpenAPI documents, and committed secrets. It uploads SARIF and blocks high or critical findings.
+- **Bandit:** scans production Python source and blocks high-severity findings with medium-or-higher confidence.
+- **pip-audit:** checks Python runtime requirements against published vulnerability advisories.
+- **npm audit:** checks production frontend dependencies and blocks high or critical vulnerabilities.
+- **Workflow validation:** checks workflow YAML structure, approved action major versions, and shell syntax.
+- **Security gate:** provides one aggregate status check that fails when any required security job fails.
+
+Reports are retained as GitHub Actions artifacts for 14 days.
+
+### CodeQL
+
+`.github/workflows/codeql.yml` performs GitHub CodeQL analysis for Python and JavaScript/TypeScript. Findings appear under **Security → Code scanning** when code scanning is available for the repository.
+
+### Dependency review
+
+`.github/workflows/dependency-review.yml` runs on pull requests and blocks newly introduced high- or critical-severity runtime dependency vulnerabilities.
+
+### Dependabot
+
+`.github/dependabot.yml` checks Python, npm, Docker, and GitHub Actions dependencies weekly.
+
+## Recommended GitHub repository settings
+
+Under **Settings → Code security and analysis**, enable:
+
+- Dependency graph
+- Dependabot alerts
+- Dependabot security updates
+- Secret scanning
+- Push protection
+
+Under branch protection or rulesets for `main`, require:
+
+- `Application tests / Backend / Python 3.12`
+- `Application tests / Frontend type-check and build`
+- `Security tests / Security gate`
+- Both CodeQL language checks
+- Dependency review for pull requests
 
 ## Local execution
+
+Install and run all security tools:
 
 ```bash
 ./scripts/security_scan.sh
 ```
 
-The local command requires Python, pip, Node.js, and npm. It runs every scanner and returns a failing exit status only after all scanner exit codes have been reported.
+The local script exits nonzero when workflow validation, Checkov, Bandit, pip-audit, or npm audit fails.
 
-## Required GitHub repository settings
+## Checkov policy
 
-Workflow files cannot enable these settings by themselves. In **Settings → Security and analysis**, enable:
-
-1. Dependency graph
-2. Dependabot alerts
-3. Dependabot security updates
-4. Secret scanning
-5. Push protection
-6. Code scanning, when it is not already activated by the included CodeQL workflow
-
-Protect `main` and require these checks before merging:
-
-- Backend / Python 3.10
-- Backend / Python 3.11
-- Backend / Python 3.12
-- Frontend type-check and build
-- Validate GitHub workflows and scripts
-- Checkov policy scan
-- Python dependency audit
-- Python Bandit SAST
-- npm dependency audit
-- CodeQL (python)
-- CodeQL (javascript-typescript)
-- Dependency review
-
-Require pull requests, conversation resolution, and at least one approving review. Two approvals and CODEOWNERS review are preferred for production changes.
-
-## Recommended next stage
-
-Add Trivy or Grype image scanning after production Docker images are built. Checkov validates configuration; it does not replace operating-system and container-package CVE scanning.
-
-
-## GitHub Actions compatibility
-
-The workflows use the current Node 24-compatible major releases of the official GitHub actions: checkout v7, setup-python v7, setup-node v7, upload-artifact v7, dependency-review-action v5, and CodeQL v4. Checkout credentials are not persisted.
-
-`scripts/validate_workflows.py` checks all workflow YAML files, required workflow keys, job timeouts, and the approved action major versions. The security workflow runs this validation before the scanners. SARIF publication is marked best-effort so a repository without code-scanning entitlement can still enforce the Checkov command result and retain the SARIF artifact.
+Checkov reports all findings but makes the GitHub job blocking at `HIGH` severity and above. The two artifact-signing checks `CKV_GHA_5` and `CKV_GHA_6` are temporarily skipped because the project does not yet publish signed release artifacts. Remove those skips when release artifact signing and SBOM attestations are introduced.

@@ -860,19 +860,5 @@ The command fails automatically when measured coverage is below 90% and writes `
 
 ## Automated security testing
 
-GitHub Actions now runs a layered security suite:
+GitHub Actions runs Checkov, Bandit, pip-audit, npm audit, CodeQL, dependency review, and workflow validation. The aggregate **Security gate** can be required in branch protection. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md) for scanner scope, enforcement levels, reports, and repository settings.
 
-- **CodeQL** for Python and JavaScript/TypeScript semantic code analysis
-- **Checkov** for Dockerfiles, GitHub Actions, secrets, and future Terraform/Kubernetes/cloud IaC
-- **Bandit** for high-severity Python security patterns
-- **pip-audit** and **npm audit** for vulnerable dependencies
-- **Dependency Review** to block vulnerable runtime dependencies introduced by pull requests
-- **Dependabot** for weekly Python, npm, Docker, and GitHub Actions updates
-
-Run the same scanner set locally with:
-
-```bash
-./scripts/security_scan.sh
-```
-
-Repository administrators must separately enable GitHub secret scanning, push protection, Dependabot alerts/security updates, and branch-protection requirements. See [`SECURITY_TESTING.md`](SECURITY_TESTING.md). The included workflows also validate their own YAML/action versions, run backend tests across Python 3.10–3.12, build the frontend on Node.js 22, and run each security scanner independently so one failure does not hide the other reports.
