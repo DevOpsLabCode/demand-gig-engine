@@ -106,6 +106,7 @@ validation/python_compile.log
 validation/runtime_attempt_summary.txt
 validation/secret_scan.log
 validation/static_checks.log
+validation/static_checks_coverage.log
 validation/static_checks_vibesmeet.log
 validation/typescript_check.log
 validation/vibesmeet_contract_tests.log

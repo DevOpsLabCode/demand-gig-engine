@@ -850,10 +850,10 @@ The integration scaffold is deliberately contract-first. It does not assume that
 
 ### Coverage quality gate
 
-Backend CI enforces **100% line and branch coverage for production business logic**. The exact measured modules and the narrowly defined framework/bootstrap exclusions are documented in [`COVERAGE_POLICY.md`](COVERAGE_POLICY.md).
+Backend CI enforces **90% minimum line and branch coverage for production business logic**. The exact measured modules and the narrowly defined framework/bootstrap exclusions are documented in [`COVERAGE_POLICY.md`](COVERAGE_POLICY.md).
 
 ```bash
 python -m pytest backend -v
 ```
 
-The command fails automatically when measured coverage is below 100% and writes `coverage.xml` for GitHub Actions.
+The command fails automatically when measured coverage is below 90% and writes `coverage.xml` for GitHub Actions.
