@@ -21,6 +21,7 @@
 
 - Fixed the security-remediation validator so renamed or consolidated GitHub workflow files are discovered safely instead of raising `FileNotFoundError`.
 - Extended workflow discovery to the Terraform pipeline, added the `TERRAFORM_WORKFLOW_PATH` override, and changed Terraform workflow path filters to `.github/workflows/**` so workflow renames remain validated and trigger CI.
+- Pinned the canonical Terraform and security workflow paths in the security workflow and added regression tests for conventional filenames, renamed workflows, and explicit environment overrides.
 - Moved all governed Checkov suppressions inside their Terraform resource/data scopes, added CloudTrail CloudWatch integration, explicit bootstrap KMS policy, mandatory Redis Multi-AZ failover, and a dedicated regional ALB WAF.
 
 ## Documentation rule

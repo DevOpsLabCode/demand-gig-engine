@@ -141,6 +141,7 @@ scripts/run_all_tests.sh
 scripts/run_full_tests.sh
 scripts/security_scan.sh
 scripts/static_checks.py
+scripts/test_workflow_discovery.py
 scripts/validate_documentation_links.py
 scripts/validate_security_remediation.py
 scripts/validate_terraform_module_contracts.py
@@ -332,6 +333,8 @@ validation/security-remediation-2026-07-31/terraform-contracts.log
 validation/security-remediation-2026-07-31/workflow-discovery-follow-up.log
 validation/security-remediation-2026-07-31/workflow-validation.log
 validation/security-remediation-2026-07-31/yaml-parse.log
+validation/security-workflow-path-fix-2026-07-31/README.md
+validation/security-workflow-path-fix-2026-07-31/validation.log
 validation/security_remediation_terraform_deep_audit.log
 validation/security_scan_attempt_final.log
 validation/shell_syntax.log
