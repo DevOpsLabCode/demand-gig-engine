@@ -1,10 +1,11 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Validates infrastructure with Terraform formatting and native validation, TFLint, Checkov, Go contract tests, and shell-script checks.
-# Comments identify triggers, permission boundaries, jobs, services, and major execution steps.
+# Purpose: Validates infrastructure with Terraform formatting and native
+# validation, TFLint, Checkov, Go contract tests, and shell-script checks.
+# Comments identify triggers, permission boundaries, jobs, services,
+# and major execution steps.
 
 name: Terraform
 
-# Define which repository events or manual requests start this automation.
 on:
   pull_request:
     paths:
@@ -12,20 +13,25 @@ on:
       - "Dockerfile.backend"
       - "Dockerfile.frontend"
       - ".github/workflows/**"
+
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "terraform/**"
       - "Dockerfile.backend"
       - "Dockerfile.frontend"
       - ".github/workflows/**"
-  # Manual runs deploy only to development. Production deployment is tied
-  # to an immutable published GitHub Release rather than user-supplied input.
-  workflow_dispatch: {}
-  release:
-    types: [published]
 
-# Grant only the token permissions required by the following jobs.
+  # Manual runs deploy only to development.
+  workflow_dispatch: {}
+
+  # Production deployment occurs only after publishing a GitHub Release.
+  release:
+    types:
+      - published
+
+# Static AWS access-key authentication does not require id-token permission.
 permissions:
   contents: read
 
@@ -33,75 +39,82 @@ concurrency:
   group: terraform-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Declare values shared by multiple jobs or steps.
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TERRAFORM_VERSION: "1.15.8"
+  AWS_REGION: "us-east-1"
 
-# Group independent or dependent execution units for this workflow.
 jobs:
   validate:
     name: Terraform validation and policy tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
     steps:
-      # Run the “Check out repository” phase and stop the job if its required checks fail.
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      # Run the “Set up Go” phase and stop the job if its required checks fail.
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.23"
           cache-dependency-path: terraform/tests/go.mod
 
-      # Run the “Set up TFLint” phase and stop the job if its required checks fail.
       - name: Set up TFLint
         uses: terraform-linters/setup-tflint@v6
 
-      # Run the “Normalize and validate Terraform” phase and stop the job if its required checks fail.
       - name: Normalize and validate Terraform
+        shell: bash
         run: |
+          set -euo pipefail
+
           terraform -chdir=terraform fmt -check -recursive -diff
 
-          # Validate each independent Terraform root. Nested roots are not validated by the workload root.
-          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform init \
+            -backend=false \
+            -input=false
+
           terraform -chdir=terraform validate
-          terraform -chdir=terraform/global/bootstrap init -backend=false -input=false
+
+          terraform -chdir=terraform/global/bootstrap init \
+            -backend=false \
+            -input=false
+
           terraform -chdir=terraform/global/bootstrap validate
-          terraform -chdir=terraform/global/account init -backend=false -input=false
+
+          terraform -chdir=terraform/global/account init \
+            -backend=false \
+            -input=false
+
           terraform -chdir=terraform/global/account validate
 
       - name: Validate Terraform helper scripts
+        shell: bash
         run: |
+          set -euo pipefail
+
           bash -n terraform/scripts/bootstrap.sh
           bash -n terraform/scripts/bootstrap-account.sh
           bash -n terraform/scripts/deploy.sh
 
-      # Run the “Run TFLint” phase and stop the job if its required checks fail.
       - name: Run TFLint
         run: tflint --chdir=terraform --recursive
 
-      # Run the “Run Go contract tests” phase and stop the job if its required checks fail.
       - name: Validate Terraform module contracts
         run: python scripts/validate_terraform_module_contracts.py
 
       - name: Run Go contract tests
-        run: cd terraform/tests && go test -race -count=1 -v ./...
+        working-directory: terraform/tests
+        run: go test -race -count=1 -v ./...
 
-      # Run the “Run Checkov” phase and stop the job if its required checks fail.
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
         with:
@@ -112,52 +125,92 @@ jobs:
 
   plan:
     name: Development plan
-    # Remote state can contain sensitive values, so AWS-backed plans run only
-    # after trusted code reaches main; pull requests receive offline validation only.
+
+    # AWS-backed plans run only after trusted code reaches main.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: validate
+
+    needs:
+      - validate
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: dev
+
     permissions:
       contents: read
-      id-token: write
 
-    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
     steps:
-      # Run the “Check out repository” phase and stop the job if its required checks fail.
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      # Run the “Configure AWS credentials” phase and stop the job if its required checks fail.
-      - name: Configure AWS credentials
+      - name: Verify development AWS secrets
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ACCESS_KEY_ID}" ]]; then
+            echo "::error::AWS_ACCESS_KEY_ID is missing or unavailable."
+            echo "::error::Add it under repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          if [[ -z "${SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::AWS_SECRET_ACCESS_KEY is missing or unavailable."
+            echo "::error::Add it under repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          echo "Development AWS credential secrets are available."
+
+      - name: Configure development AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          force-skip-oidc: true
+          unset-current-credentials: true
+          disable-retry: true
+          mask-aws-account-id: true
 
-      # Run the “Resolve existing remote backend” phase and stop the job if its required checks fail.
+      - name: Verify development AWS identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
       - name: Resolve existing remote backend
-        # Declare values shared by multiple jobs or steps.
+        shell: bash
         env:
           CREATE_BACKEND: "false"
-        run: ./terraform/scripts/bootstrap.sh dev
-
-      # Run the “Initialize remote state” phase and stop the job if its required checks fail.
-      - name: Initialize remote state
-        run: terraform -chdir=terraform init -input=false -backend-config=envs/dev/backend.hcl
-
-      # Run the “Create Terraform plan” phase and stop the job if its required checks fail.
-      - name: Create Terraform plan
         run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap.sh dev
+
+      - name: Initialize remote state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform -chdir=terraform init \
+            -input=false \
+            -backend-config=envs/dev/backend.hcl
+
+      - name: Create Terraform plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
           terraform -chdir=terraform plan \
             -input=false \
             -lock-timeout=5m \
@@ -165,28 +218,36 @@ jobs:
             -var-file=envs/dev/terraform.tfvars \
             -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
 
-      # Run the “Render plan summary” phase and stop the job if its required checks fail.
       - name: Render plan summary
-        run: terraform -chdir=terraform show -no-color dev.tfplan > terraform/dev-plan.txt
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      # Run the “Upload plan summary” phase and stop the job if its required checks fail.
+          terraform -chdir=terraform show \
+            -no-color \
+            dev.tfplan > terraform/dev-plan.txt
+
       - name: Upload plan summary
         uses: actions/upload-artifact@v6
         with:
           name: terraform-dev-plan
           path: terraform/dev-plan.txt
           retention-days: 14
+          if-no-files-found: error
 
   deploy-dev:
     name: Deploy development
     if: github.event_name == 'workflow_dispatch'
-    needs: validate
+
+    needs:
+      - validate
+
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: dev
+
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Check out repository
@@ -199,25 +260,62 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Configure AWS credentials
+      - name: Verify development AWS secrets
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ACCESS_KEY_ID}" ]]; then
+            echo "::error::AWS_ACCESS_KEY_ID is missing or unavailable."
+            exit 1
+          fi
+
+          if [[ -z "${SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::AWS_SECRET_ACCESS_KEY is missing or unavailable."
+            exit 1
+          fi
+
+          echo "Development AWS credential secrets are available."
+
+      - name: Configure development AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          force-skip-oidc: true
+          unset-current-credentials: true
+          disable-retry: true
+          mask-aws-account-id: true
+
+      - name: Verify development AWS identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
 
       - name: Build, migrate, and deploy development
-        run: ./terraform/scripts/deploy.sh dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/deploy.sh dev
 
   deploy-prod:
     name: Deploy production
     if: github.event_name == 'release' && github.event.action == 'published'
-    needs: validate
+
+    needs:
+      - validate
+
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: prod
+
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Check out repository
@@ -230,11 +328,46 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Configure AWS credentials
+      # Production intentionally uses separate credentials.
+      - name: Verify production AWS secrets
+        shell: bash
+        env:
+          ACCESS_KEY_ID: ${{ secrets.AWS_PROD_ACCESS_KEY_ID }}
+          SECRET_ACCESS_KEY: ${{ secrets.AWS_PROD_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ACCESS_KEY_ID}" ]]; then
+            echo "::error::AWS_PROD_ACCESS_KEY_ID is missing or unavailable."
+            exit 1
+          fi
+
+          if [[ -z "${SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::AWS_PROD_SECRET_ACCESS_KEY is missing or unavailable."
+            exit 1
+          fi
+
+          echo "Production AWS credential secrets are available."
+
+      - name: Configure production AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_PROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_PROD_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          force-skip-oidc: true
+          unset-current-credentials: true
+          disable-retry: true
+          mask-aws-account-id: true
+
+      - name: Verify production AWS identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
 
       - name: Build, migrate, and deploy production
-        run: ./terraform/scripts/deploy.sh prod
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/deploy.sh prod
