@@ -10,3 +10,7 @@ django-allauth[socialaccount]>=65.18,<66.0
 redis>=5.2,<7.0
 gunicorn>=23.0,<24.0
 whitenoise>=6.9,<7.0
+boto3<2.0,>=1.35
+django-storages[s3]<2.0,>=1.14
+
+aws-xray-sdk>=2.14,<3.0

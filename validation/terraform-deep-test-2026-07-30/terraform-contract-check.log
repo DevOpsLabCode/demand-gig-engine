@@ -1,0 +1,3 @@
+Parsed 76 Terraform files and 29 root modules.
+WARN: security module has public ingress/egress; expected for ALB but review egress
+Terraform structural and module-contract checks passed.

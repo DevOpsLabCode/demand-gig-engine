@@ -66,3 +66,26 @@ python -m pip install -r requirements.txt
 ```
 
 For GitHub, push the package as a **new commit**. The application matrix, security jobs, CodeQL, dependency review, coverage artifacts, and security reports will run automatically.
+
+
+## Terraform framework deep validation — July 30, 2026
+
+The AWS framework received an additional infrastructure-specific validation pass after the application/social-auth report above.
+
+| Check | Result | Details |
+|---|---|---|
+| Terraform structural/module contracts | PASS | 76 Terraform files and 29 root module instances |
+| Go infrastructure tests | PASS | 27 tests with the race detector |
+| Go static analysis | PASS | `go vet ./...` |
+| Mock deployment orchestration | PASS | State bootstrap, ECR build/push, zero capacity, migration, scale-up, S3, CloudFront |
+| GitHub workflow validation | PASS | 5 workflows; current Terraform/TFLint action majors |
+| HCL separator regression | PASS | Invalid compressed EventBridge IAM expressions corrected |
+| Frontend AWS/local routing contract | PASS | Same-origin `/api` in AWS; Compose build argument and `5173:8080` mapping locally |
+| CloudFront Function behavior | PASS | 5 routing cases |
+| Credential-pattern scan | PASS | 0 credential findings |
+| Native Terraform/TFLint/Checkov | DEFERRED | Required executables/provider downloads unavailable locally; configured in GitHub Actions |
+| AWS plan/apply | NOT RUN | Requires protected AWS role, account, DNS, and provider credentials |
+
+Major corrections included regional separation of the CloudFront and ALB certificates, WAF association at CloudFront, CloudFront-only ALB ingress, dedicated migration tasks, ECS Exec IAM, IPv4-only origin DNS, SQS worker/scheduler wiring, production frontend API routing, secure static cache headers, and optional non-interactive Secrets Manager population.
+
+See [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md) for exact evidence and limitations.

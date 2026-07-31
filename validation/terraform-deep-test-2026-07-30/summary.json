@@ -1,0 +1,20 @@
+{
+  "validation_date": "2026-07-30",
+  "terraform_files": 76,
+  "terraform_root_module_instances": 29,
+  "terraform_module_directories": 24,
+  "repository_static_checks_passed": 69,
+  "github_workflows_validated": 5,
+  "go_test_functions_passed": 27,
+  "go_race_detector": "passed",
+  "go_vet": "passed",
+  "typescript_tsx_files_parsed": 13,
+  "cloudfront_function_cases_passed": 5,
+  "vibesmeet_unittest_cases_passed": 2,
+  "vibesmeet_pytest_cases_passed": 41,
+  "credential_pattern_findings": 0,
+  "native_terraform_validation": "deferred: Terraform binary/provider downloads unavailable in sandbox",
+  "aws_plan_apply": "deferred: AWS credentials/account unavailable",
+  "docker_builds": "deferred: Docker daemon unavailable",
+  "full_django_allauth_suite": "deferred: packages unavailable from sandbox mirror"
+}

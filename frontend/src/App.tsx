@@ -67,7 +67,7 @@ export default function App() {
       <section className="content">
         <CreateCampaignForm onCreate={create} />
         <div className="section-heading"><h2>Gig seeds</h2><p>Campaigns become events only after demand is proven.</p></div>
-        {error && <div className="panel error">{error}. Start the Django API at http://localhost:8000.</div>}
+        {error && <div className="panel error">{error}. The service may still be starting; try again shortly.</div>}
         <div className="campaign-list">
           {campaigns.map((campaign) => <CampaignCard key={campaign.id} campaign={campaign} onLaunch={launch} onPledge={pledge} onSponsor={sponsor} onReload={reload} />)}
         </div>

@@ -13,7 +13,7 @@ import type {
   AuthUser,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 let serverCsrfToken = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

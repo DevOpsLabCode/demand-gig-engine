@@ -3,7 +3,7 @@ import { LogIn, LogOut, ShieldCheck, UserCircle2 } from "lucide-react";
 import { api } from "../api";
 import type { AccountType, AuthConfig, AuthProvider } from "../types";
 
-const BACKEND_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/api\/?$/, "");
+const BACKEND_BASE = (import.meta.env.VITE_API_BASE ?? "/api").replace(/\/api\/?$/, "");
 
 function startProviderLogin(provider: AuthProvider, csrfToken: string, process: "login" | "connect" = "login") {
   if (!provider.enabled) return;

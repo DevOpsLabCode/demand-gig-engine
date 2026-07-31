@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 import secrets
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,7 +35,12 @@ INSTALLED_APPS = [
     "gigs.apps.GigsConfig",
 ]
 
+AWS_XRAY_ENABLED = os.getenv("AWS_XRAY_ENABLED", "false").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+
 MIDDLEWARE = [
+    "config.middleware.PublicBaseURLMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -47,6 +52,16 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+if AWS_XRAY_ENABLED:
+    MIDDLEWARE.insert(0, "aws_xray_sdk.ext.django.middleware.XRayMiddleware")
+    XRAY_RECORDER = {
+        "AUTO_INSTRUMENT": True,
+        "AWS_XRAY_DAEMON_ADDRESS": os.getenv(
+            "AWS_XRAY_DAEMON_ADDRESS", "127.0.0.1:2000"
+        ),
+        "PLUGINS": ("ECSPlugin",),
+        "SEGMENT_NAMING": "dynamic",
+    }
 
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [
@@ -130,15 +145,21 @@ SOCIALACCOUNT_PROVIDERS = {
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if DATABASE_URL:
     parsed = urlparse(DATABASE_URL)
+    query = parse_qs(parsed.query)
+    database_options = {}
+    if query.get("sslmode"):
+        database_options["sslmode"] = query["sslmode"][-1]
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": parsed.path.lstrip("/"),
-            "USER": parsed.username,
-            "PASSWORD": parsed.password,
+            "NAME": unquote(parsed.path.lstrip("/")),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
             "HOST": parsed.hostname,
             "PORT": parsed.port or 5432,
             "CONN_MAX_AGE": 60,
+            "CONN_HEALTH_CHECKS": True,
+            "OPTIONS": database_options,
         }
     }
 else:
@@ -181,7 +202,10 @@ X_FRAME_OPTIONS = "DENY"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
 USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = (
+    os.getenv("SECURE_PROXY_SSL_HEADER_NAME", "HTTP_X_FORWARDED_PROTO"),
+    os.getenv("SECURE_PROXY_SSL_HEADER_VALUE", "https"),
+)
 _trusted_proxy_count = os.getenv("ALLAUTH_TRUSTED_PROXY_COUNT", "").strip()
 if _trusted_proxy_count:
     ALLAUTH_TRUSTED_PROXY_COUNT = int(_trusted_proxy_count)
@@ -192,10 +216,30 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
-}
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "").strip()
+if AWS_STORAGE_BUCKET_NAME:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": AWS_STORAGE_BUCKET_NAME,
+                "region_name": os.getenv("AWS_REGION", "us-east-1"),
+                "default_acl": None,
+                "querystring_auth": True,
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        },
+    }
+else:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        },
+    }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {

@@ -6,6 +6,11 @@ A production-minded reference implementation of the missing Open Concert / Vibes
 
 This is not ordinary ticketing. A campaign proves real demand before an organizer assumes the full cost and risk of booking the artist, venue, production, security, insurance, travel, and promotion.
 
+
+## AWS application-online verification
+
+The Terraform deployment now uses a zero-capacity → dependency wait → one-off migration → service scale-up sequence, dependency-aware ALB readiness, protected CloudFront origin access, same-origin social-auth routing, and post-deploy smoke tests. The exact executed/deferred test matrix is in [`APPLICATION_ONLINE_VERIFICATION.md`](APPLICATION_ONLINE_VERIFICATION.md) and [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md).
+
 ## Current release summary
 
 This package now combines the demand-driven gig workflow with production-oriented identity, authorization, AWS deployment, testing, and security controls:
@@ -893,3 +898,22 @@ The gig module now supports Google, Facebook, Instagram, and TikTok login throug
 ## AWS production architecture
 
 The recommended production topology is documented in [`docs/AWS_PRODUCTION_ARCHITECTURE.md`](docs/AWS_PRODUCTION_ARCHITECTURE.md), with a rendered diagram in [`docs/aws-production-architecture.svg`](docs/aws-production-architecture.svg).
+
+# AWS Terraform framework
+
+A complete modular AWS framework is available under [`terraform/`](terraform/README.md). It implements 24 reusable modules and isolated development/production stacks with native S3 state lockfiles, CloudFront/WAF/S3, a CloudFront-only ALB origin, ECS Fargate API/worker/migration tasks, PostgreSQL with RDS Proxy, Redis, SQS/EventBridge, SES, Secrets Manager/KMS, CloudWatch, CloudTrail, GuardDuty, X-Ray, AWS Backup, ECR, and GitHub OIDC.
+
+The deployment workflow builds and pushes both images, provisions services at zero capacity, injects optional provider credentials, runs a dedicated migration task, scales API/worker services, uploads the React build with safe cache headers, and invalidates CloudFront. The browser uses same-origin `/api` in AWS; Docker Compose injects the local backend URL during the frontend build.
+
+```bash
+./terraform/scripts/validate.sh
+cd terraform/tests && go test -race -count=1 -v ./...
+
+# Deploy after AWS authentication
+PROVIDER_CREDENTIALS_FILE=/secure/provider-credentials.json \
+  ./terraform/scripts/deploy.sh dev
+./terraform/scripts/deploy.sh prod
+```
+
+Architecture and module mapping: [`docs/terraform-module-architecture.md`](docs/terraform-module-architecture.md).  
+Executed/deferred test matrix: [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md).

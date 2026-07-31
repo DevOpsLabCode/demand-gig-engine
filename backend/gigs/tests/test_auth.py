@@ -43,10 +43,27 @@ def campaign_payload(title="Bring Band X"):
 
 
 class TestSocialAuth:
-    def test_health_endpoint(self):
-        response = APIClient().get("/api/health/")
-        assert response.status_code == 200
-        assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+    def test_health_endpoints(self, db):
+        client = APIClient()
+        live = client.get("/api/health/live/")
+        assert live.status_code == 200
+        assert live.data == {"status": "ok", "service": "demand-gig-backend"}
+
+        ready = client.get("/api/health/ready/")
+        assert ready.status_code == 200
+        assert ready.data["status"] == "ok"
+        assert ready.data["checks"] == {"database": "ok", "cache": "ok"}
+
+        compatibility = client.get("/api/health/")
+        assert compatibility.status_code == 200
+        assert compatibility.data["checks"] == {"database": "ok", "cache": "ok"}
+
+    @patch("gigs.auth_views.connection.cursor", side_effect=RuntimeError("db unavailable"))
+    def test_readiness_reports_dependency_failure(self, _cursor, db):
+        response = APIClient().get("/api/health/ready/")
+        assert response.status_code == 503
+        assert response.data["status"] == "unavailable"
+        assert response.data["checks"]["database"] == "error"
 
     def test_avatar_extraction(self):
         assert extract_avatar({"picture": "https://example.com/a.png"}).endswith("a.png")

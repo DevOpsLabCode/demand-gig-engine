@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from django.contrib.auth import logout
+from django.core.cache import cache
+from django.db import connection
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
@@ -73,8 +75,51 @@ def auth_logout(request):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _readiness_status():
+    checks = {"database": "ok", "cache": "ok"}
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except Exception:  # pragma: no cover - exact driver failures vary by backend
+        checks["database"] = "error"
+
+    cache_key = "demand-gig-readiness"
+    cache_value = "ready"
+    try:
+        cache.set(cache_key, cache_value, timeout=10)
+        if cache.get(cache_key) != cache_value:
+            raise RuntimeError("cache round-trip failed")
+        cache.delete(cache_key)
+    except Exception:  # pragma: no cover - exact cache failures vary by backend
+        checks["cache"] = "error"
+
+    ready = all(value == "ok" for value in checks.values())
+    return ready, checks
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def health(request):
-    """Lightweight ALB/container readiness endpoint."""
+def health_live(request):
+    """Process-level liveness endpoint used by the container health check."""
     return Response({"status": "ok", "service": "demand-gig-backend"})
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def health_ready(request):
+    """Dependency-aware readiness endpoint used by the ALB and deployments."""
+    ready, checks = _readiness_status()
+    return Response(
+        {
+            "status": "ok" if ready else "unavailable",
+            "service": "demand-gig-backend",
+            "checks": checks,
+        },
+        status=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+
+
+# Preserve the original route as a readiness alias for compatibility.
+health = health_ready

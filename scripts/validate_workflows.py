@@ -22,6 +22,11 @@ SUPPORTED_ACTIONS = {
     "github/codeql-action/init": "v4",
     "github/codeql-action/analyze": "v4",
     "github/codeql-action/upload-sarif": "v4",
+    "actions/setup-go": "v6",
+    "hashicorp/setup-terraform": "v4",
+    "terraform-linters/setup-tflint": "v6",
+    "aws-actions/configure-aws-credentials": "v6",
+    "bridgecrewio/checkov-action": "v12",
 }
 
 

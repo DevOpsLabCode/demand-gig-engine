@@ -1,0 +1,64 @@
+=== RUN   TestRequiredModulesExist
+--- PASS: TestRequiredModulesExist (0.00s)
+=== RUN   TestEnvironmentTfvarsAreComplete
+--- PASS: TestEnvironmentTfvarsAreComplete (0.00s)
+=== RUN   TestProductionSafetyDefaults
+--- PASS: TestProductionSafetyDefaults (0.00s)
+=== RUN   TestNoHardCodedCredentials
+--- PASS: TestNoHardCodedCredentials (2.94s)
+=== RUN   TestRemoteStateBootstrapIsIdempotent
+--- PASS: TestRemoteStateBootstrapIsIdempotent (0.00s)
+=== RUN   TestDeploymentRunsMigrationsBeforeScalingServices
+--- PASS: TestDeploymentRunsMigrationsBeforeScalingServices (0.00s)
+=== RUN   TestFrontendImageContainsProductionAssets
+--- PASS: TestFrontendImageContainsProductionAssets (0.00s)
+=== RUN   TestAsyncWorkerAndSchedulerAreConnected
+--- PASS: TestAsyncWorkerAndSchedulerAreConnected (0.00s)
+=== RUN   TestSocialAndRuntimeSecretsAreInjected
+--- PASS: TestSocialAndRuntimeSecretsAreInjected (0.00s)
+=== RUN   TestTerraformFilesHaveMultilineBlocks
+--- PASS: TestTerraformFilesHaveMultilineBlocks (0.00s)
+=== RUN   TestEdgeProtectionMatchesArchitecture
+--- PASS: TestEdgeProtectionMatchesArchitecture (0.01s)
+=== RUN   TestTerraformRuntimeFilesAreIgnored
+--- PASS: TestTerraformRuntimeFilesAreIgnored (0.00s)
+=== RUN   TestCloudFrontOriginTLSAndSpaRouting
+--- PASS: TestCloudFrontOriginTLSAndSpaRouting (0.00s)
+=== RUN   TestRuntimeStorageAndTracingSecurity
+--- PASS: TestRuntimeStorageAndTracingSecurity (0.00s)
+=== RUN   TestAutoscalingAndMigrationTaskDefinitions
+--- PASS: TestAutoscalingAndMigrationTaskDefinitions (0.00s)
+=== RUN   TestTerraformWorkflowExecutesNativeValidation
+--- PASS: TestTerraformWorkflowExecutesNativeValidation (0.00s)
+=== RUN   TestTerraformInlineObjectsHaveSeparators
+--- PASS: TestTerraformInlineObjectsHaveSeparators (0.00s)
+=== RUN   TestFrontendDefaultsToSameOriginAPI
+--- PASS: TestFrontendDefaultsToSameOriginAPI (0.00s)
+=== RUN   TestECSExecPermissionsMatchEnabledServiceFeature
+--- PASS: TestECSExecPermissionsMatchEnabledServiceFeature (0.00s)
+=== RUN   TestFrontendContainerAndComposePortsAreConsistent
+--- PASS: TestFrontendContainerAndComposePortsAreConsistent (0.00s)
+=== RUN   TestIPv4OnlyAlbOriginDoesNotPublishAAAA
+--- PASS: TestIPv4OnlyAlbOriginDoesNotPublishAAAA (0.00s)
+=== RUN   TestStaticAssetDeploymentUsesSafeCacheHeaders
+--- PASS: TestStaticAssetDeploymentUsesSafeCacheHeaders (0.00s)
+=== RUN   TestDeploySupportsNonInteractiveProviderSecretInjection
+--- PASS: TestDeploySupportsNonInteractiveProviderSecretInjection (0.00s)
+=== RUN   TestApplicationOnlineContracts
+--- PASS: TestApplicationOnlineContracts (0.00s)
+=== RUN   TestPinnedRuntimeAndProviderVersions
+--- PASS: TestPinnedRuntimeAndProviderVersions (0.00s)
+=== RUN   TestDatabaseStartupContracts
+--- PASS: TestDatabaseStartupContracts (0.00s)
+=== RUN   TestGitHubOIDCUsesProtectedEnvironments
+--- PASS: TestGitHubOIDCUsesProtectedEnvironments (0.00s)
+=== RUN   TestBootstrapScriptCreatesSecureBackend
+--- PASS: TestBootstrapScriptCreatesSecureBackend (0.02s)
+=== RUN   TestBootstrapCheckModeRejectsMissingState
+--- PASS: TestBootstrapCheckModeRejectsMissingState (0.01s)
+=== RUN   TestDeployScriptOrchestratesMigrationBeforeScaleUp
+--- PASS: TestDeployScriptOrchestratesMigrationBeforeScaleUp (0.09s)
+=== RUN   TestScriptFixtureContainsExpectedProjectLayout
+--- PASS: TestScriptFixtureContainsExpectedProjectLayout (0.00s)
+PASS
+ok  	github.com/DevOpsLabCode/demand-gig-engine/terraform/tests	4.102s

@@ -1227,7 +1227,7 @@ Suggested connection record:
   "provider": "youtube",
   "external_account_id": "example-channel-id",
   "scopes": ["youtube.upload"],
-  "": "vault-reference",
+  "encrypted_refresh_token": "vault-reference",
   "status": "connected",
   "last_verified_at": "2026-07-30T10:00:00Z",
   "last_error_code": null
