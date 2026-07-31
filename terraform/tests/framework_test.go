@@ -41,6 +41,64 @@ func read(t *testing.T, path string) string {
 	return string(body)
 }
 
+// Read the governed workflow that contains every required marker, regardless of its filename.
+// This supports repositories that keep security jobs in security.yml or consolidate them into
+// another workflow such as python-package.yml.
+func readWorkflowContaining(t *testing.T, overrideEnv string, required ...string) string {
+	t.Helper()
+
+	workflowMatches := func(body string) bool {
+		for _, marker := range required {
+			if !strings.Contains(body, marker) {
+				return false
+			}
+		}
+		return true
+	}
+
+	if configured := strings.TrimSpace(os.Getenv(overrideEnv)); configured != "" {
+		path := configured
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(repositoryRoot(t), path)
+		}
+		if body, err := os.ReadFile(path); err == nil && workflowMatches(string(body)) {
+			return string(body)
+		}
+	}
+
+	workflowDir := filepath.Join(repositoryRoot(t), ".github", "workflows")
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("read workflow directory: %v", err)
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext == ".yml" || ext == ".yaml" {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		path := filepath.Join(workflowDir, name)
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read workflow %s: %v", path, err)
+		}
+		if workflowMatches(string(body)) {
+			return string(body)
+		}
+	}
+
+	t.Fatalf("no workflow contains required markers: %s", strings.Join(required, ", "))
+	return ""
+}
+
 // Remove formatter-controlled whitespace outside quoted HCL strings so tests
 // validate expressions rather than column alignment from a Terraform release.
 func compactHCLWhitespace(text string) string {
@@ -732,7 +790,13 @@ func TestCheckovRemediationControls(t *testing.T) {
 		}
 	}
 
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "security.yml"))
+	workflow := readWorkflowContaining(
+		t,
+		"SECURITY_WORKFLOW_PATH",
+		"validate_security_remediation.py",
+		"DEPENDENCY_RESOLUTION_FAILED",
+		"if-no-files-found: error",
+	)
 	for _, line := range strings.Split(workflow, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "--soft-fail") {
