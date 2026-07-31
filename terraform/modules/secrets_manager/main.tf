@@ -12,7 +12,7 @@ resource "aws_secretsmanager_secret" "social" {
   name = "${var.name}/provider-credentials"
   description = "OAuth, payment, Meta, and VibesMeet credentials"
   kms_key_id = var.kms_key_arn
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.recovery_window_in_days
   tags = var.tags
 }
 # Initializes or updates the JSON value stored in Secrets Manager.

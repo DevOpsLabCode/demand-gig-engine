@@ -65,15 +65,38 @@ resource "aws_lb_listener" "http_redirect" {
 
 resource "aws_lb_listener" "http_cloudfront_origin" {
   #checkov:skip=CKV_AWS_2:No-domain mode is CloudFront-only, viewer HTTPS is enforced, and ALB ingress is restricted to the AWS CloudFront managed prefix list.
-  #checkov:skip=CKV_AWS_103:This conditional HTTP listener exists only when no ACM origin certificate can be issued for the AWS-generated ALB hostname; direct internet ingress is blocked.
+  #checkov:skip=CKV_AWS_103:This conditional HTTP listener exists only when no ACM origin certificate can be issued for the AWS-generated ALB hostname; requests still require the CloudFront-only origin-verification header.
   count             = var.certificate_arn == null ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Forbidden"
+      status_code  = "403"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "http_cloudfront_origin" {
+  count        = var.certificate_arn == null ? 1 : 0
+  listener_arn = aws_lb_listener.http_cloudfront_origin[0].arn
+  priority     = 1
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Origin-Verify"
+      values           = [var.origin_verify_header_value]
+    }
   }
 }
 
@@ -86,7 +109,30 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.certificate_arn
 
   default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Forbidden"
+      status_code  = "403"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "https_cloudfront_origin" {
+  count        = var.certificate_arn == null ? 0 : 1
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 1
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Origin-Verify"
+      values           = [var.origin_verify_header_value]
+    }
   }
 }

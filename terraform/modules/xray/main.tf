@@ -1,18 +1,16 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates an X-Ray sampling rule so distributed traces are captured at a controlled rate.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Creates a configurable X-Ray sampling rule while the workload migrates trace export to AWS Distro for OpenTelemetry.
 
-# Create and manage the aws xray sampling rule resource owned by this file.
 resource "aws_xray_sampling_rule" "this" {
-  rule_name = var.name
-  priority = 10000
-  version = 1
-  reservoir_size = 1
-  fixed_rate = 0.05
-  url_path = "*"
-  host = "*"
-  http_method = "*"
-  service_type = "*"
-  service_name = "*"
-  resource_arn = "*"
+  rule_name      = var.name
+  priority       = var.priority
+  version        = 1
+  reservoir_size = var.reservoir_size
+  fixed_rate     = var.fixed_rate
+  url_path       = var.url_path
+  host           = var.host
+  http_method    = var.http_method
+  service_type   = var.service_type
+  service_name   = var.service_name
+  resource_arn   = var.resource_arn
 }

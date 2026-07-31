@@ -14,9 +14,10 @@ output "application_url" {
 output "ecr_repository_urls" {
   value = module.ecr.repository_urls
 }
-# Output `github_actions_role_arn`: ARN of the github actions role resource consumed by this module.
+# Output `github_actions_role_arn`: ARN of the environment image-and-service release role.
 output "github_actions_role_arn" {
-  value = module.github_oidc.role_arn
+  description = "ARN of the environment image-and-service release role; Terraform plan/apply uses account-foundation roles."
+  value       = module.github_oidc.role_arn
 }
 # Output `database_secret_arn`: ARN of the database secret resource consumed by this module.
 output "database_secret_arn" {

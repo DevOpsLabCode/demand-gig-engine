@@ -20,5 +20,5 @@ resource "aws_ecr_repository" "this" {
 resource "aws_ecr_lifecycle_policy" "this" {
   for_each = aws_ecr_repository.this
   repository = each.value.name
-  policy = jsonencode({rules = [{rulePriority = 1,description = "Keep 30 images",selection = {tagStatus = "any",countType = "imageCountMoreThan",countNumber = 30},action = {type = "expire"}}]})
+  policy = jsonencode({rules = [{rulePriority = 1,description = "Keep the configured rollback image window",selection = {tagStatus = "any",countType = "imageCountMoreThan",countNumber = var.retained_image_count},action = {type = "expire"}}]})
 }

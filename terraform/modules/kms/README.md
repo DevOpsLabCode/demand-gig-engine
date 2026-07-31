@@ -21,8 +21,8 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `deletion_window` | `number` | `30` | `false` | Configuration value for `deletion_window`. |
+| `name` | `string` | `required` | `false` | KMS alias suffix and key-policy CloudTrail name scope. |
+| `deletion_window` | `number` | `30` | `false` | Recovery window in days before scheduled key deletion becomes permanent. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -60,4 +60,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

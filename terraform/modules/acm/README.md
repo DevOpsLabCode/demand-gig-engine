@@ -18,17 +18,18 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `domain_name` | `string` | `required` | `false` | Primary CloudFront viewer domain. |
-| `subject_alternative_names` | `list(string)` | `[]` | `false` | Additional names, including the private CloudFront-to-ALB origin hostname. |
-| `hosted_zone_id` | `string` | `required` | `false` | Route 53 hosted zone used for certificate validation. |
-| `create` | `bool` | `false` | `false` | Configuration value for `create`. |
+| `domain_name` | `string` | `""` | `false` | Primary certificate name. Empty is permitted only when certificate creation is disabled. |
+| `subject_alternative_names` | `list(string)` | `[]` | `false` | Additional certificate names. |
+| `hosted_zone_id` | `string` | `""` | `false` | Route 53 hosted zone used for DNS validation. |
+| `create` | `bool` | `false` | `false` | Create and DNS-validate a certificate in this module. |
+| `existing_certificate_arn` | `string` | `null` | `false` | Existing ACM certificate ARN used when create is false; null leaves TLS certificate selection to the caller. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `certificate_arn` | Published `certificate_arn` value. | `try(aws_acm_certificate_validation.this[0].certificate_arn,null)` |
+| `certificate_arn` | Created and validated ACM certificate ARN, supplied existing ARN, or null when TLS is intentionally not configured. | `var.create ? aws_acm_certificate_validation.this[0].certificate_arn : var.existing_certificate_arn` |
 
 ## Security and reliability controls
 
@@ -40,8 +41,6 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 ```hcl
 module "acm" {
   source = "./modules/acm"
-  domain_name = var.domain_name
-  hosted_zone_id = var.hosted_zone_id
 }
 ```
 
@@ -58,4 +57,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

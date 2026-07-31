@@ -6,7 +6,7 @@ resource "aws_sqs_queue" "dlq" {
   name                              = "${var.name}-dlq"
   kms_master_key_id                 = var.kms_key_arn
   kms_data_key_reuse_period_seconds = 300
-  message_retention_seconds         = 1209600
+  message_retention_seconds         = var.dlq_retention_seconds
   tags                              = var.tags
 }
 
@@ -14,11 +14,12 @@ resource "aws_sqs_queue" "tasks" {
   name                              = "${var.name}-tasks"
   kms_master_key_id                 = var.kms_key_arn
   kms_data_key_reuse_period_seconds = 300
-  visibility_timeout_seconds        = 300
-  receive_wait_time_seconds         = 20
+  visibility_timeout_seconds        = var.visibility_timeout_seconds
+  receive_wait_time_seconds         = var.receive_wait_time_seconds
+  message_retention_seconds         = var.message_retention_seconds
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
-    maxReceiveCount     = 5
+    maxReceiveCount     = var.max_receive_count
   })
   tags = var.tags
 }

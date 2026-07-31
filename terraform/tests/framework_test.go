@@ -123,13 +123,19 @@ func TestNoHardCodedCredentials(t *testing.T) {
 	}
 }
 
-// Verify that backend bootstrap detects existing state resources, enables S3 protections, and avoids deprecated DynamoDB locking.
+// Verify that backend bootstrap delegates ownership to the KMS-protected Terraform
+// bootstrap root, verifies existing controls, and uses native S3 lock files.
 func TestRemoteStateBootstrapIsIdempotent(t *testing.T) {
 	body := read(t, filepath.Join(root(t), "scripts", "bootstrap.sh"))
 	for _, expected := range []string{
 		"aws s3api head-bucket",
-		"put-bucket-versioning",
-		"put-public-access-block",
+		"get-bucket-versioning",
+		"get-public-access-block",
+		"get-bucket-encryption",
+		"global/bootstrap",
+		`terraform -chdir="$BOOTSTRAP_DIR" apply`,
+		"-migrate-state",
+		"kms_key_id",
 		"use_lockfile = true",
 		"CREATE_BACKEND",
 	} {
@@ -137,17 +143,19 @@ func TestRemoteStateBootstrapIsIdempotent(t *testing.T) {
 			t.Errorf("bootstrap is missing %q", expected)
 		}
 	}
-	if strings.Contains(body, "dynamodb_table") {
-		t.Fatal("deprecated DynamoDB state locking found")
+	for _, forbidden := range []string{"dynamodb_table", "s3api create-bucket", "put-bucket-encryption"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("bootstrap contains a competing ad-hoc state path: %s", forbidden)
+		}
 	}
 }
 
-// Verify that deployment holds services at zero capacity until the one-off database migration task succeeds.
-func TestDeploymentRunsMigrationsBeforeScalingServices(t *testing.T) {
+// Verify that deployment runs backward-compatible migrations before updating live services.
+func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 	body := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
-		`backend_desired_count=0`,
-		`worker_desired_count=0`,
+		`fmt -check -recursive -diff`,
+		`-target=module.migration`,
 		`aws ecs run-task`,
 		`"migrate","--noinput"`,
 		`aws ecs wait tasks-stopped`,
@@ -155,6 +163,11 @@ func TestDeploymentRunsMigrationsBeforeScalingServices(t *testing.T) {
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("deployment migration gate is missing %q", expected)
+		}
+	}
+	for _, forbidden := range []string{`backend_desired_count=0`, `worker_desired_count=0`} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("deployment must not scale live services to zero before migration: %s", forbidden)
 		}
 	}
 }
@@ -288,7 +301,7 @@ func TestCloudFrontOriginTLSAndSpaRouting(t *testing.T) {
 		regexp.MustCompile(`providers\s*=\s*\{\s*aws\s*=\s*aws\.us_east_1\s*\}`),
 		regexp.MustCompile(`certificate_arn\s*=\s*module\.acm_origin\.certificate_arn`),
 		regexp.MustCompile(`certificate_arn\s*=\s*module\.acm_viewer\.certificate_arn`),
-		regexp.MustCompile(`use_https_origin\s*=\s*var\.create_dns`),
+		regexp.MustCompile(`use_https_origin\s*=\s*module\.acm_origin\.certificate_arn\s*!=\s*null`),
 		regexp.MustCompile(`module\s+"route53_origin"`),
 	}
 	for _, pattern := range patterns {
@@ -381,8 +394,7 @@ func TestTerraformWorkflowExecutesNativeValidation(t *testing.T) {
 	for _, expected := range []string{
 		"hashicorp/setup-terraform@v4",
 		"terraform-linters/setup-tflint@v6",
-		"terraform -chdir=terraform fmt -recursive",
-		"terraform -chdir=terraform fmt -check -recursive",
+		"terraform -chdir=terraform fmt -check -recursive -diff",
 		"terraform -chdir=terraform init -backend=false -input=false",
 		"terraform -chdir=terraform validate",
 		"tflint --chdir=terraform --recursive",
@@ -516,6 +528,112 @@ func TestDeploySupportsNonInteractiveProviderSecretInjection(t *testing.T) {
 	}
 }
 
+// Verify environment-aware cache and backup settings do not make development invalid or non-destroyable while production remains resilient.
+func TestEnvironmentAwareDataProtection(t *testing.T) {
+	redisMain := read(t, filepath.Join(root(t), "modules", "redis", "main.tf"))
+	redisVars := read(t, filepath.Join(root(t), "modules", "redis", "variables.tf"))
+	backupMain := read(t, filepath.Join(root(t), "modules", "backup", "main.tf"))
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+	dev := read(t, filepath.Join(root(t), "envs", "dev", "terraform.tfvars"))
+	prod := read(t, filepath.Join(root(t), "envs", "prod", "terraform.tfvars"))
+
+	for _, fragment := range []string{
+		"automatic_failover_enabled = var.replicas > 0",
+		"multi_az_enabled           = var.replicas > 0",
+	} {
+		if !strings.Contains(redisMain, fragment) {
+			t.Errorf("Redis environment-aware availability missing %q", fragment)
+		}
+	}
+	if !strings.Contains(redisVars, "var.replicas >= 0") {
+		t.Error("Redis module does not permit a single-node development deployment")
+	}
+	for _, fragment := range []string{
+		"count = var.enable_vault_lock ? 1 : 0",
+		"cold_storage_after = var.cold_storage_after_days",
+	} {
+		if !strings.Contains(backupMain, fragment) {
+			t.Errorf("Backup environment-aware lifecycle missing %q", fragment)
+		}
+	}
+	if !strings.Contains(rootMain, "enable_vault_lock           = var.enable_backup_vault_lock") {
+		t.Error("Root module does not wire environment-specific Vault Lock")
+	}
+	if !regexp.MustCompile(`(?m)^redis_replicas\s*=\s*0\s*$`).MatchString(dev) {
+		t.Error("Development should explicitly select a single-node Redis topology")
+	}
+	if !regexp.MustCompile(`(?m)^enable_backup_vault_lock\s*=\s*false\s*$`).MatchString(dev) {
+		t.Error("Development should not enable immutable Compliance Vault Lock")
+	}
+	if !regexp.MustCompile(`(?m)^enable_backup_vault_lock\s*=\s*true\s*$`).MatchString(prod) {
+		t.Error("Production must enable Compliance Vault Lock")
+	}
+}
+
+// Verify the framework fails unsafe production configurations instead of silently deploying demo integrations.
+func TestProductionReadinessGate(t *testing.T) {
+	main := read(t, filepath.Join(root(t), "main.tf"))
+	prod := read(t, filepath.Join(root(t), "envs", "prod", "terraform.tfvars"))
+	for _, fragment := range []string{
+		`check "production_readiness"`,
+		`var.payment_provider != "fake"`,
+		`trimspace(var.alarm_email) != ""`,
+		`trimspace(var.domain_name) != ""`,
+	} {
+		if !strings.Contains(main, fragment) {
+			t.Errorf("production readiness gate missing %q", fragment)
+		}
+	}
+	if !regexp.MustCompile(`(?m)^enforce_production_readiness\s*=\s*true\s*$`).MatchString(prod) {
+		t.Error("Production must enforce readiness checks")
+	}
+}
+
+// Verify final snapshots remain unique and all principal workload tiers have actionable alarms.
+func TestRecoveryAndObservabilityCoverage(t *testing.T) {
+	rds := read(t, filepath.Join(root(t), "modules", "rds_postgres", "main.tf"))
+	cloudwatch := read(t, filepath.Join(root(t), "modules", "cloudwatch", "main.tf"))
+	if !strings.Contains(rds, `resource "random_id" "final_snapshot"`) || !strings.Contains(rds, `${random_id.final_snapshot.hex}`) {
+		t.Error("RDS final snapshot identifier is not collision-resistant")
+	}
+	for _, alarm := range []string{
+		`resource "aws_cloudwatch_metric_alarm" "target_5xx"`,
+		`resource "aws_cloudwatch_metric_alarm" "unhealthy_targets"`,
+		`resource "aws_cloudwatch_metric_alarm" "ecs_memory"`,
+		`resource "aws_cloudwatch_metric_alarm" "queue_age"`,
+		`resource "aws_cloudwatch_metric_alarm" "dlq_messages"`,
+		`resource "aws_cloudwatch_metric_alarm" "rds_free_storage"`,
+		`resource "aws_cloudwatch_metric_alarm" "redis_memory"`,
+		`resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx"`,
+		`resource "aws_cloudwatch_dashboard" "service"`,
+	} {
+		if !strings.Contains(cloudwatch, alarm) {
+			t.Errorf("observability coverage missing %q", alarm)
+		}
+	}
+}
+
+// Verify deployment identities and container dependencies use explicit, non-wildcard trust and version choices.
+func TestSupplyChainAndFederationDefaults(t *testing.T) {
+	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "variables.tf"))
+	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+	versions := read(t, filepath.Join(root(t), "versions.tf"))
+
+	if !regexp.MustCompile(`(?s)variable "allow_pull_requests".*?default\s*=\s*false`).MatchString(oidc) {
+		t.Error("GitHub OIDC pull-request trust must default to false")
+	}
+	if !strings.Contains(ecs, "public.ecr.aws/xray/aws-xray-daemon:3.6.6") {
+		t.Error("X-Ray daemon image must use the reviewed immutable version tag")
+	}
+	if !strings.Contains(workflow, `TERRAFORM_VERSION: "1.15.8"`) {
+		t.Error("Terraform workflow is not pinned to the reviewed stable CLI release")
+	}
+	if !strings.Contains(versions, `version = "~> 6.57.1"`) {
+		t.Error("AWS provider range can still select the withdrawn 6.57.0 release")
+	}
+}
+
 // Verify that every resource-level control introduced by the Checkov remediation remains wired into the production stack.
 func TestCheckovRemediationControls(t *testing.T) {
 	checks := map[string][]string{
@@ -592,6 +710,445 @@ func TestCheckovRemediationControls(t *testing.T) {
 	} {
 		if !strings.Contains(workflow, fragment) {
 			t.Errorf("security workflow is missing %q", fragment)
+		}
+	}
+}
+
+// Verify account-wide singleton services are owned once and environment modules only read them.
+func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
+	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
+	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "main.tf"))
+	guardduty := read(t, filepath.Join(root(t), "modules", "guardduty", "main.tf"))
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+
+	for _, fragment := range []string{
+		`resource "aws_iam_openid_connect_provider" "github"`,
+		`resource "aws_guardduty_detector" "this"`,
+		`resource "aws_guardduty_detector_feature" "runtime_monitoring"`,
+		`ECS_FARGATE_AGENT_MANAGEMENT`,
+		`resource "aws_ecr_registry_scanning_configuration" "this"`,
+		`scan_frequency = "CONTINUOUS_SCAN"`,
+	} {
+		if !strings.Contains(account, fragment) {
+			t.Errorf("account foundation is missing %q", fragment)
+		}
+	}
+	if strings.Contains(oidc, `resource "aws_iam_openid_connect_provider"`) {
+		t.Error("environment GitHub OIDC module must not own the account-wide provider")
+	}
+	if !strings.Contains(oidc, `data "aws_iam_openid_connect_provider" "github"`) {
+		t.Error("environment GitHub OIDC module must read the shared provider")
+	}
+	if strings.Contains(guardduty, `resource "aws_guardduty_detector"`) {
+		t.Error("environment GuardDuty module must not create a duplicate detector")
+	}
+	if !strings.Contains(guardduty, `data "aws_guardduty_detector" "this"`) {
+		t.Error("environment GuardDuty module must verify the shared detector")
+	}
+	for _, stack := range []string{"terraform/global/bootstrap", "terraform/global/account"} {
+		if !strings.Contains(workflow, `terraform -chdir=`+stack+` validate`) {
+			t.Errorf("Terraform workflow does not validate independent root %s", stack)
+		}
+	}
+}
+
+// Verify the Terraform control plane cannot expose remote state to pull requests and cannot pass arbitrary roles.
+func TestTerraformControlPlaneTrustAndLeastPrivilege(t *testing.T) {
+	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
+	variables := read(t, filepath.Join(root(t), "global", "account", "variables.tf"))
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+
+	for _, fragment := range []string{
+		`resource "aws_iam_role" "terraform_plan"`,
+		`policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/ReadOnlyAccess"`,
+		`resource "aws_iam_role" "terraform_apply"`,
+		`policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"`,
+		`sid       = "PassBoundedEnvironmentRolesToApprovedServices"`,
+		`variable = "iam:PassedToService"`,
+		`"backup.amazonaws.com"`,
+		`"cloudtrail.amazonaws.com"`,
+		`"ecs-tasks.amazonaws.com"`,
+		`"monitoring.rds.amazonaws.com"`,
+		`"scheduler.amazonaws.com"`,
+		`"vpc-flow-logs.amazonaws.com"`,
+	} {
+		if !strings.Contains(account, fragment) {
+			t.Errorf("Terraform control-plane foundation is missing %q", fragment)
+		}
+	}
+	if strings.Contains(account, "policy/AdministratorAccess") {
+		t.Error("Terraform apply role must not use AdministratorAccess")
+	}
+	if !strings.Contains(variables, `variable "allow_plan_pull_requests"`) ||
+		!strings.Contains(variables, `default     = false`) {
+		t.Error("direct pull-request OIDC trust must remain disabled by default")
+	}
+	for _, fragment := range []string{
+		`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`,
+		`role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}`,
+		`role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}`,
+		`id-token: write`,
+	} {
+		if !strings.Contains(workflow, fragment) {
+			t.Errorf("Terraform workflow is missing trust control %q", fragment)
+		}
+	}
+	if strings.Contains(workflow, `AWS_TERRAFORM_ROLE_ARN`) {
+		t.Error("Terraform workflow must not fall back to the legacy broad role")
+	}
+}
+
+// Verify every workload IAM role is capped by the approved permissions boundary and
+// the Terraform apply role cannot rewrite its own control-plane roles.
+func TestWorkloadRolePermissionsBoundaries(t *testing.T) {
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
+	roleModules := []string{"backup", "cloudtrail", "ecs_service", "eventbridge", "github_oidc", "networking", "rds_postgres"}
+
+	if !strings.Contains(rootMain, `permissions_boundary_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"`) {
+		t.Error("root stack must derive the partition-correct PowerUserAccess permissions boundary")
+	}
+	for _, module := range roleModules {
+		variables := read(t, filepath.Join(root(t), "modules", module, "variables.tf"))
+		main := read(t, filepath.Join(root(t), "modules", module, "main.tf"))
+		if !strings.Contains(variables, `variable "permissions_boundary_arn"`) {
+			t.Errorf("module %s is missing its permissions_boundary_arn contract", module)
+		}
+		if !strings.Contains(main, `permissions_boundary = var.permissions_boundary_arn`) {
+			t.Errorf("module %s creates IAM roles without the required permissions boundary", module)
+		}
+	}
+	for _, fragment := range []string{
+		`role/${var.project_name}-dev-*`,
+		`role/${var.project_name}-prod-*`,
+		`sid       = "CreateBoundedEnvironmentRoles"`,
+		`variable = "iam:PermissionsBoundary"`,
+		`sid       = "AttachApprovedManagedPolicies"`,
+		`variable = "iam:PolicyARN"`,
+	} {
+		if !strings.Contains(account, fragment) {
+			t.Errorf("account apply policy is missing boundary control %q", fragment)
+		}
+	}
+	for _, forbidden := range []string{
+		`project_role_arn =`,
+		`role/${var.project_name}-*"`,
+		`iam:DeleteRolePermissionsBoundary`,
+		`ManageGitHubOIDCProvider`,
+	} {
+		if strings.Contains(account, forbidden) {
+			t.Errorf("account apply policy contains forbidden broad control %q", forbidden)
+		}
+	}
+}
+
+// Verify outbound email authentication and CloudTrail investigation controls are complete but cost-aware.
+func TestIdentityAndAuditBoundaryControls(t *testing.T) {
+	ses := read(t, filepath.Join(root(t), "modules", "ses", "main.tf"))
+	cloudtrail := read(t, filepath.Join(root(t), "modules", "cloudtrail", "main.tf"))
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+
+	for _, fragment := range []string{
+		`resource "aws_ses_domain_mail_from" "this"`,
+		`resource "aws_route53_record" "mail_from_mx"`,
+		`resource "aws_route53_record" "mail_from_spf"`,
+		`resource "aws_route53_record" "dmarc"`,
+		`behavior_on_mx_failure = "RejectMessage"`,
+	} {
+		if !strings.Contains(ses, fragment) {
+			t.Errorf("SES deliverability control missing %q", fragment)
+		}
+	}
+	for _, fragment := range []string{
+		`event_selector {`,
+		`type   = "AWS::S3::Object"`,
+		`dynamic "insight_selector"`,
+		`ApiCallRateInsight`,
+		`ApiErrorRateInsight`,
+	} {
+		if !strings.Contains(cloudtrail, fragment) {
+			t.Errorf("CloudTrail investigation control missing %q", fragment)
+		}
+	}
+	if !strings.Contains(rootMain, `s3_data_event_bucket_arns = var.environment == "prod"`) ||
+		!strings.Contains(rootMain, `enable_insights          = var.environment == "prod"`) {
+		t.Error("production-only CloudTrail data events and Insights are not wired at the root")
+	}
+}
+
+// Verify destructive recovery windows are longer in production while development remains disposable.
+func TestEnvironmentAwareSecretRecovery(t *testing.T) {
+	main := read(t, filepath.Join(root(t), "main.tf"))
+	for _, fragment := range []string{
+		`secret_recovery_window_days  = var.environment == "prod" ? 30 : 7`,
+		`recovery_window_in_days = var.environment == "prod" ? 30 : 7`,
+	} {
+		if !strings.Contains(main, fragment) {
+			t.Errorf("environment-aware secret recovery missing %q", fragment)
+		}
+	}
+}
+
+// Verify that only this CloudFront distribution can reach the ALB target group,
+// even though AWS's managed CloudFront prefix list is shared by all distributions.
+func TestCloudFrontOriginBypassProtection(t *testing.T) {
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+	albMain := read(t, filepath.Join(root(t), "modules", "alb", "main.tf"))
+	albVariables := read(t, filepath.Join(root(t), "modules", "alb", "variables.tf"))
+	cloudfrontMain := read(t, filepath.Join(root(t), "modules", "cloudfront", "main.tf"))
+	cloudfrontVariables := read(t, filepath.Join(root(t), "modules", "cloudfront", "variables.tf"))
+	wafMain := read(t, filepath.Join(root(t), "modules", "waf", "main.tf"))
+
+	for label, body := range map[string]string{
+		"ALB":        albVariables,
+		"CloudFront": cloudfrontVariables,
+	} {
+		if !strings.Contains(body, `variable "origin_verify_header_value"`) ||
+			!strings.Contains(body, "sensitive   = true") ||
+			!strings.Contains(body, "length(var.origin_verify_header_value) >= 32") {
+			t.Errorf("%s module does not enforce a sensitive high-entropy origin verification value", label)
+		}
+	}
+
+	rootPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`resource\s+"random_password"\s+"origin_verify"`),
+		regexp.MustCompile(`length\s*=\s*64`),
+		regexp.MustCompile(`origin_verify_header_value\s*=\s*random_password\.origin_verify\.result`),
+	}
+	for _, pattern := range rootPatterns {
+		if !pattern.MatchString(rootMain) {
+			t.Errorf("root origin-verification wiring missing pattern %s", pattern)
+		}
+	}
+
+	if !strings.Contains(cloudfrontMain, `name  = "X-Origin-Verify"`) ||
+		!strings.Contains(cloudfrontMain, "value = var.origin_verify_header_value") {
+		t.Error("CloudFront does not inject the protected origin-verification header")
+	}
+	if !strings.Contains(albMain, `http_header_name = "X-Origin-Verify"`) ||
+		!strings.Contains(albMain, "values           = [var.origin_verify_header_value]") {
+		t.Error("ALB forwarding rules do not require the origin-verification header")
+	}
+	if strings.Count(albMain, `status_code  = "403"`) < 2 {
+		t.Error("ALB listeners must default-deny both HTTP-only and HTTPS origin modes")
+	}
+	if !strings.Contains(wafMain, `name = "x-origin-verify"`) {
+		t.Error("WAF request logging does not redact the origin-verification header")
+	}
+}
+
+// Verify that the edge and origin Web ACLs include reputation and SQL injection
+// protections and that the regional ACL rate-limits the real forwarded viewer IP.
+func TestWAFManagedRuleCoverageAndViewerRateLimit(t *testing.T) {
+	wafMain := read(t, filepath.Join(root(t), "modules", "waf", "main.tf"))
+	for _, expected := range []string{
+		"AWSManagedRulesCommonRuleSet",
+		"AWSManagedRulesAmazonIpReputationList",
+		"AWSManagedRulesKnownBadInputsRuleSet",
+		"AWSManagedRulesSQLiRuleSet",
+		`aggregate_key_type = var.scope == "REGIONAL" ? "FORWARDED_IP" : "IP"`,
+		`header_name       = "X-Origin-Viewer-IP"`,
+	} {
+		if !strings.Contains(wafMain, expected) {
+			t.Errorf("WAF coverage missing %s", expected)
+		}
+	}
+}
+
+// Verify that the plan role can decrypt CMK-encrypted state and encrypt native
+// S3 lock files without receiving cryptographic access to unrelated account keys.
+func TestTerraformPlanRoleCanUseOnlyStateKMSKeys(t *testing.T) {
+	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
+	for _, expected := range []string{
+		"state_kms_aliases = [",
+		`"alias/${var.project_name}-account-tfstate"`,
+		`"alias/${var.project_name}-dev-tfstate"`,
+		`"alias/${var.project_name}-prod-tfstate"`,
+		`sid = "UseTerraformStateKeys"`,
+		`"kms:Decrypt"`,
+		`"kms:Encrypt"`,
+		`"kms:GenerateDataKey"`,
+		`variable = "kms:ResourceAliases"`,
+		"values   = local.state_kms_aliases",
+	} {
+		if !strings.Contains(account, expected) {
+			t.Errorf("Terraform plan state-key policy missing %s", expected)
+		}
+	}
+}
+
+// Verify that task execution no longer relies on the broad AWS-managed policy
+// and is scoped to declared ECR repositories, the service log group, secrets, and key.
+func TestECSExecutionRoleIsRepositoryAndLogScoped(t *testing.T) {
+	ecsMain := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
+	ecsVariables := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+	accountMain := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
+
+	if strings.Contains(ecsMain, "AmazonECSTaskExecutionRolePolicy") {
+		t.Error("ECS service still attaches the broad AWS-managed execution policy")
+	}
+	for _, expected := range []string{
+		`variable "ecr_repository_arns"`,
+		"length(var.ecr_repository_arns) > 0",
+	} {
+		if !strings.Contains(ecsVariables, expected) {
+			t.Errorf("ECS execution contract missing %s", expected)
+		}
+	}
+	for _, expected := range []string{
+		`resource "aws_iam_role_policy" "execution"`,
+		`"ecr:GetAuthorizationToken"`,
+		"Resource = var.ecr_repository_arns",
+		`"logs:CreateLogStream"`,
+		`"logs:PutLogEvents"`,
+		"log-group:${aws_cloudwatch_log_group.this.name}:log-stream:*",
+		"Resource = local.secret_arns",
+		"Resource = var.kms_key_arn",
+	} {
+		if !strings.Contains(ecsMain, expected) {
+			t.Errorf("ECS execution policy missing %s", expected)
+		}
+	}
+	if strings.Count(rootMain, "ecr_repository_arns = module.ecr.repository_arns") != 3 {
+		t.Error("API, worker, and migration task roles must receive project ECR repository ARNs")
+	}
+	if strings.Contains(accountMain, "AmazonECSTaskExecutionRolePolicy") {
+		t.Error("Terraform apply role may still attach the removed broad ECS execution managed policy")
+	}
+}
+
+// Verify that externally managed DNS deployments can supply an existing SES
+// identity and that production cannot silently launch without outbound email.
+func TestSESExistingIdentityAndProductionReadiness(t *testing.T) {
+	rootMain := read(t, filepath.Join(root(t), "main.tf"))
+	rootVariables := read(t, filepath.Join(root(t), "variables.tf"))
+	sesVariables := read(t, filepath.Join(root(t), "modules", "ses", "variables.tf"))
+	sesOutputs := read(t, filepath.Join(root(t), "modules", "ses", "outputs.tf"))
+
+	for _, expected := range []string{
+		`variable "ses_identity_arn"`,
+		`^arn:[^:]+:ses:[^:]+:[0-9]{12}:identity/`,
+	} {
+		if !strings.Contains(rootVariables, expected) {
+			t.Errorf("root SES contract missing %s", expected)
+		}
+	}
+	for _, expected := range []string{
+		"var.create_dns || var.ses_identity_arn != null",
+		"existing_identity_arn = var.ses_identity_arn",
+		"dmarc_rua             = var.alarm_email",
+	} {
+		if !strings.Contains(rootMain, expected) {
+			t.Errorf("root SES readiness/wiring missing %s", expected)
+		}
+	}
+	if !strings.Contains(sesVariables, `variable "existing_identity_arn"`) ||
+		!strings.Contains(sesVariables, `check "identity_source"`) {
+		t.Error("SES module does not support a mutually exclusive external identity")
+	}
+	if !strings.Contains(sesOutputs, "var.create_dns ? aws_ses_domain_identity.this[0].arn : var.existing_identity_arn") {
+		t.Error("SES identity output does not return the configured identity source")
+	}
+}
+
+// Verify that CloudFront overwrites the private viewer-IP header from the
+// authenticated event context before regional WAF uses it for rate aggregation.
+func TestCloudFrontAuthenticatedViewerIPHeader(t *testing.T) {
+	cloudfrontMain := read(t, filepath.Join(root(t), "modules", "cloudfront", "main.tf"))
+	functionCode := read(t, filepath.Join(root(t), "modules", "cloudfront", "true-client-ip.js"))
+	wafMain := read(t, filepath.Join(root(t), "modules", "waf", "main.tf"))
+
+	for _, expected := range []string{
+		`resource "aws_cloudfront_function" "true_client_ip"`,
+		`code    = file("${path.module}/true-client-ip.js")`,
+		"function_arn = aws_cloudfront_function.true_client_ip.arn",
+		`resource "aws_cloudfront_cache_policy" "api_disabled"`,
+		`resource "aws_cloudfront_origin_request_policy" "api"`,
+		`resource "aws_cloudfront_cache_policy" "share"`,
+		`resource "aws_cloudfront_origin_request_policy" "share"`,
+		"cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id",
+		"origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id",
+		"cache_policy_id          = aws_cloudfront_cache_policy.share.id",
+		"origin_request_policy_id = aws_cloudfront_origin_request_policy.share.id",
+		`"X-Origin-Viewer-IP"`,
+		`"Authorization"`,
+		`"X-CSRFToken"`,
+	} {
+		if !strings.Contains(cloudfrontMain, expected) {
+			t.Errorf("CloudFront true-client-IP propagation missing %s", expected)
+		}
+	}
+	if strings.Count(cloudfrontMain, "function_arn = aws_cloudfront_function.true_client_ip.arn") != 2 {
+		t.Error("true-client-IP function must be attached to API and share origin behaviors")
+	}
+	for _, forbidden := range []string{
+		`headers      = ["Host", "X-Origin-Viewer-IP"]`,
+		`headers      = ["*"]`,
+		`items = ["Host"`,
+	} {
+		if strings.Contains(cloudfrontMain, forbidden) {
+			t.Errorf("CloudFront must not forward viewer Host or wildcard headers to the TLS origin: %s", forbidden)
+		}
+	}
+	if strings.Contains(cloudfrontMain, `headers      = ["Accept-Language", "X-Origin-Viewer-IP"]`) {
+		t.Error("share viewer IP must be forwarded only by the origin request policy, not included in the cache key")
+	}
+	if !strings.Contains(functionCode, `event.viewer.ip`) ||
+		!strings.Contains(functionCode, `request.headers["x-origin-viewer-ip"]`) {
+		t.Error("CloudFront Function does not overwrite the private origin viewer-IP header")
+	}
+	if !strings.Contains(wafMain, `header_name       = "X-Origin-Viewer-IP"`) {
+		t.Error("regional WAF is not using the authenticated CloudFront viewer-IP header")
+	}
+}
+
+// Verify that stateful services publish encrypted, retained engine logs and that
+// each ECS workload receives only its required queue operations.
+func TestStatefulLogsAndWorkloadSpecificPermissions(t *testing.T) {
+	rootDir := root(t)
+	rdsMain := read(t, filepath.Join(rootDir, "modules", "rds_postgres", "main.tf"))
+	redisMain := read(t, filepath.Join(rootDir, "modules", "redis", "main.tf"))
+	ecsMain := read(t, filepath.Join(rootDir, "modules", "ecs_service", "main.tf"))
+	rootMain := read(t, filepath.Join(rootDir, "main.tf"))
+
+	for _, expected := range []string{
+		`resource "aws_cloudwatch_log_group" "postgresql"`,
+		`resource "aws_cloudwatch_log_group" "upgrade"`,
+		`retention_in_days = var.log_retention_days`,
+		`kms_key_id        = var.kms_key_arn`,
+	} {
+		if !strings.Contains(rdsMain, expected) {
+			t.Errorf("RDS exported-log control missing %s", expected)
+		}
+	}
+	for _, expected := range []string{
+		`resource "aws_cloudwatch_log_group" "engine"`,
+		`resource "aws_cloudwatch_log_group" "slow"`,
+		`log_type         = "engine-log"`,
+		`log_type         = "slow-log"`,
+	} {
+		if !strings.Contains(redisMain, expected) {
+			t.Errorf("Redis log-delivery control missing %s", expected)
+		}
+	}
+	for _, expected := range []string{
+		`queue_statements = length(var.queue_actions) == 0 ? []`,
+		`enable_ecs_managed_tags             = true`,
+		`propagate_tags                      = "SERVICE"`,
+		`resource "aws_appautoscaling_policy" "memory"`,
+	} {
+		if !strings.Contains(ecsMain, expected) {
+			t.Errorf("ECS control missing %s", expected)
+		}
+	}
+	for _, expected := range []string{
+		`queue_actions = ["sqs:GetQueueAttributes", "sqs:SendMessage"]`,
+		`queue_actions = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]`,
+		`queue_actions             = []`,
+	} {
+		if !strings.Contains(rootMain, expected) {
+			t.Errorf("root workload permission wiring missing %s", expected)
 		}
 	}
 }

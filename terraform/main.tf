@@ -5,7 +5,14 @@
 # Compute reusable derived values used throughout this file.
 locals {
   name = "${var.project_name}-${var.environment}"
-  tags = merge(var.tags, { Environment = var.environment })
+  tags = merge(var.tags, {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Owner       = "DevOps Lab Inc."
+    Repository  = "${var.github_org}/${var.github_repo}"
+  })
+  permissions_boundary_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"
   origin_domain = var.domain_name == "" ? "" :"origin.${var.domain_name}"
   application_url = var.domain_name == "" ? "https://${module.cloudfront.domain_name}" :"https://${var.domain_name}"
   allowed_hosts = join(",", compact([var.domain_name, local.origin_domain, module.cloudfront.domain_name, module.alb.dns_name, "localhost", "127.0.0.1"]))
@@ -50,6 +57,34 @@ check "production_safety" {
     error_message = "Production requires deletion protection, Multi-AZ RDS, at least two API tasks, and a Redis replica."
   }
 }
+
+# Prevent a production deployment from silently launching with demo integrations,
+# no alert destination, or the default CloudFront hostname.
+check "production_readiness" {
+  assert {
+    condition = (
+      !var.enforce_production_readiness ||
+      var.environment != "prod" ||
+      (
+        var.payment_provider != "fake" &&
+        trimspace(var.alarm_email) != "" &&
+        trimspace(var.domain_name) != "" &&
+        (var.create_dns || (var.viewer_certificate_arn != null && var.origin_certificate_arn != null)) &&
+        (var.create_dns || var.ses_identity_arn != null)
+      )
+    )
+    error_message = "Production readiness requires a real payment provider, alarm_email, custom domain, and either Terraform-managed DNS validation or both existing viewer/origin ACM certificates."
+  }
+}
+# Generate a high-entropy per-environment secret used only between CloudFront and
+# the ALB. This closes the origin-bypass path that a prefix-list-only design leaves
+# open to other AWS CloudFront distributions. The value is sensitive and remains
+# encrypted in the Terraform backend.
+resource "random_password" "origin_verify" {
+  length  = 64
+  special = false
+}
+
 # Invokes the reusable kms module and passes this environment configuration into it.
 module "kms" {
   source = "./modules/kms"
@@ -72,6 +107,7 @@ module "networking" {
   az_count = var.az_count
   nat_gateway_per_az = var.nat_gateway_per_az
   kms_key_arn       = module.kms.key_arn
+  permissions_boundary_arn = local.permissions_boundary_arn
   tags              = local.tags
 }
 # Invokes the reusable security module and passes this environment configuration into it.
@@ -116,7 +152,8 @@ module "acm_viewer" {
   domain_name    = var.domain_name
   hosted_zone_id = var.hosted_zone_id
   create         = var.create_dns
-  tags           = local.tags
+  existing_certificate_arn = var.viewer_certificate_arn
+  tags                     = local.tags
 }
 
 # Invokes the reusable acm origin module and passes this environment configuration into it.
@@ -124,8 +161,9 @@ module "acm_origin" {
   source         = "./modules/acm"
   domain_name    = local.origin_domain
   hosted_zone_id = var.hosted_zone_id
-  create         = var.create_dns
-  tags           = local.tags
+  create                   = var.create_dns
+  existing_certificate_arn = var.origin_certificate_arn
+  tags                     = local.tags
 }
 # Invokes the reusable waf module and passes this environment configuration into it.
 module "waf" {
@@ -152,8 +190,9 @@ module "alb" {
   certificate_arn = module.acm_origin.certificate_arn
   deletion_protection = var.deletion_protection
   access_log_bucket_id = module.access_logs.bucket_id
-  access_log_prefix    = "alb"
-  tags                 = local.tags
+  access_log_prefix          = "alb"
+  origin_verify_header_value = random_password.origin_verify.result
+  tags                       = local.tags
 }
 
 resource "aws_wafv2_web_acl_association" "alb" {
@@ -167,9 +206,10 @@ module "cloudfront" {
   bucket_id = module.static.bucket_id
   bucket_arn = module.static.bucket_arn
   bucket_domain_name = module.static.regional_domain_name
-  alb_domain_name = var.create_dns ? local.origin_domain :module.alb.dns_name
-  use_https_origin = var.create_dns
-  domain_name = var.domain_name
+  alb_domain_name = module.acm_origin.certificate_arn != null ? local.origin_domain : module.alb.dns_name
+  use_https_origin          = module.acm_origin.certificate_arn != null
+  origin_verify_header_value = random_password.origin_verify.result
+  domain_name               = var.domain_name
   certificate_arn = module.acm_viewer.certificate_arn
   price_class = var.cloudfront_price_class
   web_acl_arn                  = module.waf.arn
@@ -205,8 +245,10 @@ module "database" {
   instance_class = var.db_instance_class
   allocated_storage = var.db_allocated_storage
   multi_az = var.db_multi_az
-  deletion_protection = var.deletion_protection
-  tags = local.tags
+  deletion_protection          = var.deletion_protection
+  secret_recovery_window_days  = var.environment == "prod" ? 30 : 7
+  permissions_boundary_arn = local.permissions_boundary_arn
+  tags                         = local.tags
 }
 # Invokes the reusable redis module and passes this environment configuration into it.
 module "redis" {
@@ -216,8 +258,10 @@ module "redis" {
   security_group_ids = [module.security.redis_sg_id]
   kms_key_arn = module.kms.key_arn
   node_type = var.redis_node_type
-  replicas = var.redis_replicas
-  tags = local.tags
+  replicas                = var.redis_replicas
+  snapshot_retention_days = var.environment == "prod" ? 7 : 1
+  apply_immediately       = false
+  tags                    = local.tags
 }
 # Invokes the reusable sqs module and passes this environment configuration into it.
 module "sqs" {
@@ -234,21 +278,26 @@ module "eventbridge" {
   dlq_arn          = module.sqs.dlq_arn
   kms_key_arn      = module.kms.key_arn
   schedule_enabled = var.schedule_enabled
+  permissions_boundary_arn = local.permissions_boundary_arn
   tags             = local.tags
 }
 # Invokes the reusable secrets manager module and passes this environment configuration into it.
 module "secrets_manager" {
   source = "./modules/secrets_manager"
   name = local.name
-  kms_key_arn = module.kms.key_arn
-  tags = local.tags
+  kms_key_arn             = module.kms.key_arn
+  recovery_window_in_days = var.environment == "prod" ? 30 : 7
+  tags                    = local.tags
 }
 # Invokes the reusable ses module and passes this environment configuration into it.
 module "ses" {
   source = "./modules/ses"
   domain_name = var.domain_name
   hosted_zone_id = var.hosted_zone_id
-  create_dns = var.create_dns
+  create_dns            = var.create_dns
+  existing_identity_arn = var.ses_identity_arn
+  dmarc_policy          = var.environment == "prod" ? "quarantine" : "none"
+  dmarc_rua             = var.alarm_email
 }
 # Invokes the reusable cluster module and passes this environment configuration into it.
 module "cluster" {
@@ -265,16 +314,19 @@ module "backend" {
   subnet_ids = module.networking.app_subnet_ids
   security_group_ids = [module.security.app_sg_id]
   image = var.backend_image
+  ecr_repository_arns = module.ecr.repository_arns
   cpu = var.backend_cpu
   memory = var.backend_memory
   desired_count = var.backend_desired_count
   target_group_arn = module.alb.target_group_arn
   kms_key_arn = module.kms.key_arn
   queue_arn = module.sqs.queue_arn
+  queue_actions = ["sqs:GetQueueAttributes", "sqs:SendMessage"]
   ses_identity_arn = module.ses.identity_arn
   object_storage_bucket_arn = module.media.bucket_arn
   environment = local.common_environment
   secrets = local.common_secrets
+  permissions_boundary_arn = local.permissions_boundary_arn
   tags = local.tags
 }
 # Invokes the reusable worker module and passes this environment configuration into it.
@@ -285,6 +337,7 @@ module "worker" {
   subnet_ids = module.networking.app_subnet_ids
   security_group_ids = [module.security.app_sg_id]
   image = var.backend_image
+  ecr_repository_arns = module.ecr.repository_arns
   cpu = var.worker_cpu
   memory = var.worker_memory
   desired_count = var.worker_desired_count
@@ -294,10 +347,12 @@ module "worker" {
   enable_autoscaling = false
   kms_key_arn = module.kms.key_arn
   queue_arn = module.sqs.queue_arn
+  queue_actions = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]
   ses_identity_arn = module.ses.identity_arn
   object_storage_bucket_arn = module.media.bucket_arn
   environment = local.common_environment
   secrets = local.common_secrets
+  permissions_boundary_arn = local.permissions_boundary_arn
   tags = local.tags
 }
 # Invokes the reusable migration module and passes this environment configuration into it.
@@ -308,6 +363,7 @@ module "migration" {
   subnet_ids                = module.networking.app_subnet_ids
   security_group_ids        = [module.security.app_sg_id]
   image                     = var.backend_image
+  ecr_repository_arns = module.ecr.repository_arns
   cpu                       = var.worker_cpu
   memory                    = var.worker_memory
   desired_count             = 0
@@ -318,10 +374,12 @@ module "migration" {
   enable_xray               = false
   kms_key_arn               = module.kms.key_arn
   queue_arn                 = module.sqs.queue_arn
-  ses_identity_arn          = module.ses.identity_arn
-  object_storage_bucket_arn = module.media.bucket_arn
+  queue_actions             = []
+  ses_identity_arn          = null
+  object_storage_bucket_arn = null
   environment               = local.common_environment
   secrets                   = local.common_secrets
+  permissions_boundary_arn = local.permissions_boundary_arn
   tags                      = local.tags
 }
 
@@ -332,43 +390,59 @@ module "github_oidc" {
   github_org = var.github_org
   github_repo = var.github_repo
   ecr_arns = module.ecr.repository_arns
-  cluster_arn = module.cluster.cluster_arn
-  tags = local.tags
+  cluster_arn        = module.cluster.cluster_arn
+  allow_pull_requests = false
+  permissions_boundary_arn = local.permissions_boundary_arn
+  tags               = local.tags
 }
 # Invokes the reusable backup module and passes this environment configuration into it.
 module "backup" {
   source = "./modules/backup"
   name = local.name
   kms_key_arn = module.kms.key_arn
-  resource_arns = [module.database.db_arn]
-  tags = local.tags
+  resource_arns               = [module.database.db_arn]
+  enable_vault_lock           = var.enable_backup_vault_lock
+  minimum_retention_days      = var.backup_retention_days
+  maximum_retention_days      = var.backup_max_retention_days
+  cold_storage_after_days     = var.backup_cold_storage_after_days
+  vault_lock_changeable_for_days = var.backup_vault_lock_changeable_days
+  permissions_boundary_arn = local.permissions_boundary_arn
+  tags                        = local.tags
 }
 # Invokes the reusable cloudwatch module and passes this environment configuration into it.
 module "cloudwatch" {
   source = "./modules/cloudwatch"
   name = local.name
-  alb_arn_suffix = split("loadbalancer/",module.alb.arn)[1]
-  cluster_name = module.cluster.cluster_name
-  service_name = module.backend.service_name
-  sns_email       = var.alarm_email
-  kms_key_arn     = module.kms.key_arn
-  account_root_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
-  tags            = local.tags
+  alb_arn_suffix              = split("loadbalancer/", module.alb.arn)[1]
+  target_group_arn_suffix     = module.alb.target_group_arn_suffix
+  cluster_name                = module.cluster.cluster_name
+  service_names               = [module.backend.service_name, module.worker.service_name]
+  db_identifier               = module.database.db_identifier
+  redis_replication_group_id  = module.redis.replication_group_id
+  queue_name                  = module.sqs.queue_name
+  dlq_name                    = module.sqs.dlq_name
+  cloudfront_distribution_id  = module.cloudfront.distribution_id
+  sns_email                   = var.alarm_email
+  kms_key_arn                 = module.kms.key_arn
+  account_root_arn            = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+  tags                        = local.tags
 }
 # Invokes the reusable cloudtrail module and passes this environment configuration into it.
 module "cloudtrail" {
   source = "./modules/cloudtrail"
   name = local.name
   kms_key_arn = module.kms.key_arn
-  retention_days       = var.cloudtrail_retention_days
-  access_log_bucket_id = module.access_logs.bucket_id
-  tags                 = local.tags
+  retention_days           = var.cloudtrail_retention_days
+  access_log_bucket_id     = module.access_logs.bucket_id
+  s3_data_event_bucket_arns = var.environment == "prod" ? [module.static.bucket_arn, module.media.bucket_arn] : []
+  enable_insights          = var.environment == "prod"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  tags                     = local.tags
 }
 # Invokes the reusable guardduty module and passes this environment configuration into it.
 module "guardduty" {
-  source = "./modules/guardduty"
+  source  = "./modules/guardduty"
   enabled = var.enable_guardduty
-  tags = local.tags
 }
 # Invokes the reusable xray module and passes this environment configuration into it.
 module "xray" {

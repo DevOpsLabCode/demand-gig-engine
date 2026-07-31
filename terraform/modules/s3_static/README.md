@@ -24,12 +24,12 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `force_destroy` | `bool` | `false` | `false` | Configuration value for `force_destroy`. |
-| `kms_key_arn` | `string` | `null` | `false` | Optional customer-managed key; null selects SSE-S3 for CloudFront compatibility. |
-| `create_tls_policy` | `bool` | `true` | `false` | Create the TLS-only bucket policy unless another module owns the complete policy. |
-| `access_log_bucket_id` | `string` | `required` | `false` | Central log bucket that receives server access records. |
-| `noncurrent_version_expiration_days` | `number` | `30` | `false` | Configuration value for `noncurrent_version_expiration_days`. |
+| `name` | `string` | `required` | `false` | Globally unique private S3 bucket name. |
+| `force_destroy` | `bool` | `false` | `false` | Allow deletion of non-empty disposable development buckets. |
+| `kms_key_arn` | `string` | `null` | `false` | Optional customer-managed KMS key; null selects SSE-S3 for CloudFront log-delivery compatibility. |
+| `create_tls_policy` | `bool` | `true` | `false` | Create the TLS-only bucket policy unless another module owns the complete bucket policy. |
+| `access_log_bucket_id` | `string` | `required` | `false` | Centralized log bucket that receives S3 server-access records. |
+| `noncurrent_version_expiration_days` | `number` | `30` | `false` | Days retained superseded object versions before lifecycle expiration. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -68,4 +68,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

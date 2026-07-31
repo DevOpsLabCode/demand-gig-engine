@@ -80,7 +80,7 @@ The AWS framework received an additional infrastructure-specific validation pass
 | Check | Result | Details |
 |---|---|---|
 | Terraform structural/module contracts | PASS | 79 Terraform files and 30 root module instances |
-| Go infrastructure tests | PASS | 29 tests with the race detector |
+| Go infrastructure tests | PASS | 44 tests with the race detector |
 | Go static analysis | PASS | `go vet ./...` |
 | Mock deployment orchestration | PASS | State bootstrap, ECR build/push, zero capacity, migration, scale-up, S3, CloudFront |
 | GitHub workflow validation | PASS | 5 workflows; current Terraform/TFLint action majors |
@@ -108,7 +108,7 @@ A repository-wide documentation pass added author attribution, file-purpose head
 | Documentation integrity | PASS | 46 Markdown files and 100 local links checked |
 | Author attribution | PASS | 232 applicable source/documentation files checked; 0 missing |
 | Repository checks | PASS | 69 checks, 0 failures; 5 GitHub workflows validated |
-| Terraform Go tests | PASS | 29 tests passed with the race detector; `go vet ./...` passed |
+| Terraform Go tests | PASS | 44 tests passed with the race detector; `go vet ./...` passed |
 | Updated PDF | PASS | 26 pages; preflight and 160-DPI visual inspection passed |
 | Flake8 | NOT RUN LOCALLY | Tool unavailable in the sandbox; blocking rules remain configured in CI |
 
@@ -121,8 +121,24 @@ Detailed evidence is stored in [`validation/documentation-enhancement-2026-07-31
 | Security remediation invariants | PASS | 100 checks across Terraform and the discovered security workflow |
 | Repository structural checks | PASS | 69 checks, 0 failures |
 | GitHub workflow validation | PASS | 5 workflows |
-| Terraform Go race tests | PASS | 29 tests |
+| Terraform Go race tests | PASS | 44 tests |
 | Shell syntax validation | PASS | Root and Terraform automation scripts |
 | Native Checkov rerun | DEFERRED | Runs in GitHub Actions; scanner unavailable in this sandbox |
 
 The updated npm job always produces `npm-audit.json`, even when dependency resolution fails, and the strict Checkov job uploads SARIF before enforcing the result. See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) and [`validation/security-remediation-2026-07-31/`](validation/security-remediation-2026-07-31/).
+
+## Terraform module deep audit — July 31, 2026
+
+| Check | Result | Details |
+|---|---|---|
+| Terraform module contracts | PASS | 25 reusable modules and 31 root instances |
+| Terraform source inventory | PASS | 87 `.tf` files across workload, bootstrap, account foundation, and reusable modules |
+| Security invariants | PASS | 116 checks |
+| Terraform Go race tests | PASS | 44 tests |
+| GitHub workflows | PASS | 5 workflows |
+| Pull-request AWS isolation | PASS | PRs run offline validation only; remote state is never exposed to PR jobs |
+| OIDC role separation | PASS | Dedicated post-merge plan and protected apply roles; no broad fallback secret |
+| IAM PassRole scope | PASS | Project-prefixed roles and five approved AWS service principals |
+| Native Terraform/TFLint/Checkov | DEFERRED | Blocking GitHub checks remain configured; local binaries/provider downloads unavailable |
+
+Detailed evidence is stored in [`validation/terraform-module-deep-audit-2026-07-31/`](validation/terraform-module-deep-audit-2026-07-31/).

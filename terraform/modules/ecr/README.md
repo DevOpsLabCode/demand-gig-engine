@@ -17,9 +17,10 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `repositories` | `set(string)` | `required` | `false` | Configuration value for `repositories`. |
-| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for encryption. |
+| `name` | `string` | `required` | `false` | Stable repository prefix. |
+| `repositories` | `set(string)` | `required` | `false` | Logical repository suffixes managed by the module. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for repository encryption. |
+| `retained_image_count` | `number` | `30` | `false` | Number of recent images retained for rollback. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -58,4 +59,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

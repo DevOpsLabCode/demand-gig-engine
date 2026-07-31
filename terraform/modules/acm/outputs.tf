@@ -1,8 +1,7 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Publishes reusable values produced by the acm Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Publishes the created or supplied ACM certificate ARN.
 
-# Output `certificate_arn`: ACM certificate ARN used to terminate TLS.
 output "certificate_arn" {
-  value = try(aws_acm_certificate_validation.this[0].certificate_arn,null)
+  description = "Created and validated ACM certificate ARN, supplied existing ARN, or null when TLS is intentionally not configured."
+  value       = var.create ? aws_acm_certificate_validation.this[0].certificate_arn : var.existing_certificate_arn
 }

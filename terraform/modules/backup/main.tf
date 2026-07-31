@@ -1,6 +1,5 @@
-
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates an encrypted AWS Backup vault, immutable retention controls, schedule, role, and protected-resource selection.
+# Purpose: Creates an encrypted AWS Backup vault, environment-aware immutable retention, schedule, role, and protected-resource selection.
 
 data "aws_iam_policy_document" "assume" {
   statement {
@@ -14,6 +13,7 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "this" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-backup"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
@@ -66,9 +66,11 @@ resource "aws_backup_vault" "this" {
   tags        = var.tags
 }
 
-# Vault Lock prevents recovery points from being shortened or deleted before the
-# configured minimum. The grace period permits correction of a mistaken first apply.
+# Compliance Vault Lock is deliberately conditional. Applying it to a disposable
+# development environment would make recovery points undeletable after the grace period.
 resource "aws_backup_vault_lock_configuration" "this" {
+  count = var.enable_vault_lock ? 1 : 0
+
   backup_vault_name   = aws_backup_vault.this.name
   changeable_for_days = var.vault_lock_changeable_for_days
   min_retention_days  = var.minimum_retention_days
@@ -81,7 +83,7 @@ resource "aws_backup_plan" "this" {
   rule {
     rule_name         = "daily"
     target_vault_name = aws_backup_vault.this.name
-    schedule          = "cron(0 5 ? * * *)"
+    schedule          = var.schedule_expression
 
     lifecycle {
       cold_storage_after = var.cold_storage_after_days

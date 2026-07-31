@@ -1,16 +1,27 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Publishes reusable values produced by the sqs Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Publishes queue URLs, ARNs, and names used by application, scheduler, IAM, and monitoring modules.
 
-# Output `queue_url`: SQS queue URL consumed by the worker process.
 output "queue_url" {
-  value = aws_sqs_queue.tasks.url
+  description = "SQS queue URL consumed by the worker process."
+  value       = aws_sqs_queue.tasks.url
 }
-# Output `queue_arn`: SQS queue ARN the task may read from or publish to.
+
 output "queue_arn" {
-  value = aws_sqs_queue.tasks.arn
+  description = "Source queue ARN used by ECS and EventBridge Scheduler IAM policies."
+  value       = aws_sqs_queue.tasks.arn
 }
-# Output `dlq_arn`: Dead-letter queue ARN that receives messages after retries are exhausted.
+
+output "queue_name" {
+  description = "Source queue name used by CloudWatch alarm dimensions."
+  value       = aws_sqs_queue.tasks.name
+}
+
 output "dlq_arn" {
-  value = aws_sqs_queue.dlq.arn
+  description = "Dead-letter queue ARN used by EventBridge Scheduler and redrive policies."
+  value       = aws_sqs_queue.dlq.arn
+}
+
+output "dlq_name" {
+  description = "Dead-letter queue name used by CloudWatch alarm dimensions."
+  value       = aws_sqs_queue.dlq.name
 }

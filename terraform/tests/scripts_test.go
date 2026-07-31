@@ -60,6 +60,9 @@ func prepareScriptFixture(t *testing.T) (string, string, string) {
 	for _, relative := range []string{
 		"terraform/scripts/bootstrap.sh",
 		"terraform/scripts/deploy.sh",
+		"terraform/global/bootstrap/main.tf",
+		"terraform/global/bootstrap/variables.tf",
+		"terraform/global/bootstrap/versions.tf",
 		"terraform/envs/dev/terraform.tfvars",
 		"Dockerfile.backend",
 		"Dockerfile.frontend",
@@ -87,7 +90,16 @@ set -eu
 echo "aws $*" >> "$MOCK_LOG"
 if [[ "$1 $2" == "sts get-caller-identity" ]]; then echo 123456789012; exit 0; fi
 if [[ "$1 $2" == "s3api head-bucket" ]]; then exit 1; fi
+if [[ "$1 $2" == "s3api get-bucket-versioning" ]]; then echo Enabled; exit 0; fi
+if [[ "$1 $2" == "s3api get-bucket-encryption" ]]; then echo aws:kms; exit 0; fi
 exit 0
+`)
+	writeExecutable(t, filepath.Join(fakeBin, "terraform"), `#!/usr/bin/env bash
+set -eu
+echo "terraform $*" >> "$MOCK_LOG"
+if [[ "$*" == *"output -raw kms_key_arn"* ]]; then
+  echo arn:aws:kms:us-east-1:123456789012:key/bootstrap-key
+fi
 `)
 
 	environment := append(os.Environ(),
@@ -106,6 +118,7 @@ exit 0
 	for _, expected := range []string{
 		`bucket       = "demand-gig-engine-dev-123456789012-tfstate"`,
 		`key          = "dev/terraform.tfstate"`,
+		`kms_key_id   = "arn:aws:kms:us-east-1:123456789012:key/bootstrap-key"`,
 		`use_lockfile = true`,
 	} {
 		if !strings.Contains(backend, expected) {
@@ -114,17 +127,20 @@ exit 0
 	}
 	commands := read(t, logFile)
 	for _, expected := range []string{
-		"s3api create-bucket",
-		"s3api put-bucket-ownership-controls",
-		"s3api put-public-access-block",
-		"s3api put-bucket-versioning",
-		"s3api put-bucket-encryption",
-		"s3api put-bucket-lifecycle-configuration",
-		"s3api put-bucket-policy",
+		"terraform -chdir=",
+		"init -backend=false",
+		"apply -auto-approve",
+		"init -force-copy -migrate-state",
+		"s3api get-bucket-versioning",
+		"s3api get-public-access-block",
+		"s3api get-bucket-encryption",
 	} {
 		if !strings.Contains(commands, expected) {
-			t.Errorf("secure state bootstrap did not call %q", expected)
+			t.Errorf("Terraform-owned state bootstrap did not execute %q", expected)
 		}
+	}
+	if strings.Contains(commands, "s3api create-bucket") {
+		t.Error("bootstrap must not create state resources outside Terraform")
 	}
 }
 
@@ -138,6 +154,7 @@ if [[ "$1 $2" == "sts get-caller-identity" ]]; then echo 123456789012; exit 0; f
 if [[ "$1 $2" == "s3api head-bucket" ]]; then exit 1; fi
 exit 0
 `)
+	writeExecutable(t, filepath.Join(fakeBin, "terraform"), "#!/usr/bin/env bash\nexit 0\n")
 	environment := append(os.Environ(),
 		"PATH="+fakeBin+":"+os.Getenv("PATH"),
 		"MOCK_LOG="+logFile,
@@ -160,6 +177,8 @@ func TestDeployScriptOrchestratesMigrationBeforeScaleUp(t *testing.T) {
 set -eu
 echo "terraform $*" >> "$MOCK_LOG"
 case "$*" in
+  *"state list"*) echo 'aws_s3_bucket.state' ;;
+  *"output -raw kms_key_arn"*) echo 'arn:aws:kms:us-east-1:123456789012:key/bootstrap-key' ;;
   *"output -json ecr_repository_urls"*) echo '{"backend":"123456789012.dkr.ecr.us-east-1.amazonaws.com/backend","frontend":"123456789012.dkr.ecr.us-east-1.amazonaws.com/frontend"}' ;;
   *"output -raw ecs_cluster_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:cluster/demand-gig-engine-dev' ;;
   *"output -raw migration_task_definition_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:task-definition/migration:1' ;;
@@ -177,6 +196,9 @@ set -eu
 echo "aws $*" >> "$MOCK_LOG"
 if [[ "$1 $2" == "sts get-caller-identity" ]]; then echo 123456789012; exit 0; fi
 if [[ "$1 $2" == "s3api head-bucket" ]]; then exit 0; fi
+if [[ "$1 $2" == "s3api get-bucket-versioning" ]]; then echo Enabled; exit 0; fi
+if [[ "$1 $2" == "s3api get-bucket-encryption" ]]; then echo aws:kms; exit 0; fi
+if [[ "$1 $2" == "kms describe-key" ]]; then echo arn:aws:kms:us-east-1:123456789012:key/bootstrap-key; exit 0; fi
 if [[ "$1 $2" == "ecr get-login-password" ]]; then echo password; exit 0; fi
 if [[ "$1 $2" == "ecs run-task" ]]; then echo 'arn:aws:ecs:us-east-1:123456789012:task/migration-task'; exit 0; fi
 if [[ "$1 $2" == "ecs describe-tasks" && "$*" == *"exitCode"* ]]; then echo 0; exit 0; fi
@@ -214,11 +236,16 @@ echo deadbeef
 	}
 
 	commands := read(t, logFile)
-	zeroApply := strings.Index(commands, "backend_desired_count=0")
+	migrationInfrastructure := strings.Index(commands, "-target=module.migration")
 	migration := strings.Index(commands, "aws ecs run-task")
 	finalApply := strings.LastIndex(commands, "terraform -chdir=")
-	if zeroApply < 0 || migration < 0 || finalApply < 0 || !(zeroApply < migration && migration < finalApply) {
-		t.Fatalf("deployment order is incorrect: zero=%d migration=%d final=%d\n%s", zeroApply, migration, finalApply, commands)
+	if migrationInfrastructure < 0 || migration < 0 || finalApply < 0 || !(migrationInfrastructure < migration && migration < finalApply) {
+		t.Fatalf("deployment order is incorrect: migration-infra=%d migration=%d final=%d\n%s", migrationInfrastructure, migration, finalApply, commands)
+	}
+	for _, forbidden := range []string{"backend_desired_count=0", "worker_desired_count=0"} {
+		if strings.Contains(commands, forbidden) {
+			t.Fatalf("deployment unexpectedly scaled a live service to zero: %s\n%s", forbidden, commands)
+		}
 	}
 	for _, expected := range []string{
 		"migration_task_definition_arn",
@@ -240,6 +267,9 @@ func TestScriptFixtureContainsExpectedProjectLayout(t *testing.T) {
 	for _, relative := range []string{
 		"terraform/scripts/bootstrap.sh",
 		"terraform/scripts/deploy.sh",
+		"terraform/global/bootstrap/main.tf",
+		"terraform/global/bootstrap/variables.tf",
+		"terraform/global/bootstrap/versions.tf",
 		"terraform/envs/dev/terraform.tfvars",
 		"Dockerfile.backend",
 		"Dockerfile.frontend",

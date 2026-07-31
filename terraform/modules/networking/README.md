@@ -39,12 +39,13 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `cidr` | `string` | `required` | `false` | Configuration value for `cidr`. |
-| `az_count` | `number` | `required` | `false` | Configuration value for `az_count`. |
-| `nat_gateway_per_az` | `bool` | `false` | `false` | Configuration value for `nat_gateway_per_az`. |
+| `name` | `string` | `required` | `false` | Stable VPC, subnet, route, log-group, and IAM role name prefix. |
+| `cidr` | `string` | `required` | `false` | IPv4 VPC CIDR from which public, application, and database subnets are derived. |
+| `az_count` | `number` | `required` | `false` | Number of Availability Zones used by each subnet tier. |
+| `nat_gateway_per_az` | `bool` | `false` | `false` | Create one NAT gateway per application Availability Zone instead of one shared development NAT gateway. |
 | `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key used by the VPC flow-log group. |
-| `flow_log_retention_days` | `number` | `365` | `false` | Configuration value for `flow_log_retention_days`. |
+| `flow_log_retention_days` | `number` | `365` | `false` | CloudWatch retention for accepted and rejected VPC flow records. |
+| `permissions_boundary_arn` | `string` | `required` | `false` | AWS-managed PowerUserAccess policy ARN used as the permissions boundary for every workload IAM role. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -72,6 +73,7 @@ module "networking" {
   cidr = var.cidr
   az_count = var.az_count
   kms_key_arn = var.kms_key_arn
+  permissions_boundary_arn = var.permissions_boundary_arn
 }
 ```
 
@@ -88,4 +90,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

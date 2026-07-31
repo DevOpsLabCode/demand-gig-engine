@@ -1,88 +1,112 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates or verifies the remote-state bootstrap stack and writes backend configuration for a target environment.
-# Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
+# Purpose: Provisions or verifies a KMS-encrypted Terraform backend through the dedicated global/bootstrap Terraform root.
+# Execution model: fail closed, never create state infrastructure ad hoc, and migrate first-run bootstrap state into the protected backend.
 
 set -Eeuo pipefail
 
 ENVIRONMENT="${1:-dev}"
-[[ "$ENVIRONMENT" =~ ^(dev|prod)$ ]] || { echo "Usage: $0 dev|prod" >&2; exit 2; }
-for command_name in aws jq; do
+[[ "$ENVIRONMENT" =~ ^(account|dev|prod)$ ]] || { echo "Usage: $0 account|dev|prod" >&2; exit 2; }
+for command_name in aws terraform; do
   command -v "$command_name" >/dev/null || { echo "$command_name is required" >&2; exit 1; }
 done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BOOTSTRAP_DIR="$ROOT/global/bootstrap"
 REGION="${AWS_REGION:-us-east-1}"
+PROJECT_NAME="${PROJECT_NAME:-demand-gig-engine}"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-BUCKET="demand-gig-engine-${ENVIRONMENT}-${ACCOUNT_ID}-tfstate"
+BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-${ACCOUNT_ID}-tfstate"
+KMS_ALIAS="alias/${PROJECT_NAME}-${ENVIRONMENT}-tfstate"
+CREATE_BACKEND="${CREATE_BACKEND:-true}"
+
+BOOTSTRAP_BACKEND_FILE="$BOOTSTRAP_DIR/backend-${ENVIRONMENT}.hcl"
+if [[ "$ENVIRONMENT" == "account" ]]; then
+  CONSUMER_BACKEND_FILE="$ROOT/global/account/backend.hcl"
+  CONSUMER_STATE_KEY="account-foundation/terraform.tfstate"
+else
+  CONSUMER_BACKEND_FILE="$ROOT/envs/$ENVIRONMENT/backend.hcl"
+  CONSUMER_STATE_KEY="$ENVIRONMENT/terraform.tfstate"
+fi
+
+write_backend_file() {
+  local destination="$1"
+  local key="$2"
+  local kms_key_arn="$3"
+  mkdir -p "$(dirname "$destination")"
+  cat > "$destination" <<EOF_BACKEND
+bucket       = "$BUCKET"
+key          = "$key"
+region       = "$REGION"
+encrypt      = true
+kms_key_id   = "$kms_key_arn"
+use_lockfile = true
+EOF_BACKEND
+}
+
+verify_backend_controls() {
+  local versioning encryption
+  versioning="$(aws s3api get-bucket-versioning --bucket "$BUCKET" --query Status --output text)"
+  [[ "$versioning" == "Enabled" ]] || { echo "Terraform state bucket $BUCKET does not have versioning enabled." >&2; exit 1; }
+
+  aws s3api get-public-access-block --bucket "$BUCKET" >/dev/null
+  encryption="$(aws s3api get-bucket-encryption \
+    --bucket "$BUCKET" \
+    --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
+    --output text)"
+  [[ "$encryption" == "aws:kms" ]] || { echo "Terraform state bucket $BUCKET must use aws:kms default encryption." >&2; exit 1; }
+}
 
 if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  if [[ "${CREATE_BACKEND:-true}" != "true" ]]; then
-    echo "Terraform state bucket $BUCKET does not exist. Run bootstrap.sh once with CREATE_BACKEND=true." >&2
+  if [[ "$CREATE_BACKEND" != "true" ]]; then
+    echo "Terraform state bucket $BUCKET does not exist. Run bootstrap.sh once with trusted credentials and CREATE_BACKEND=true." >&2
     exit 1
   fi
-  echo "Creating Terraform state bucket $BUCKET" >&2
-  if [[ "$REGION" == "us-east-1" ]]; then
-    # Call AWS using the active identity and fail if the requested cloud operation is not
-    # authorized.
-    aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" >/dev/null
-  else
-    # Call AWS using the active identity and fail if the requested cloud operation is not
-    # authorized.
-    aws s3api create-bucket \
-      --bucket "$BUCKET" \
-      --region "$REGION" \
-      --create-bucket-configuration "LocationConstraint=$REGION" >/dev/null
+
+  echo "Provisioning protected Terraform backend $BUCKET through global/bootstrap" >&2
+  terraform -chdir="$BOOTSTRAP_DIR" init -backend=false -input=false
+  terraform -chdir="$BOOTSTRAP_DIR" apply \
+    -auto-approve \
+    -input=false \
+    -var="aws_region=$REGION" \
+    -var="environment=$ENVIRONMENT" \
+    -var="project_name=$PROJECT_NAME"
+
+  KMS_KEY_ARN="$(terraform -chdir="$BOOTSTRAP_DIR" output -raw kms_key_arn)"
+  write_backend_file "$BOOTSTRAP_BACKEND_FILE" "bootstrap/$ENVIRONMENT/terraform.tfstate" "$KMS_KEY_ARN"
+
+  # Move the local first-run bootstrap state into the bucket it just created.
+  terraform -chdir="$BOOTSTRAP_DIR" init \
+    -force-copy \
+    -migrate-state \
+    -input=false \
+    -backend-config="$BOOTSTRAP_BACKEND_FILE"
+else
+  verify_backend_controls
+  KMS_KEY_ARN="$(aws kms describe-key --key-id "$KMS_ALIAS" --query KeyMetadata.Arn --output text)"
+  [[ "$KMS_KEY_ARN" == arn:*:kms:*:*:key/* ]] || { echo "Unable to resolve protected state key $KMS_ALIAS." >&2; exit 1; }
+  write_backend_file "$BOOTSTRAP_BACKEND_FILE" "bootstrap/$ENVIRONMENT/terraform.tfstate" "$KMS_KEY_ARN"
+
+  if [[ "$CREATE_BACKEND" == "true" ]]; then
+    terraform -chdir="$BOOTSTRAP_DIR" init \
+      -reconfigure \
+      -input=false \
+      -backend-config="$BOOTSTRAP_BACKEND_FILE"
+
+    if [[ -z "$(terraform -chdir="$BOOTSTRAP_DIR" state list 2>/dev/null)" ]]; then
+      echo "Backend bucket exists but bootstrap Terraform state is missing. Import the existing bootstrap resources before continuing; refusing to create a second ownership path." >&2
+      exit 1
+    fi
+
+    terraform -chdir="$BOOTSTRAP_DIR" apply \
+      -auto-approve \
+      -input=false \
+      -var="aws_region=$REGION" \
+      -var="environment=$ENVIRONMENT" \
+      -var="project_name=$PROJECT_NAME"
   fi
 fi
 
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-bucket-ownership-controls \
-  --bucket "$BUCKET" \
-  --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-public-access-block \
-  --bucket "$BUCKET" \
-  --public-access-block-configuration \
-  'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true'
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-bucket-versioning \
-  --bucket "$BUCKET" \
-  --versioning-configuration Status=Enabled
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-bucket-encryption \
-  --bucket "$BUCKET" \
-  --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-bucket-lifecycle-configuration \
-  --bucket "$BUCKET" \
-  --lifecycle-configuration \
-  '{"Rules":[{"ID":"expire-noncurrent-state","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":90}}]}'
-
-POLICY_FILE="$(mktemp)"
-trap 'rm -f "$POLICY_FILE"' EXIT
-jq -n --arg bucket "$BUCKET" '{
-  Version: "2012-10-17",
-  Statement: [{
-    Sid: "DenyInsecureTransport",
-    Effect: "Deny",
-    Principal: "*",
-    Action: "s3:*",
-    Resource: ["arn:aws:s3:::" + $bucket, "arn:aws:s3:::" + $bucket + "/*"],
-    Condition: {Bool: {"aws:SecureTransport": "false"}}
-  }]
-}' > "$POLICY_FILE"
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3api put-bucket-policy --bucket "$BUCKET" --policy "file://$POLICY_FILE"
-
-BACKEND_FILE="$ROOT/envs/$ENVIRONMENT/backend.hcl"
-cat > "$BACKEND_FILE" <<EOF_BACKEND
-bucket       = "$BUCKET"
-key          = "$ENVIRONMENT/terraform.tfstate"
-region       = "$REGION"
-encrypt      = true
-use_lockfile = true
-EOF_BACKEND
-
-printf '%s\n' "$BACKEND_FILE"
+verify_backend_controls
+write_backend_file "$CONSUMER_BACKEND_FILE" "$CONSUMER_STATE_KEY" "$KMS_KEY_ARN"
+printf '%s\n' "$CONSUMER_BACKEND_FILE"

@@ -27,11 +27,11 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `force_destroy` | `bool` | `false` | `false` | Configuration value for `force_destroy`. |
-| `alb_prefix` | `string` | `"alb"` | `false` | Configuration value for `alb_prefix`. |
-| `retention_days` | `number` | `365` | `false` | Configuration value for `retention_days`. |
-| `noncurrent_version_expiration_days` | `number` | `90` | `false` | Configuration value for `noncurrent_version_expiration_days`. |
+| `name` | `string` | `required` | `false` | Globally unique S3 bucket name used as the terminal access-log destination. |
+| `force_destroy` | `bool` | `false` | `false` | Allow deletion of non-empty development log buckets. Keep false for production. |
+| `alb_prefix` | `string` | `"alb"` | `false` | S3 object prefix used by ALB access-log delivery and its bucket-policy resource scope. |
+| `retention_days` | `number` | `365` | `false` | Retention period for current access-log objects. |
+| `noncurrent_version_expiration_days` | `number` | `90` | `false` | Retention period for superseded log-object versions. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -71,4 +71,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

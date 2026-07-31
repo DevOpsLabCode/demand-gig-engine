@@ -43,8 +43,30 @@ resource "aws_wafv2_web_acl" "this" {
   }
 
   rule {
-    name     = "KnownBadInputs"
+    name     = "AmazonIpReputation"
     priority = 20
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesAmazonIpReputationList"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "ip-reputation"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "KnownBadInputs"
+    priority = 30
 
     override_action {
       none {}
@@ -65,8 +87,30 @@ resource "aws_wafv2_web_acl" "this" {
   }
 
   rule {
+    name     = "SQLInjection"
+    priority = 40
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesSQLiRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "sqli"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
     name     = "RateLimit"
-    priority = 30
+    priority = 50
 
     action {
       block {}
@@ -75,7 +119,16 @@ resource "aws_wafv2_web_acl" "this" {
     statement {
       rate_based_statement {
         limit              = var.rate_limit
-        aggregate_key_type = "IP"
+        aggregate_key_type = var.scope == "REGIONAL" ? "FORWARDED_IP" : "IP"
+
+        dynamic "forwarded_ip_config" {
+          for_each = var.scope == "REGIONAL" ? [1] : []
+
+          content {
+            fallback_behavior = "MATCH"
+            header_name       = "X-Origin-Viewer-IP"
+          }
+        }
       }
     }
 
@@ -158,6 +211,12 @@ resource "aws_wafv2_web_acl_logging_configuration" "this" {
   redacted_fields {
     single_header {
       name = "cookie"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "x-origin-verify"
     }
   }
 

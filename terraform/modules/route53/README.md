@@ -17,12 +17,12 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `enabled` | `bool` | `required` | `false` | Configuration value for `enabled`. |
-| `zone_id` | `string` | `required` | `false` | Configuration value for `zone_id`. |
-| `record_name` | `string` | `required` | `false` | Configuration value for `record_name`. |
-| `target_name` | `string` | `required` | `false` | Configuration value for `target_name`. |
-| `target_zone_id` | `string` | `required` | `false` | Configuration value for `target_zone_id`. |
-| `create_ipv6` | `bool` | `true` | `false` | Create an AAAA alias. Disable for IPv4-only ALB origins. |
+| `enabled` | `bool` | `false` | `false` | Create public alias records. |
+| `zone_id` | `string` | `""` | `false` | Route 53 hosted-zone ID that owns record_name. |
+| `record_name` | `string` | `""` | `false` | DNS record name created in the hosted zone. |
+| `target_name` | `string` | `""` | `false` | AWS alias target DNS name. |
+| `target_zone_id` | `string` | `""` | `false` | Canonical hosted-zone ID of the alias target. |
+| `create_ipv6` | `bool` | `true` | `false` | Create an AAAA alias in addition to the A alias. |
 
 ## Outputs
 
@@ -40,11 +40,6 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 ```hcl
 module "route53" {
   source = "./modules/route53"
-  enabled = var.enabled
-  zone_id = var.zone_id
-  record_name = var.record_name
-  target_name = var.target_name
-  target_zone_id = var.target_zone_id
 }
 ```
 
@@ -61,4 +56,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

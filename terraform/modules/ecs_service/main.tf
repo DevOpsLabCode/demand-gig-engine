@@ -4,6 +4,8 @@
 
 # Read the active region for awslogs configuration inside generated container definitions.
 data "aws_region" "current" {}
+data "aws_partition" "current" {}
+data "aws_caller_identity" "current" {}
 
 # Assemble least-privilege IAM statements and container-definition fragments once, then reuse them in task roles and task definitions.
 locals {
@@ -50,23 +52,22 @@ locals {
     }
   ] : []
 
+  queue_statements = length(var.queue_actions) == 0 ? [] : [
+    {
+      Effect   = "Allow"
+      Action   = sort(tolist(var.queue_actions))
+      Resource = var.queue_arn
+    },
+    {
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+      Resource = var.kms_key_arn
+    },
+  ]
+
   application_statements = concat(
+    local.queue_statements,
     [
-      {
-        Effect = "Allow"
-        Action = [
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes",
-          "sqs:ReceiveMessage",
-          "sqs:SendMessage",
-        ]
-        Resource = var.queue_arn
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
-        Resource = var.kms_key_arn
-      },
       {
         Effect = "Allow"
         Action = [
@@ -194,29 +195,56 @@ data "aws_iam_policy_document" "assume" {
 
 # Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "execution" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-exec"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
 }
 
-# Attaches a managed IAM policy required by the role.
-resource "aws_iam_role_policy_attachment" "execution" {
-  role       = aws_iam_role.execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-# Attaches least-privilege inline permissions to the IAM role.
-resource "aws_iam_role_policy" "secrets" {
+# Keep execution permissions project-scoped rather than attaching the AWS-managed
+# policy, which grants pull/log access across all repositories and log groups.
+resource "aws_iam_role_policy" "execution" {
+  #checkov:skip=CKV_AWS_111:ecr:GetAuthorizationToken has no resource-level permission; every pull, log, secret, and KMS action is otherwise exact-resource scoped.
+  #checkov:skip=CKV_AWS_356:ecr:GetAuthorizationToken formally requires Resource "*"; all restrictable actions use declared repository, log-group, secret, or key ARNs.
+  name = "${var.name}-execution"
   role = aws_iam_role.execution.id
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid      = "AuthenticateToECR"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid    = "PullProjectImages"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+        ]
+        Resource = var.ecr_repository_arns
+      },
+      {
+        Sid    = "WriteServiceLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.this.name}:log-stream:*"
+      },
+      {
+        Sid      = "ReadDeclaredSecrets"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = local.secret_arns
       },
       {
+        Sid      = "DecryptRuntimeValues"
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = var.kms_key_arn
@@ -227,6 +255,7 @@ resource "aws_iam_role_policy" "secrets" {
 
 # Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "task" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-task"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
@@ -281,6 +310,8 @@ resource "aws_ecs_service" "this" {
   desired_count                      = var.desired_count
   launch_type                        = "FARGATE"
   enable_execute_command             = true
+  enable_ecs_managed_tags             = true
+  propagate_tags                      = "SERVICE"
   deployment_minimum_healthy_percent = var.desired_count == 0 ? 0 : 100
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = var.target_group_arn == null ? null : 60
@@ -310,8 +341,7 @@ resource "aws_ecs_service" "this" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.execution,
-    aws_iam_role_policy.secrets,
+    aws_iam_role_policy.execution,
     aws_iam_role_policy.task,
   ]
 
@@ -321,7 +351,7 @@ resource "aws_ecs_service" "this" {
 # Registers the ECS service as a scalable target with capacity limits.
 resource "aws_appautoscaling_target" "this" {
   count              = var.enable_autoscaling && var.desired_count > 0 ? 1 : 0
-  max_capacity       = max(var.desired_count * 4, 2)
+  max_capacity       = coalesce(var.autoscaling_max_capacity, max(var.desired_count * 4, 2))
   min_capacity       = max(var.desired_count, 1)
   resource_id        = "service/${element(reverse(split("/", var.cluster_arn)), 0)}/${aws_ecs_service.this.name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -341,6 +371,25 @@ resource "aws_appautoscaling_policy" "cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value = 60
+    target_value = var.autoscaling_cpu_target
   }
 }
+
+# Memory target tracking complements CPU scaling for Python workloads that can
+# exhaust memory before CPU reaches the configured threshold.
+resource "aws_appautoscaling_policy" "memory" {
+  count              = length(aws_appautoscaling_target.this)
+  name               = "${var.name}-memory"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.this[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.this[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.this[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    target_value = var.autoscaling_memory_target
+  }
+}
+

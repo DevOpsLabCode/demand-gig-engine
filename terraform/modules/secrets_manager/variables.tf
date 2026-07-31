@@ -1,17 +1,39 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares the input contract for the secrets manager Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Declares the encrypted third-party provider credential secret and deletion-recovery controls.
 
-# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
 variable "name" {
-  type = string
+  type        = string
+  description = "Secret path prefix."
+
+  validation {
+    condition     = length(trimspace(var.name)) >= 3 && length(var.name) <= 480
+    error_message = "name must contain 3-480 characters."
+  }
 }
-# Input `kms_key_arn`: Customer-managed KMS key ARN used to encrypt supported data, logs, queues, or secrets.
+
 variable "kms_key_arn" {
-  type = string
+  type        = string
+  description = "Customer-managed KMS key ARN used to encrypt the secret."
+
+  validation {
+    condition     = can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/", var.kms_key_arn))
+    error_message = "kms_key_arn must be a valid KMS key ARN."
+  }
 }
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
+variable "recovery_window_in_days" {
+  type        = number
+  description = "Secrets Manager deletion recovery window."
+  default     = 30
+
+  validation {
+    condition     = floor(var.recovery_window_in_days) == var.recovery_window_in_days && var.recovery_window_in_days >= 7 && var.recovery_window_in_days <= 30
+    error_message = "recovery_window_in_days must be a whole number from 7 through 30."
+  }
+}
+
 variable "tags" {
-  type = map(string)
-  default = {}
+  type        = map(string)
+  description = "Common ownership, environment, cost, and governance tags."
+  default     = {}
 }

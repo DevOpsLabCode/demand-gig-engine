@@ -29,7 +29,18 @@ create_dns             = false
 domain_name            = ""
 hosted_zone_id          = ""
 alarm_email             = ""
+ses_identity_arn         = null
 tags = {
   Owner      = "DevOpsLabCode"
   CostCenter = "DemandGig"
 }
+
+# Development backups remain deletable and avoid cold-storage minimums.
+enable_backup_vault_lock          = false
+backup_retention_days             = 35
+backup_max_retention_days         = 120
+backup_cold_storage_after_days    = null
+backup_vault_lock_changeable_days = 3
+enforce_production_readiness      = false
+viewer_certificate_arn            = null
+origin_certificate_arn            = null

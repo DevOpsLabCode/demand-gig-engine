@@ -1,24 +1,34 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Publishes reusable values produced by the rds postgres Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Publishes database endpoints, identifiers, and protected secret references.
 
-# Output `endpoint`: Direct RDS PostgreSQL writer endpoint, excluding the port.
 output "endpoint" {
-  value = aws_db_instance.this.address
+  description = "Direct RDS PostgreSQL writer endpoint, excluding the port."
+  value       = aws_db_instance.this.address
 }
-# Output `proxy_endpoint`: RDS Proxy endpoint used by ECS tasks to pool and protect PostgreSQL connections.
+
 output "proxy_endpoint" {
-  value = aws_db_proxy.this.endpoint
+  description = "RDS Proxy endpoint used by ECS tasks to pool and protect PostgreSQL connections."
+  value       = aws_db_proxy.this.endpoint
 }
-# Output `secret_arn`: ARN of the secret resource consumed by this module.
+
 output "secret_arn" {
-  value = aws_secretsmanager_secret.db.arn
+  description = "Secrets Manager ARN containing the database login used by RDS Proxy."
+  value       = aws_secretsmanager_secret.db.arn
+  sensitive   = true
 }
-# Output `db_arn`: ARN of the db resource consumed by this module.
+
 output "db_arn" {
-  value = aws_db_instance.this.arn
+  description = "RDS database instance ARN used by AWS Backup."
+  value       = aws_db_instance.this.arn
 }
-# Output `runtime_secret_arn`: ARN of the runtime secret resource consumed by this module.
+
+output "db_identifier" {
+  description = "RDS identifier used by CloudWatch alarm dimensions."
+  value       = aws_db_instance.this.identifier
+}
+
 output "runtime_secret_arn" {
-  value = aws_secretsmanager_secret.runtime.arn
+  description = "Secrets Manager ARN containing DATABASE_URL and the Django SECRET_KEY."
+  value       = aws_secretsmanager_secret.runtime.arn
+  sensitive   = true
 }

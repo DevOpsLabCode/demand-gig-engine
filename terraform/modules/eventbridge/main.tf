@@ -14,6 +14,7 @@ data "aws_iam_policy_document" "scheduler_assume" {
 }
 
 resource "aws_iam_role" "scheduler" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-scheduler"
   assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
   tags               = var.tags
@@ -36,11 +37,6 @@ resource "aws_iam_role_policy" "scheduler" {
       }
     ]
   })
-}
-
-resource "aws_cloudwatch_event_bus" "this" {
-  name = var.name
-  tags = var.tags
 }
 
 resource "aws_scheduler_schedule_group" "this" {
@@ -70,8 +66,8 @@ resource "aws_scheduler_schedule" "campaign_expiry" {
     }
 
     retry_policy {
-      maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts       = 3
+      maximum_event_age_in_seconds = var.maximum_event_age_seconds
+      maximum_retry_attempts       = var.maximum_retry_attempts
     }
   }
 }

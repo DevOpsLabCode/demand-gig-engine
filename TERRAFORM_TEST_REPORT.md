@@ -11,7 +11,7 @@
 
 ## Executive result
 
-The framework passed every executable offline test available in this environment after a deep source, security, orchestration, and deployment-contract review. The final package contains **25 reusable AWS modules**, **79 Terraform files**, **30 root module instances**, and **29 Go tests**. All Go tests passed with the race detector, including a mocked end-to-end deployment that exercises remote-state bootstrap, image publication, zero-capacity provisioning, one-off migrations, service scale-up, static publication, and CloudFront invalidation.
+The framework passed every executable offline test available in this environment after a deep source, security, orchestration, and deployment-contract review. The final package contains **25 reusable AWS modules**, **87 Terraform files**, **31 root module instances**, and **44 Go tests**. All Go tests passed with the race detector, including a mocked end-to-end deployment that exercises remote-state bootstrap, image publication, online migration-task provisioning, one-off backward-compatible migrations, rolling service update, static publication, and CloudFront invalidation.
 
 Native Terraform provider initialization, provider-schema validation, TFLint, Checkov, Docker builds, and an AWS plan/apply could not be executed locally because this sandbox does not provide those binaries, blocks external package downloads, and has no AWS credentials. These checks are wired into `.github/workflows/terraform.yml` and remain required before a real environment deployment.
 
@@ -20,13 +20,13 @@ Native Terraform provider initialization, provider-schema validation, TFLint, Ch
 | Check | Result | Evidence |
 |---|---|---|
 | Archive/source integrity | PASS | Working tree extracted and inspected successfully |
-| Terraform structural scan | PASS | 79 `.tf` files; balanced blocks, strings, and expressions |
-| Root/module interface contracts | PASS | 30 root module instances matched declared module variables and outputs |
+| Terraform structural scan | PASS | 87 `.tf` files; balanced blocks, strings, and expressions |
+| Root/module interface contracts | PASS | 31 root module instances matched declared module variables and outputs |
 | Same-line HCL object separator regression | PASS | No compressed object assignments without comma/newline separators |
 | Required module inventory | PASS | 25 distinct service/responsibility modules present |
 | Dev/prod `.tfvars` contract | PASS | Real environment values and required keys present |
 | Production safety contract | PASS | Multi-AZ, deletion protection, API redundancy, Redis replicas, NAT-per-AZ |
-| Go test suite | PASS | 29 tests passed |
+| Go test suite | PASS | 44 tests passed |
 | Go race detector | PASS | `go test -race -count=1 -v ./...` |
 | Go static analysis | PASS | `go vet ./...` |
 | Mock state bootstrap | PASS | Idempotent secure S3 backend, versioning, encryption, public block, TLS policy |
@@ -87,7 +87,7 @@ Native Terraform provider initialization, provider-schema validation, TFLint, Ch
 | TFLint | Binary/plugin downloads unavailable | Terraform GitHub workflow |
 | Checkov | Package unavailable from sandbox mirror | Terraform and security workflows |
 | Docker backend/frontend builds | Docker CLI/daemon unavailable | Deployment runner or developer machine |
-| AWS development plan | No AWS role/credentials | Same-repository PR workflow using `AWS_TERRAFORM_ROLE_ARN` |
+| AWS development plan | No AWS role/credentials | Trusted post-merge `main` workflow using `AWS_TERRAFORM_PLAN_ROLE_ARN` |
 | AWS apply and smoke test | No AWS account/credentials/domain/provider apps | Manual protected environment deployment |
 | Complete Django/Allauth suite | Sandbox mirror has no Django distributions | Application GitHub matrix |
 | Complete Vite build | Sandbox npm mirror lacks required packages | Frontend GitHub job and Docker build |
@@ -121,11 +121,34 @@ The package now remediates the reported ALB, CloudFront, CloudTrail, SNS, CloudW
 
 | Validation | Result |
 |---|---|
-| Dependency-free remediation validator | PASS — 99 security invariants |
+| Dependency-free remediation validator | PASS — 116 security invariants |
 | Repository static checks | PASS — 69 checks |
 | Workflow parser and action policy | PASS — 5 workflows |
-| Terraform Go tests with race detector | PASS — 29 tests |
+| Terraform Go tests with race detector | PASS — 44 tests |
 | Shell syntax | PASS |
 | Native Checkov/Terraform/TFLint | DEFERRED TO GITHUB — required binaries/provider downloads unavailable locally |
 
 See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md).
+
+## Terraform module deep audit — July 31, 2026
+
+All 25 reusable modules and the three independent Terraform roots were re-audited for interface completeness, environment safety, account-level ownership, IAM/OIDC trust, data protection, recovery, observability, and external prerequisites.
+
+| Validation | Result |
+|---|---|
+| Reusable module inventory | PASS — 25 modules |
+| Root module instances | PASS — 31 instances |
+| Terraform source inventory | PASS — 87 `.tf` files |
+| Root/module interface validator | PASS |
+| Security remediation validator | PASS — 116 invariants |
+| GitHub workflow validation | PASS — 5 workflows |
+| Repository checks | PASS — 69 checks |
+| Documentation links | PASS — 160 links across 53 Markdown files |
+| Go static analysis | PASS — `go vet ./...` |
+| Race-enabled Terraform tests | PASS — 44 tests |
+| Pull-request remote-state isolation | PASS — pull requests receive offline checks only |
+| Terraform OIDC role split | PASS — dedicated plan/apply roles, no legacy fallback |
+| `iam:PassRole` scope | PASS — exact project role prefix and approved service principals |
+| Native Terraform/TFLint/Checkov rerun | DEFERRED — executables/provider downloads unavailable locally; remains blocking in GitHub Actions |
+
+See [`docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](docs/TERRAFORM_MODULE_DEEP_AUDIT.md) and [`validation/terraform-module-deep-audit-2026-07-31/`](validation/terraform-module-deep-audit-2026-07-31/).

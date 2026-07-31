@@ -29,7 +29,20 @@ create_dns             = false
 domain_name            = ""
 hosted_zone_id          = ""
 alarm_email             = ""
+ses_identity_arn         = null
 tags = {
   Owner      = "DevOpsLabCode"
   CostCenter = "DemandGig"
 }
+
+# Production recovery points become immutable after the three-day grace period.
+enable_backup_vault_lock          = true
+backup_retention_days             = 365
+backup_max_retention_days         = 3650
+backup_cold_storage_after_days    = 90
+backup_vault_lock_changeable_days = 3
+
+# Keep enabled: production must not deploy with fake payments, missing alarms, or no custom TLS domain.
+enforce_production_readiness = true
+viewer_certificate_arn       = null
+origin_certificate_arn       = null

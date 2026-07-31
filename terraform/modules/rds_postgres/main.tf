@@ -14,6 +14,7 @@ data "aws_iam_policy_document" "monitoring_assume" {
 }
 
 resource "aws_iam_role" "monitoring" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-rds-monitoring"
   assume_role_policy = data.aws_iam_policy_document.monitoring_assume.json
   tags               = var.tags
@@ -34,11 +35,21 @@ resource "random_password" "django" {
   special = false
 }
 
+# A stable random suffix prevents final-snapshot name collisions when a protected
+# database is intentionally destroyed and later recreated with the same identifier.
+resource "random_id" "final_snapshot" {
+  byte_length = 4
+
+  keepers = {
+    identifier = var.name
+  }
+}
+
 resource "aws_secretsmanager_secret" "db" {
   #checkov:skip=CKV2_AWS_57:Database credential rotation is an atomic RDS Proxy runbook that updates PostgreSQL and Secrets Manager together to avoid credential desynchronization.
   name                    = "${var.name}/database"
   kms_key_id              = var.kms_key_arn
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.secret_recovery_window_days
   tags                    = var.tags
 }
 
@@ -66,13 +77,29 @@ resource "aws_db_parameter_group" "this" {
   tags = var.tags
 }
 
+# Pre-create RDS export log groups so retention and customer-managed encryption
+# are enforced from the first exported PostgreSQL or engine-upgrade event.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  name              = "/aws/rds/instance/${var.name}/postgresql"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "upgrade" {
+  name              = "/aws/rds/instance/${var.name}/upgrade"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = var.tags
+}
+
 resource "aws_db_instance" "this" {
   identifier                          = var.name
   engine                              = "postgres"
   engine_version                      = var.engine_version
   instance_class                      = var.instance_class
   allocated_storage                   = var.allocated_storage
-  max_allocated_storage               = var.allocated_storage * 5
+  max_allocated_storage               = coalesce(var.max_allocated_storage, var.allocated_storage * 5)
   storage_type                        = "gp3"
   storage_encrypted                   = true
   kms_key_id                          = var.kms_key_arn
@@ -83,12 +110,12 @@ resource "aws_db_instance" "this" {
   db_subnet_group_name                = aws_db_subnet_group.this.name
   parameter_group_name                = aws_db_parameter_group.this.name
   vpc_security_group_ids              = var.security_group_ids
-  backup_retention_period             = 30
+  backup_retention_period             = var.backup_retention_days
   backup_window                       = "03:00-04:00"
   maintenance_window                  = "sun:04:30-sun:05:30"
   deletion_protection                 = var.deletion_protection
   skip_final_snapshot                 = !var.deletion_protection
-  final_snapshot_identifier           = var.deletion_protection ? "${var.name}-final" : null
+  final_snapshot_identifier           = var.deletion_protection ? "${var.name}-final-${random_id.final_snapshot.hex}" : null
   delete_automated_backups            = false
   publicly_accessible                 = false
   auto_minor_version_upgrade          = true
@@ -96,14 +123,18 @@ resource "aws_db_instance" "this" {
   copy_tags_to_snapshot               = true
   performance_insights_enabled        = true
   performance_insights_kms_key_id     = var.kms_key_arn
-  performance_insights_retention_period = 731
-  monitoring_interval                 = 60
+  performance_insights_retention_period = var.performance_insights_retention_days
+  monitoring_interval                 = var.monitoring_interval_seconds
   monitoring_role_arn                 = aws_iam_role.monitoring.arn
   enabled_cloudwatch_logs_exports     = ["postgresql", "upgrade"]
-  apply_immediately                   = false
+  apply_immediately                   = var.apply_immediately
   tags                                = var.tags
 
-  depends_on = [aws_iam_role_policy_attachment.monitoring]
+  depends_on = [
+    aws_iam_role_policy_attachment.monitoring,
+    aws_cloudwatch_log_group.postgresql,
+    aws_cloudwatch_log_group.upgrade,
+  ]
 }
 
 data "aws_iam_policy_document" "proxy_assume" {
@@ -118,6 +149,7 @@ data "aws_iam_policy_document" "proxy_assume" {
 }
 
 resource "aws_iam_role" "proxy" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-proxy"
   assume_role_policy = data.aws_iam_policy_document.proxy_assume.json
   tags               = var.tags
@@ -181,7 +213,7 @@ resource "aws_secretsmanager_secret" "runtime" {
   #checkov:skip=CKV2_AWS_57:The runtime secret contains a database URL and Django key; rotation is coordinated with database credentials and an ECS deployment rather than an independent Lambda.
   name                    = "${var.name}/runtime"
   kms_key_id              = var.kms_key_arn
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.secret_recovery_window_days
   tags                    = var.tags
 }
 

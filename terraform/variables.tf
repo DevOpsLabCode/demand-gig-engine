@@ -4,8 +4,14 @@
 
 # Input `project_name`: Stable project prefix used to name and tag shared AWS resources.
 variable "project_name" {
-  type = string
-  default = "demand-gig-engine"
+  type        = string
+  description = "Stable lowercase project prefix used in AWS resource names and account-foundation contracts."
+  default     = "demand-gig-engine"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.project_name))
+    error_message = "project_name must be 3-63 lowercase alphanumeric or hyphen characters."
+  }
 }
 # Input `environment`: Deployment environment name or the container environment-variable map, according to module context.
 variable "environment" {
@@ -17,8 +23,14 @@ variable "environment" {
 }
 # Input `aws_region`: AWS region in which regional workload resources are created.
 variable "aws_region" {
-  type = string
-  default = "us-east-1"
+  type        = string
+  description = "AWS region in which regional workload resources are created."
+  default     = "us-east-1"
+
+  validation {
+    condition     = can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.aws_region))
+    error_message = "aws_region must be a valid AWS region name."
+  }
 }
 # Input `domain_name`: Fully qualified DNS name exposed by the service.
 variable "domain_name" {
@@ -165,13 +177,105 @@ variable "github_repo" {
   type = string
   default = "demand-gig-engine"
 }
+# Optional existing SES identity when DNS/email authentication is managed outside this stack.
+variable "ses_identity_arn" {
+  type        = string
+  description = "Existing verified SES domain identity ARN used when create_dns is false."
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.ses_identity_arn == null || can(regex("^arn:[^:]+:ses:[^:]+:[0-9]{12}:identity/", var.ses_identity_arn))
+    error_message = "ses_identity_arn must be null or a valid SES identity ARN."
+  }
+}
+
 # Input `alarm_email`: Email endpoint subscribed to the operational SNS alarm topic.
 variable "alarm_email" {
-  type = string
-  default = ""
+  type        = string
+  description = "Optional operational alert and DMARC aggregate-report mailbox."
+  default     = ""
+
+  validation {
+    condition     = var.alarm_email == "" || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "alarm_email must be empty or a syntactically valid email address."
+  }
 }
 # Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
 variable "tags" {
   type = map(string)
   default = {}
+}
+
+# Optional existing ACM certificate in us-east-1 for the CloudFront viewer alias.
+variable "viewer_certificate_arn" {
+  type        = string
+  description = "Existing us-east-1 ACM certificate ARN used when DNS validation is managed outside this stack."
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.viewer_certificate_arn == null || can(regex("^arn:[^:]+:acm:us-east-1:[0-9]{12}:certificate/", var.viewer_certificate_arn))
+    error_message = "viewer_certificate_arn must be null or an us-east-1 ACM certificate ARN."
+  }
+}
+
+# Optional existing regional ACM certificate for encrypted CloudFront-to-ALB traffic.
+variable "origin_certificate_arn" {
+  type        = string
+  description = "Existing regional ACM certificate ARN for origin.domain_name when DNS validation is external."
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.origin_certificate_arn == null || can(regex("^arn:[^:]+:acm:[^:]+:[0-9]{12}:certificate/", var.origin_certificate_arn))
+    error_message = "origin_certificate_arn must be null or an ACM certificate ARN."
+  }
+}
+
+variable "enable_backup_vault_lock" {
+  type        = bool
+  description = "Enable Compliance-mode AWS Backup Vault Lock. Use true for production and false for disposable development."
+  default     = false
+}
+
+variable "backup_retention_days" {
+  type        = number
+  description = "Recovery-point retention and Vault Lock minimum retention."
+  default     = 35
+
+  validation {
+    condition     = floor(var.backup_retention_days) == var.backup_retention_days && var.backup_retention_days >= 1
+    error_message = "backup_retention_days must be a positive whole number."
+  }
+}
+
+variable "backup_max_retention_days" {
+  type        = number
+  description = "Maximum retention accepted by Vault Lock."
+  default     = 3650
+
+  validation {
+    condition     = floor(var.backup_max_retention_days) == var.backup_max_retention_days && var.backup_max_retention_days >= var.backup_retention_days
+    error_message = "backup_max_retention_days must be at least backup_retention_days."
+  }
+}
+
+variable "backup_cold_storage_after_days" {
+  type        = number
+  description = "Days before AWS Backup cold storage transition; null disables transition."
+  default     = null
+  nullable    = true
+}
+
+variable "backup_vault_lock_changeable_days" {
+  type        = number
+  description = "Grace period before Compliance-mode Vault Lock becomes immutable."
+  default     = 3
+}
+
+variable "enforce_production_readiness" {
+  type        = bool
+  description = "Fail production plans that still use fake payments, omit alarms, or lack a custom TLS domain."
+  default     = false
 }

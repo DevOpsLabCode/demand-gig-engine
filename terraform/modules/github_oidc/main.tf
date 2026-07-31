@@ -1,13 +1,13 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates GitHub OIDC trust and a least-privilege deployment role without long-lived AWS access keys.
+# Purpose: Reuses the account-wide GitHub OIDC provider and creates a least-privilege deployment role without long-lived AWS access keys.
 # Reading guide: Each comment explains why the following Terraform block exists.
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 data "aws_region" "current" {}
 
-# Read GitHub token-service TLS certificates so the IAM OIDC provider uses the current root thumbprint.
-data "tls_certificate" "github" {
+# Read the account-wide GitHub OIDC provider created by terraform/global/account.
+data "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
 }
 
@@ -22,13 +22,6 @@ locals {
   service_arn = "arn:${data.aws_partition.current.partition}:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${local.cluster_name}/*"
 }
 
-# Registers GitHub Actions as a federated identity provider without static AWS keys.
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
-}
-
 # Build the web-identity trust policy that limits role assumption to the approved GitHub repository subjects.
 data "aws_iam_policy_document" "assume" {
   # Trust GitHub web identities only when audience and repository-subject conditions match the approved workflow contexts.
@@ -37,7 +30,7 @@ data "aws_iam_policy_document" "assume" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
     condition {
@@ -56,6 +49,7 @@ data "aws_iam_policy_document" "assume" {
 
 # Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "github" {
+  permissions_boundary = var.permissions_boundary_arn
   name                 = var.name
   assume_role_policy   = data.aws_iam_policy_document.assume.json
   max_session_duration = 3600

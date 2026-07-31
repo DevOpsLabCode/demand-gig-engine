@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Orchestrates validation, image publication, zero-capacity provisioning, database migration, service scaling, frontend publication, and cache invalidation.
+# Purpose: Orchestrates validation, image publication, backward-compatible database migration, rolling service updates, frontend publication, and cache invalidation.
 # Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
 
 set -Eeuo pipefail
@@ -20,7 +20,7 @@ TFVARS="envs/$ENVIRONMENT/terraform.tfvars"
 # Call AWS using the active identity and fail if the requested cloud operation is not authorized.
 aws sts get-caller-identity >/dev/null
 # Run the Terraform operation for the selected working directory and environment.
-terraform -chdir="$TF" fmt -recursive
+terraform -chdir="$TF" fmt -check -recursive -diff
 BACKEND_FILE="$("$TF/scripts/bootstrap.sh" "$ENVIRONMENT")"
 # Run the Terraform operation for the selected working directory and environment.
 terraform -chdir="$TF" init -reconfigure -input=false -backend-config="$BACKEND_FILE"
@@ -63,12 +63,12 @@ COMMON_ARGS=(
   -var="backend_image=$BACKEND_REPOSITORY:$TAG"
 )
 
-# Build all infrastructure with services scaled to zero so migrations run once.
+# Provision the dedicated zero-capacity migration task and all of its infrastructure
+# dependencies without updating the live API or worker services. Database changes
+# must remain backward-compatible with the currently running application revision.
 terraform -chdir="$TF" apply \
   "${COMMON_ARGS[@]}" \
-  -var="backend_desired_count=0" \
-  -var="worker_desired_count=0" \
-  -var="allow_zero_capacity=true"
+  -target=module.migration
 
 # Optional non-interactive provider credential injection. The JSON file must
 # contain only the keys documented in terraform/README.md and must not be committed.
@@ -112,7 +112,7 @@ MIGRATION_EXIT_CODE="$(aws ecs describe-tasks \
   exit 1
 }
 
-# Scale the API and worker services to their environment-specific desired counts.
+# Deploy or update the API and worker only after the migration exits successfully.
 terraform -chdir="$TF" apply "${COMMON_ARGS[@]}"
 
 STATIC_BUCKET="$(terraform -chdir="$TF" output -raw static_bucket_id)"

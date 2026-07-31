@@ -18,6 +18,14 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   code    = file("${path.module}/spa-rewrite.js")
 }
 
+resource "aws_cloudfront_function" "true_client_ip" {
+  name    = "${var.name}-true-client-ip"
+  runtime = "cloudfront-js-2.0"
+  comment = "Overwrite the private origin viewer-IP header with CloudFront's authenticated client address"
+  publish = true
+  code    = file("${path.module}/true-client-ip.js")
+}
+
 resource "aws_cloudfront_response_headers_policy" "security" {
   name = "${var.name}-security-headers"
 
@@ -48,6 +56,117 @@ resource "aws_cloudfront_response_headers_policy" "security" {
       protection = true
       override   = true
     }
+  }
+}
+
+# API requests are never cached, but required application headers, cookies, and
+# query strings still reach the ALB. Keeping Host out of this policy lets
+# CloudFront use the configured origin hostname for TLS SNI and validation.
+resource "aws_cloudfront_cache_policy" "api_disabled" {
+  name        = "${var.name}-api-disabled"
+  comment     = "Disable caching for authenticated and state-changing application routes"
+  default_ttl = 0
+  max_ttl     = 0
+  min_ttl     = 0
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+
+    headers_config {
+      header_behavior = "none"
+    }
+
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+}
+
+resource "aws_cloudfront_origin_request_policy" "api" {
+  name    = "${var.name}-api-origin"
+  comment = "Forward application inputs without forwarding the viewer Host header"
+
+  cookies_config {
+    cookie_behavior = "all"
+  }
+
+  headers_config {
+    header_behavior = "whitelist"
+
+    headers {
+      items = [
+        "Accept",
+        "Accept-Language",
+        "Access-Control-Request-Headers",
+        "Access-Control-Request-Method",
+        "Authorization",
+        "Content-Type",
+        "Origin",
+        "Referer",
+        "X-CSRFToken",
+        "X-Origin-Viewer-IP",
+        "X-Requested-With",
+      ]
+    }
+  }
+
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
+# Public share pages use a short cache window. Viewer-IP metadata is forwarded
+# only to the origin and deliberately excluded from the cache key, preserving
+# cache efficiency while regional WAF still receives the authenticated address.
+resource "aws_cloudfront_cache_policy" "share" {
+  name        = "${var.name}-share"
+  comment     = "Short-lived cache for public share pages"
+  default_ttl = 60
+  max_ttl     = 300
+  min_ttl     = 0
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+
+    headers_config {
+      header_behavior = "none"
+    }
+
+    query_strings_config {
+      query_string_behavior = "all"
+    }
+  }
+}
+
+resource "aws_cloudfront_origin_request_policy" "share" {
+  name    = "${var.name}-share-origin"
+  comment = "Forward language and authenticated viewer IP without varying cache objects by IP"
+
+  cookies_config {
+    cookie_behavior = "none"
+  }
+
+  headers_config {
+    header_behavior = "whitelist"
+
+    headers {
+      items = ["Accept-Language", "X-Origin-Viewer-IP"]
+    }
+  }
+
+  query_strings_config {
+    # Query strings already reach the origin through the share cache policy.
+    query_string_behavior = "none"
   }
 }
 
@@ -83,6 +202,13 @@ resource "aws_cloudfront_distribution" "this" {
     custom_header {
       name  = "X-Forwarded-Viewer-Proto"
       value = "https"
+    }
+
+    # This secret header is never exposed to viewers; ALB listener rules reject
+    # requests that do not originate from this configured distribution.
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = var.origin_verify_header_value
     }
 
     custom_origin_config {
@@ -129,18 +255,13 @@ resource "aws_cloudfront_distribution" "this" {
       compress                   = true
       response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
-      forwarded_values {
-        query_string = true
-        headers      = ["*"]
-
-        cookies {
-          forward = "all"
-        }
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.true_client_ip.arn
       }
 
-      min_ttl     = 0
-      default_ttl = 0
-      max_ttl     = 0
+      cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id
+      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
     }
   }
 
@@ -153,18 +274,13 @@ resource "aws_cloudfront_distribution" "this" {
     compress                   = true
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
-    forwarded_values {
-      query_string = true
-      headers      = ["Host"]
-
-      cookies {
-        forward = "none"
-      }
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.true_client_ip.arn
     }
 
-    min_ttl     = 0
-    default_ttl = 60
-    max_ttl     = 300
+    cache_policy_id          = aws_cloudfront_cache_policy.share.id
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.share.id
   }
 
   restrictions {

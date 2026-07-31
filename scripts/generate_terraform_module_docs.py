@@ -285,7 +285,7 @@ def render_module(module: Path) -> str:
     lines += ["", "## Example", "", "```hcl", f'module "{name}" {{', f'  source = "./modules/{name}"']
     for var_name in required_variables:
         lines.append(f"  {var_name} = var.{var_name}")
-    lines += ["}", "```", "", "> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.", "", "## Validation", "", "```bash", "terraform fmt -check -recursive", "terraform init -backend=false", "terraform validate", "tflint --recursive", "checkov -d .", "python scripts/validate_security_remediation.py", "```", "", "See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).", ""]
+    lines += ["}", "```", "", "> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.", "", "## Validation", "", "```bash", "terraform fmt -check -recursive", "terraform init -backend=false", "terraform validate", "tflint --recursive", "checkov -d .", "python scripts/validate_security_remediation.py", "```", "", "See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).", ""]
     return "\n".join(lines)
 
 

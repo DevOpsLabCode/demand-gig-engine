@@ -1,17 +1,33 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares Terraform configuration for variables.
-# Reading guide: Each comment explains why the following Terraform block exists.
+# Purpose: Declares the protected remote-state bootstrap contract for account, development, and production roots.
 
-# Input `aws_region`: AWS region in which regional workload resources are created.
 variable "aws_region" {
-  type = string
+  type        = string
+  description = "AWS region containing the S3 backend and KMS key."
+
+  validation {
+    condition     = can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.aws_region))
+    error_message = "aws_region must be a valid AWS region name."
+  }
 }
-# Input `environment`: Deployment environment name or the container environment-variable map, according to module context.
+
 variable "environment" {
-  type = string
+  type        = string
+  description = "Backend ownership scope: account foundation, development, or production."
+
+  validation {
+    condition     = contains(["account", "dev", "prod"], var.environment)
+    error_message = "environment must be account, dev, or prod."
+  }
 }
-# Input `project_name`: Stable project prefix used to name and tag shared AWS resources.
+
 variable "project_name" {
-  type = string
-  default = "demand-gig-engine"
+  type        = string
+  description = "Stable lowercase project prefix used in globally unique state resource names."
+  default     = "demand-gig-engine"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.project_name))
+    error_message = "project_name must contain 3-63 lowercase alphanumeric or hyphen characters."
+  }
 }

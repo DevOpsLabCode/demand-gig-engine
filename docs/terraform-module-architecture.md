@@ -61,17 +61,29 @@ When DNS is enabled, Terraform creates two certificates: the CloudFront viewer c
 | `rds_postgres` | PostgreSQL, RDS Proxy, secrets | Private Multi-AZ option, encryption, PI, enhanced monitoring, TLS proxy |
 | `redis` | ElastiCache replication group and runtime secret | Transit/at-rest encryption, generated auth token, TLS URL, replicas and failover |
 | `sqs` | Work queue and DLQ | Customer-managed KMS encryption, TLS-only policies, long polling, restricted redrive |
-| `eventbridge` | Domain bus and expiry schedule | Scheduler IAM role, retries, DLQ |
-| `ses` | Domain identity and DKIM | Route 53 verification and DKIM records |
+| `eventbridge` | Campaign-expiry schedule | Scheduler IAM role, CMK, retries, DLQ |
+| `ses` | Transactional email identity | Route 53 verification, DKIM, custom MAIL FROM, SPF, and DMARC |
 | `secrets_manager` | OAuth/payment/integration credential vault | KMS encryption; Terraform ignores later secret rotations |
-| `cloudwatch` | Metrics, alarms, and SNS | ALB 5xx and ECS CPU alarms |
-| `cloudtrail` | Multi-region audit trail | Log validation, KMS, versioned archive, TLS-only policy |
-| `guardduty` | Threat detection | Optional detector per account/region |
-| `xray` | Sampling policy | X-Ray sampling rule; ECS daemon sidecar and Django SDK integration |
+| `cloudwatch` | Metrics, alarms, dashboard, and SNS | Edge/ALB, API/worker ECS, SQS/DLQ, RDS, Redis, and CloudFront alarms |
+| `cloudtrail` | Multi-region audit trail | Log validation, KMS, CloudWatch/SNS, production S3 data events and Insights |
+| `guardduty` | Threat-detection prerequisite | Reads the detector owned once by `global/account` |
+| `xray` | Sampling policy | Configurable X-Ray sampling with documented ADOT/OpenTelemetry migration |
 | `backup` | Database backup policy | Encrypted vault, Vault Lock, cold storage, and 365-day minimum retention |
-| `github_oidc` | Workload identity for GitHub | Repository/branch/PR/environment subject restrictions; no long-lived AWS keys |
+| `github_oidc` | Workload identity for GitHub | Reads shared provider; exact repository/branch/environment trust; PR trust disabled |
 
 There are 25 module directories. The root stack has 29 module instances because `acm` is used for viewer and origin certificates, `route53` is used for viewer and origin records, `s3_static` is used for static and media buckets, and `ecs_service` is used for API, worker, and migration task definitions.
+
+## Account foundation
+
+`terraform/global/account` owns account/region singleton controls: the GitHub IAM OIDC provider, GuardDuty detector and advanced features, Fargate Runtime Monitoring agent management, and enhanced continuous ECR scanning. Environment stacks read these controls instead of recreating them.
+
+The first apply uses trusted local AWS credentials:
+
+```bash
+./terraform/scripts/bootstrap-account.sh
+terraform -chdir=terraform/global/account init -backend-config=backend.hcl
+terraform -chdir=terraform/global/account apply
+```
 
 ## Environment isolation
 
@@ -114,7 +126,7 @@ AWS credentials, OAuth/provider secrets, and—when custom DNS is enabled—the 
 
 ## Tests and policy gates
 
-The 29 local Go tests verify the module inventory, environment contracts, production safety values, credentials, state bootstrap, deployment order, migration gating, regional certificates, CloudFront-only origin access, SPA/API routing, Docker/Compose contracts, same-origin frontend behavior, KMS/TLS storage, tracing, ECS Exec IAM, IPv4 origin DNS, autoscaling identifiers, static cache controls, secret injection, and workflow commands. Mock binaries exercise the entire deployment script without contacting AWS.
+The local Go tests verify the module inventory, environment contracts, production safety values, credentials, state bootstrap, deployment order, migration gating, regional certificates, CloudFront-only origin access, SPA/API routing, Docker/Compose contracts, same-origin frontend behavior, KMS/TLS storage, tracing, ECS Exec IAM, IPv4 origin DNS, autoscaling identifiers, static cache controls, secret injection, and workflow commands. Mock binaries exercise the entire deployment script without contacting AWS.
 
 GitHub Actions supplies the definitive native checks unavailable in an offline sandbox:
 
@@ -131,3 +143,6 @@ manual environment deployment through OIDC
 ```
 
 See `TERRAFORM_TEST_REPORT.md` for the exact executed and deferred test matrix.
+
+
+See [`TERRAFORM_MODULE_DEEP_AUDIT.md`](TERRAFORM_MODULE_DEEP_AUDIT.md) for the complete module-by-module review.

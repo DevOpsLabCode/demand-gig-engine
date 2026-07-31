@@ -150,6 +150,7 @@ data "aws_iam_policy_document" "flow_assume" {
 }
 
 resource "aws_iam_role" "flow" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-vpc-flow-logs"
   assume_role_policy = data.aws_iam_policy_document.flow_assume.json
   tags               = var.tags

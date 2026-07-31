@@ -33,6 +33,8 @@ This repository is documented for three audiences:
 | [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) | Checkov finding-by-finding remediation, exceptions, and verification |
 | [`TEST_REPORT.md`](TEST_REPORT.md) | Executed application validation and environment limitations |
 | [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md) | Infrastructure test evidence and deployment-contract validation |
+| [`docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](docs/TERRAFORM_MODULE_DEEP_AUDIT.md) | Module-by-module security, reliability, IAM, observability, and lifecycle audit |
+| [`docs/TERRAFORM_PROVIDER_LOCKS.md`](docs/TERRAFORM_PROVIDER_LOCKS.md) | Provider lock-file generation and review procedure for all Terraform roots |
 
 ### Core business flow in plain English
 
@@ -936,7 +938,7 @@ The recommended production topology is documented in [`docs/AWS_PRODUCTION_ARCHI
 
 A complete modular AWS framework is available under [`terraform/`](terraform/README.md). It implements 25 reusable modules and isolated development/production stacks with native S3 state lockfiles, CloudFront/WAF/S3, a CloudFront-only ALB origin, ECS Fargate API/worker/migration tasks, PostgreSQL with RDS Proxy, Redis, SQS/EventBridge, SES, Secrets Manager/KMS, CloudWatch, CloudTrail, GuardDuty, X-Ray, AWS Backup, ECR, and GitHub OIDC.
 
-The deployment workflow builds and pushes both images, provisions services at zero capacity, injects optional provider credentials, runs a dedicated migration task, scales API/worker services, uploads the React build with safe cache headers, and invalidates CloudFront. The browser uses same-origin `/api` in AWS; Docker Compose injects the local backend URL during the frontend build.
+The deployment workflow builds and pushes both images, provisions the dedicated migration task and dependencies without stopping the current release, injects optional provider credentials, runs a backward-compatible migration, rolls API/worker services only after migration success, uploads the React build with safe cache headers, and invalidates CloudFront. The browser uses same-origin `/api` in AWS; Docker Compose injects the local backend URL during the frontend build.
 
 ```bash
 ./terraform/scripts/validate.sh
@@ -949,4 +951,6 @@ PROVIDER_CREDENTIALS_FILE=/secure/provider-credentials.json \
 ```
 
 Architecture and module mapping: [`docs/terraform-module-architecture.md`](docs/terraform-module-architecture.md).  
+Deep module audit: [`docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](docs/TERRAFORM_MODULE_DEEP_AUDIT.md).  
+Provider lock procedure: [`docs/TERRAFORM_PROVIDER_LOCKS.md`](docs/TERRAFORM_PROVIDER_LOCKS.md).  
 Executed/deferred test matrix: [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md).

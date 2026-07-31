@@ -14,20 +14,32 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 - **`aws_route53_record.verification`:** Creates an alias record for the selected AWS endpoint.
 - **`aws_ses_domain_dkim.this`:** Creates DKIM tokens for authenticated email.
 - **`aws_route53_record.dkim`:** Creates an alias record for the selected AWS endpoint.
+- **`aws_ses_domain_mail_from.this`:** Creates and manages `aws_ses_domain_mail_from` for this module.
+- **`aws_route53_record.mail_from_mx`:** Creates an alias record for the selected AWS endpoint.
+- **`aws_route53_record.mail_from_spf`:** Creates an alias record for the selected AWS endpoint.
+- **`aws_route53_record.dmarc`:** Creates an alias record for the selected AWS endpoint.
+- **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `domain_name` | `string` | `required` | `false` | Configuration value for `domain_name`. |
-| `hosted_zone_id` | `string` | `required` | `false` | Configuration value for `hosted_zone_id`. |
-| `create_dns` | `bool` | `required` | `false` | Configuration value for `create_dns`. |
+| `domain_name` | `string` | `""` | `false` | Verified sending domain. May be empty only when create_dns is false. |
+| `hosted_zone_id` | `string` | `""` | `false` | Route 53 public hosted-zone ID that owns domain_name. |
+| `create_dns` | `bool` | `false` | `false` | Create the SES identity and all required Route 53 authentication records. |
+| `existing_identity_arn` | `string` | `null` | `false` | Optional pre-verified SES domain identity ARN used when DNS and identity lifecycle are managed outside this stack. |
+| `mail_from_subdomain` | `string` | `"mail"` | `false` | Subdomain used as the SES custom MAIL FROM domain. |
+| `dmarc_policy` | `string` | `"none"` | `false` | DMARC disposition policy. Use quarantine or reject after validating legitimate mail streams. |
+| `dmarc_percentage` | `number` | `100` | `false` | Percentage of messages to which the DMARC policy applies. |
+| `dmarc_rua` | `string` | `""` | `false` | Optional aggregate-report mailbox without the mailto: prefix. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `identity_arn` | Published `identity_arn` value. | `try(aws_ses_domain_identity.this[0].arn,null)` |
+| `identity_arn` | Terraform-created or externally supplied SES domain identity ARN; null only when outbound email is intentionally disabled. | `var.create_dns ? aws_ses_domain_identity.this[0].arn : var.existing_identity_arn` |
+| `mail_from_domain` | Custom SES MAIL FROM domain, or null when disabled. | `try(aws_ses_domain_mail_from.this[0].mail_from_domain, null)` |
+| `dkim_tokens` | SES Easy DKIM tokens, or an empty list when disabled. | `try(aws_ses_domain_dkim.this[0].dkim_tokens, [])` |
 
 ## Security and reliability controls
 
@@ -39,9 +51,6 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 ```hcl
 module "ses" {
   source = "./modules/ses"
-  domain_name = var.domain_name
-  hosted_zone_id = var.hosted_zone_id
-  create_dns = var.create_dns
 }
 ```
 
@@ -58,4 +67,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

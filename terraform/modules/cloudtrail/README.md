@@ -36,17 +36,23 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
-| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for encryption. |
-| `access_log_bucket_id` | `string` | `required` | `false` | Configuration value for `access_log_bucket_id`. |
-| `retention_days` | `number` | `365` | `false` | Configuration value for `retention_days`. |
+| `name` | `string` | `required` | `false` | Stable trail, bucket, notification, role, and log-group name prefix. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for CloudTrail, CloudWatch Logs, S3, and SNS encryption. |
+| `access_log_bucket_id` | `string` | `required` | `false` | Centralized S3 access-log bucket receiving CloudTrail bucket server-access logs. |
+| `retention_days` | `number` | `365` | `false` | Days before current CloudTrail S3 log objects expire. |
+| `s3_data_event_bucket_arns` | `list(string)` | `[]` | `false` | S3 bucket ARNs for which object-level CloudTrail data events are captured. Empty disables data-event billing. |
+| `enable_insights` | `bool` | `false` | `false` | Enable billable CloudTrail API-call-rate and API-error-rate Insights events. |
+| `permissions_boundary_arn` | `string` | `required` | `false` | AWS-managed PowerUserAccess policy ARN used as the permissions boundary for every workload IAM role. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| — | This module does not publish outputs. | — |
+| `trail_arn` | ARN of the multi-region CloudTrail trail. | `aws_cloudtrail.this.arn` |
+| `log_bucket_arn` | ARN of the encrypted CloudTrail S3 log bucket. | `aws_s3_bucket.logs.arn` |
+| `notification_topic_arn` | ARN of the encrypted CloudTrail SNS notification topic. | `aws_sns_topic.notifications.arn` |
+| `cloudwatch_log_group_arn` | ARN of the encrypted CloudTrail CloudWatch log group. | `aws_cloudwatch_log_group.trail.arn` |
 
 ## Security and reliability controls
 
@@ -63,6 +69,7 @@ module "cloudtrail" {
   name = var.name
   kms_key_arn = var.kms_key_arn
   access_log_bucket_id = var.access_log_bucket_id
+  permissions_boundary_arn = var.permissions_boundary_arn
 }
 ```
 
@@ -79,4 +86,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

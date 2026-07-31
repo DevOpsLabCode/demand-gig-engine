@@ -1,4 +1,3 @@
-
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Publishes non-secret Redis identifiers and the ARN of the protected connection secret.
 
@@ -10,6 +9,11 @@ output "endpoint" {
 output "port" {
   description = "TLS Redis listener port."
   value       = aws_elasticache_replication_group.this.port
+}
+
+output "replication_group_id" {
+  description = "Replication-group ID used by CloudWatch alarm dimensions."
+  value       = aws_elasticache_replication_group.this.replication_group_id
 }
 
 output "runtime_secret_arn" {

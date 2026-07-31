@@ -230,6 +230,7 @@ data "aws_iam_policy_document" "cloudtrail_logs_assume" {
 }
 
 resource "aws_iam_role" "cloudtrail_logs" {
+  permissions_boundary = var.permissions_boundary_arn
   name               = "${var.name}-cloudtrail-logs"
   assume_role_policy = data.aws_iam_policy_document.cloudtrail_logs_assume.json
   tags               = var.tags
@@ -260,6 +261,30 @@ resource "aws_cloudtrail" "this" {
   enable_log_file_validation    = true
   cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.trail.arn}:*"
   cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail_logs.arn
+
+  # Management events are always captured. Production can additionally capture object-level access for selected S3 buckets.
+  event_selector {
+    read_write_type           = "All"
+    include_management_events = true
+
+    dynamic "data_resource" {
+      for_each = length(var.s3_data_event_bucket_arns) == 0 ? [] : [1]
+
+      content {
+        type   = "AWS::S3::Object"
+        values = [for arn in var.s3_data_event_bucket_arns : "${arn}/"]
+      }
+    }
+  }
+
+  # CloudTrail Insights identifies unusual API call and API error rates. It is configurable because Insights creates additional billable events.
+  dynamic "insight_selector" {
+    for_each = var.enable_insights ? toset(["ApiCallRateInsight", "ApiErrorRateInsight"]) : toset([])
+
+    content {
+      insight_type = insight_selector.value
+    }
+  }
 
   depends_on = [
     aws_s3_bucket_policy.logs,

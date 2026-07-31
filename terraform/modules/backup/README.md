@@ -26,17 +26,23 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 | `name` | `string` | `required` | `false` | Stable name for the backup vault and plan. |
 | `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used by the backup vault. |
 | `resource_arns` | `list(string)` | `required` | `false` | Protected resource ARNs selected by the AWS Backup plan. |
-| `minimum_retention_days` | `number` | `365` | `false` | Minimum immutable retention and normal deletion point for recovery points. |
+| `schedule_expression` | `string` | `"cron(0 5 ? * * *)"` | `false` | AWS Backup cron expression for the recurring backup window. |
+| `minimum_retention_days` | `number` | `35` | `false` | Normal recovery-point deletion age and, when enabled, Vault Lock minimum retention. |
 | `maximum_retention_days` | `number` | `3650` | `false` | Maximum recovery-point retention accepted by Vault Lock. |
-| `cold_storage_after_days` | `number` | `90` | `false` | Days before eligible recovery points transition to cold storage. |
+| `cold_storage_after_days` | `number` | `null` | `false` | Days before eligible recovery points move to cold storage; null disables transition. |
+| `enable_vault_lock` | `bool` | `false` | `false` | Enable Compliance-mode Vault Lock. Recommended for production, but intentionally optional for disposable development stacks. |
 | `vault_lock_changeable_for_days` | `number` | `3` | `false` | Grace period before Vault Lock becomes immutable compliance mode. |
+| `permissions_boundary_arn` | `string` | `required` | `false` | AWS-managed PowerUserAccess policy ARN used as the permissions boundary for every workload IAM role. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| — | This module does not publish outputs. | — |
+| `vault_name` | AWS Backup vault name. | `aws_backup_vault.this.name` |
+| `vault_arn` | AWS Backup vault ARN. | `aws_backup_vault.this.arn` |
+| `plan_id` | AWS Backup plan ID. | `aws_backup_plan.this.id` |
+| `vault_lock_enabled` | Whether Compliance-mode Vault Lock is configured. | `var.enable_vault_lock` |
 
 ## Security and reliability controls
 
@@ -53,6 +59,7 @@ module "backup" {
   name = var.name
   kms_key_arn = var.kms_key_arn
   resource_arns = var.resource_arns
+  permissions_boundary_arn = var.permissions_boundary_arn
 }
 ```
 
@@ -69,4 +76,4 @@ checkov -d .
 python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), [`../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md`](../../../docs/TERRAFORM_MODULE_DEEP_AUDIT.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

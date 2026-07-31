@@ -1,0 +1,1763 @@
+{
+  "generated_at": "2026-07-31T13:03:00-04:00",
+  "author": "Stan Zvenigorodskiy",
+  "organization": "DevOps Lab Inc.",
+  "website": "https://DevOpsLabInc.com",
+  "module_count": 25,
+  "root_module_instance_count": 31,
+  "terraform_file_count": 87,
+  "go_test_count": 36,
+  "modules": [
+    {
+      "module": "access_logs",
+      "terraform_files": [
+        "terraform/modules/access_logs/main.tf",
+        "terraform/modules/access_logs/outputs.tf",
+        "terraform/modules/access_logs/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "force_destroy",
+        "alb_prefix",
+        "retention_days",
+        "noncurrent_version_expiration_days",
+        "tags"
+      ],
+      "variable_count": 6,
+      "validation_block_count": 4,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_s3_bucket",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_ownership_controls",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_acl",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_public_access_block",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_versioning",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_server_side_encryption_configuration",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_lifecycle_configuration",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_policy",
+          "name": "this"
+        }
+      ],
+      "resource_count": 8,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_canonical_user_id",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "this"
+        }
+      ],
+      "data_source_count": 4,
+      "outputs": [
+        "bucket_id",
+        "bucket_domain_name",
+        "bucket_arn"
+      ],
+      "output_count": 3,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_62",
+        "CKV2_AWS_65",
+        "CKV_AWS_144",
+        "CKV_AWS_145",
+        "CKV_AWS_18"
+      ]
+    },
+    {
+      "module": "acm",
+      "terraform_files": [
+        "terraform/modules/acm/main.tf",
+        "terraform/modules/acm/outputs.tf",
+        "terraform/modules/acm/variables.tf"
+      ],
+      "variables": [
+        "domain_name",
+        "subject_alternative_names",
+        "hosted_zone_id",
+        "create",
+        "existing_certificate_arn",
+        "tags"
+      ],
+      "variable_count": 6,
+      "validation_block_count": 4,
+      "check_block_count": 1,
+      "resources": [
+        {
+          "type": "aws_acm_certificate",
+          "name": "this"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "validation"
+        },
+        {
+          "type": "aws_acm_certificate_validation",
+          "name": "this"
+        }
+      ],
+      "resource_count": 3,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "certificate_arn"
+      ],
+      "output_count": 1,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "alb",
+      "terraform_files": [
+        "terraform/modules/alb/main.tf",
+        "terraform/modules/alb/outputs.tf",
+        "terraform/modules/alb/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "vpc_id",
+        "subnet_ids",
+        "security_group_ids",
+        "certificate_arn",
+        "deletion_protection",
+        "access_log_bucket_id",
+        "access_log_prefix",
+        "tags"
+      ],
+      "variable_count": 9,
+      "validation_block_count": 7,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_lb",
+          "name": "this"
+        },
+        {
+          "type": "aws_lb_target_group",
+          "name": "backend"
+        },
+        {
+          "type": "aws_lb_listener",
+          "name": "http_redirect"
+        },
+        {
+          "type": "aws_lb_listener",
+          "name": "http_cloudfront_origin"
+        },
+        {
+          "type": "aws_lb_listener",
+          "name": "https"
+        }
+      ],
+      "resource_count": 5,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "arn",
+        "dns_name",
+        "zone_id",
+        "target_group_arn",
+        "target_group_arn_suffix"
+      ],
+      "output_count": 5,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_20",
+        "CKV2_AWS_28",
+        "CKV_AWS_103",
+        "CKV_AWS_2",
+        "CKV_AWS_378"
+      ]
+    },
+    {
+      "module": "backup",
+      "terraform_files": [
+        "terraform/modules/backup/main.tf",
+        "terraform/modules/backup/outputs.tf",
+        "terraform/modules/backup/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "kms_key_arn",
+        "resource_arns",
+        "schedule_expression",
+        "minimum_retention_days",
+        "maximum_retention_days",
+        "cold_storage_after_days",
+        "enable_vault_lock",
+        "vault_lock_changeable_for_days",
+        "tags"
+      ],
+      "variable_count": 10,
+      "validation_block_count": 8,
+      "check_block_count": 2,
+      "resources": [
+        {
+          "type": "aws_iam_role",
+          "name": "this"
+        },
+        {
+          "type": "aws_iam_role_policy_attachment",
+          "name": "this"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "kms"
+        },
+        {
+          "type": "aws_backup_vault",
+          "name": "this"
+        },
+        {
+          "type": "aws_backup_vault_lock_configuration",
+          "name": "this"
+        },
+        {
+          "type": "aws_backup_plan",
+          "name": "this"
+        },
+        {
+          "type": "aws_backup_selection",
+          "name": "this"
+        }
+      ],
+      "resource_count": 7,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "assume"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "vault_name",
+        "vault_arn",
+        "plan_id",
+        "vault_lock_enabled"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "cloudfront",
+      "terraform_files": [
+        "terraform/modules/cloudfront/main.tf",
+        "terraform/modules/cloudfront/outputs.tf",
+        "terraform/modules/cloudfront/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "bucket_id",
+        "bucket_arn",
+        "bucket_domain_name",
+        "alb_domain_name",
+        "use_https_origin",
+        "domain_name",
+        "certificate_arn",
+        "web_acl_arn",
+        "access_log_bucket_domain_name",
+        "price_class",
+        "tags"
+      ],
+      "variable_count": 12,
+      "validation_block_count": 8,
+      "check_block_count": 1,
+      "resources": [
+        {
+          "type": "aws_cloudfront_origin_access_control",
+          "name": "this"
+        },
+        {
+          "type": "aws_cloudfront_function",
+          "name": "spa_rewrite"
+        },
+        {
+          "type": "aws_cloudfront_response_headers_policy",
+          "name": "security"
+        },
+        {
+          "type": "aws_cloudfront_distribution",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_policy",
+          "name": "this"
+        }
+      ],
+      "resource_count": 5,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "bucket"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "distribution_id",
+        "domain_name",
+        "hosted_zone_id"
+      ],
+      "output_count": 3,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_47",
+        "CKV_AWS_174",
+        "CKV_AWS_310",
+        "CKV_AWS_374"
+      ]
+    },
+    {
+      "module": "cloudtrail",
+      "terraform_files": [
+        "terraform/modules/cloudtrail/main.tf",
+        "terraform/modules/cloudtrail/outputs.tf",
+        "terraform/modules/cloudtrail/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "kms_key_arn",
+        "access_log_bucket_id",
+        "retention_days",
+        "s3_data_event_bucket_arns",
+        "enable_insights",
+        "tags"
+      ],
+      "variable_count": 7,
+      "validation_block_count": 5,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_s3_bucket",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_ownership_controls",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_public_access_block",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_versioning",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_server_side_encryption_configuration",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_logging",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_lifecycle_configuration",
+          "name": "logs"
+        },
+        {
+          "type": "aws_s3_bucket_policy",
+          "name": "logs"
+        },
+        {
+          "type": "aws_sns_topic",
+          "name": "notifications"
+        },
+        {
+          "type": "aws_sns_topic_policy",
+          "name": "notifications"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "trail"
+        },
+        {
+          "type": "aws_iam_role",
+          "name": "cloudtrail_logs"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "cloudtrail_logs"
+        },
+        {
+          "type": "aws_cloudtrail",
+          "name": "this"
+        }
+      ],
+      "resource_count": 14,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "logs"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "notifications"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "cloudtrail_logs_assume"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "cloudtrail_logs"
+        }
+      ],
+      "data_source_count": 7,
+      "outputs": [
+        "trail_arn",
+        "log_bucket_arn",
+        "notification_topic_arn",
+        "cloudwatch_log_group_arn"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_62",
+        "CKV_AWS_144"
+      ]
+    },
+    {
+      "module": "cloudwatch",
+      "terraform_files": [
+        "terraform/modules/cloudwatch/main.tf",
+        "terraform/modules/cloudwatch/outputs.tf",
+        "terraform/modules/cloudwatch/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "alb_arn_suffix",
+        "target_group_arn_suffix",
+        "cluster_name",
+        "service_names",
+        "db_identifier",
+        "redis_replication_group_id",
+        "queue_name",
+        "dlq_name",
+        "cloudfront_distribution_id",
+        "sns_email",
+        "kms_key_arn",
+        "account_root_arn",
+        "thresholds",
+        "tags"
+      ],
+      "variable_count": 15,
+      "validation_block_count": 8,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_sns_topic",
+          "name": "alerts"
+        },
+        {
+          "type": "aws_sns_topic_policy",
+          "name": "alerts"
+        },
+        {
+          "type": "aws_sns_topic_subscription",
+          "name": "email"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "alb_5xx"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "target_5xx"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "unhealthy_targets"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "target_latency"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "ecs_cpu"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "ecs_memory"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "queue_backlog"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "queue_age"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "dlq_messages"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "rds_cpu"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "rds_free_storage"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "redis_cpu"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "redis_memory"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "redis_evictions"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "name": "cloudfront_5xx"
+        },
+        {
+          "type": "aws_cloudwatch_dashboard",
+          "name": "service"
+        }
+      ],
+      "resource_count": 19,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "alerts"
+        }
+      ],
+      "data_source_count": 4,
+      "outputs": [
+        "alarm_topic_arn",
+        "dashboard_name"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "ecr",
+      "terraform_files": [
+        "terraform/modules/ecr/main.tf",
+        "terraform/modules/ecr/outputs.tf",
+        "terraform/modules/ecr/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "repositories",
+        "kms_key_arn",
+        "retained_image_count",
+        "tags"
+      ],
+      "variable_count": 5,
+      "validation_block_count": 4,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_ecr_repository",
+          "name": "this"
+        },
+        {
+          "type": "aws_ecr_lifecycle_policy",
+          "name": "this"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "repository_urls",
+        "repository_arns"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "ecs_cluster",
+      "terraform_files": [
+        "terraform/modules/ecs_cluster/main.tf",
+        "terraform/modules/ecs_cluster/outputs.tf",
+        "terraform/modules/ecs_cluster/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "kms_key_arn",
+        "log_retention_days",
+        "tags"
+      ],
+      "variable_count": 4,
+      "validation_block_count": 3,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_ecs_cluster",
+          "name": "this"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "exec"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "cluster_arn",
+        "cluster_name"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "ecs_service",
+      "terraform_files": [
+        "terraform/modules/ecs_service/main.tf",
+        "terraform/modules/ecs_service/outputs.tf",
+        "terraform/modules/ecs_service/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "cluster_arn",
+        "subnet_ids",
+        "security_group_ids",
+        "image",
+        "container_port",
+        "expose_port",
+        "cpu",
+        "memory",
+        "desired_count",
+        "target_group_arn",
+        "command",
+        "environment",
+        "secrets",
+        "kms_key_arn",
+        "queue_arn",
+        "object_storage_bucket_arn",
+        "enable_health_check",
+        "enable_autoscaling",
+        "autoscaling_max_capacity",
+        "autoscaling_cpu_target",
+        "log_retention_days",
+        "ses_identity_arn",
+        "enable_xray",
+        "xray_image",
+        "tags"
+      ],
+      "variable_count": 26,
+      "validation_block_count": 13,
+      "check_block_count": 3,
+      "resources": [
+        {
+          "type": "aws_iam_role",
+          "name": "execution"
+        },
+        {
+          "type": "aws_iam_role_policy_attachment",
+          "name": "execution"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "secrets"
+        },
+        {
+          "type": "aws_iam_role",
+          "name": "task"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "task"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_ecs_task_definition",
+          "name": "this"
+        },
+        {
+          "type": "aws_ecs_service",
+          "name": "this"
+        },
+        {
+          "type": "aws_appautoscaling_target",
+          "name": "this"
+        },
+        {
+          "type": "aws_appautoscaling_policy",
+          "name": "cpu"
+        }
+      ],
+      "resource_count": 10,
+      "data_sources": [
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "assume"
+        }
+      ],
+      "data_source_count": 2,
+      "outputs": [
+        "service_name",
+        "service_arn",
+        "task_role_arn",
+        "task_definition_arn"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV_AWS_111",
+        "CKV_AWS_356"
+      ]
+    },
+    {
+      "module": "eventbridge",
+      "terraform_files": [
+        "terraform/modules/eventbridge/main.tf",
+        "terraform/modules/eventbridge/outputs.tf",
+        "terraform/modules/eventbridge/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "queue_arn",
+        "dlq_arn",
+        "kms_key_arn",
+        "schedule_enabled",
+        "schedule_expression",
+        "maximum_event_age_seconds",
+        "maximum_retry_attempts",
+        "tags"
+      ],
+      "variable_count": 9,
+      "validation_block_count": 7,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_iam_role",
+          "name": "scheduler"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "scheduler"
+        },
+        {
+          "type": "aws_scheduler_schedule_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_scheduler_schedule",
+          "name": "campaign_expiry"
+        }
+      ],
+      "resource_count": 4,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "scheduler_assume"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "schedule_arn",
+        "schedule_group_name"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "github_oidc",
+      "terraform_files": [
+        "terraform/modules/github_oidc/main.tf",
+        "terraform/modules/github_oidc/outputs.tf",
+        "terraform/modules/github_oidc/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "github_org",
+        "github_repo",
+        "ecr_arns",
+        "cluster_arn",
+        "allowed_branches",
+        "allowed_environments",
+        "allow_pull_requests",
+        "tags"
+      ],
+      "variable_count": 9,
+      "validation_block_count": 7,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_iam_role",
+          "name": "github"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "github"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_openid_connect_provider",
+          "name": "github"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "assume"
+        }
+      ],
+      "data_source_count": 5,
+      "outputs": [
+        "role_arn"
+      ],
+      "output_count": 1,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV_AWS_111",
+        "CKV_AWS_356"
+      ]
+    },
+    {
+      "module": "guardduty",
+      "terraform_files": [
+        "terraform/modules/guardduty/main.tf",
+        "terraform/modules/guardduty/outputs.tf",
+        "terraform/modules/guardduty/variables.tf"
+      ],
+      "variables": [
+        "enabled"
+      ],
+      "variable_count": 1,
+      "validation_block_count": 0,
+      "check_block_count": 0,
+      "resources": [],
+      "resource_count": 0,
+      "data_sources": [
+        {
+          "type": "aws_guardduty_detector",
+          "name": "this"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "detector_id"
+      ],
+      "output_count": 1,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "kms",
+      "terraform_files": [
+        "terraform/modules/kms/main.tf",
+        "terraform/modules/kms/outputs.tf",
+        "terraform/modules/kms/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "deletion_window",
+        "tags"
+      ],
+      "variable_count": 3,
+      "validation_block_count": 2,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_kms_key",
+          "name": "this"
+        },
+        {
+          "type": "aws_kms_alias",
+          "name": "this"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "this"
+        }
+      ],
+      "data_source_count": 4,
+      "outputs": [
+        "key_arn",
+        "key_id"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV_AWS_109",
+        "CKV_AWS_111",
+        "CKV_AWS_356"
+      ]
+    },
+    {
+      "module": "networking",
+      "terraform_files": [
+        "terraform/modules/networking/main.tf",
+        "terraform/modules/networking/outputs.tf",
+        "terraform/modules/networking/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "cidr",
+        "az_count",
+        "nat_gateway_per_az",
+        "kms_key_arn",
+        "flow_log_retention_days",
+        "tags"
+      ],
+      "variable_count": 7,
+      "validation_block_count": 5,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_vpc",
+          "name": "this"
+        },
+        {
+          "type": "aws_default_security_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_internet_gateway",
+          "name": "this"
+        },
+        {
+          "type": "aws_subnet",
+          "name": "public"
+        },
+        {
+          "type": "aws_subnet",
+          "name": "app"
+        },
+        {
+          "type": "aws_subnet",
+          "name": "db"
+        },
+        {
+          "type": "aws_eip",
+          "name": "nat"
+        },
+        {
+          "type": "aws_nat_gateway",
+          "name": "this"
+        },
+        {
+          "type": "aws_route_table",
+          "name": "public"
+        },
+        {
+          "type": "aws_route_table_association",
+          "name": "public"
+        },
+        {
+          "type": "aws_route_table",
+          "name": "app"
+        },
+        {
+          "type": "aws_route_table_association",
+          "name": "app"
+        },
+        {
+          "type": "aws_route_table",
+          "name": "db"
+        },
+        {
+          "type": "aws_route_table_association",
+          "name": "db"
+        },
+        {
+          "type": "aws_vpc_endpoint",
+          "name": "s3"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "flow"
+        },
+        {
+          "type": "aws_iam_role",
+          "name": "flow"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "flow"
+        },
+        {
+          "type": "aws_flow_log",
+          "name": "this"
+        }
+      ],
+      "resource_count": 19,
+      "data_sources": [
+        {
+          "type": "aws_availability_zones",
+          "name": "available"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "flow_assume"
+        }
+      ],
+      "data_source_count": 5,
+      "outputs": [
+        "vpc_id",
+        "public_subnet_ids",
+        "app_subnet_ids",
+        "db_subnet_ids"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "rds_postgres",
+      "terraform_files": [
+        "terraform/modules/rds_postgres/main.tf",
+        "terraform/modules/rds_postgres/outputs.tf",
+        "terraform/modules/rds_postgres/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "subnet_ids",
+        "security_group_ids",
+        "kms_key_arn",
+        "engine_version",
+        "instance_class",
+        "allocated_storage",
+        "max_allocated_storage",
+        "multi_az",
+        "backup_retention_days",
+        "performance_insights_retention_days",
+        "monitoring_interval_seconds",
+        "deletion_protection",
+        "apply_immediately",
+        "secret_recovery_window_days",
+        "tags"
+      ],
+      "variable_count": 16,
+      "validation_block_count": 12,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_iam_role",
+          "name": "monitoring"
+        },
+        {
+          "type": "aws_iam_role_policy_attachment",
+          "name": "monitoring"
+        },
+        {
+          "type": "random_password",
+          "name": "db"
+        },
+        {
+          "type": "random_password",
+          "name": "django"
+        },
+        {
+          "type": "random_id",
+          "name": "final_snapshot"
+        },
+        {
+          "type": "aws_secretsmanager_secret",
+          "name": "db"
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "name": "db"
+        },
+        {
+          "type": "aws_db_subnet_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_db_parameter_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_db_instance",
+          "name": "this"
+        },
+        {
+          "type": "aws_iam_role",
+          "name": "proxy"
+        },
+        {
+          "type": "aws_iam_role_policy",
+          "name": "proxy"
+        },
+        {
+          "type": "aws_db_proxy",
+          "name": "this"
+        },
+        {
+          "type": "aws_db_proxy_default_target_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_db_proxy_target",
+          "name": "this"
+        },
+        {
+          "type": "aws_secretsmanager_secret",
+          "name": "runtime"
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "name": "runtime"
+        }
+      ],
+      "resource_count": 17,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "monitoring_assume"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "proxy_assume"
+        }
+      ],
+      "data_source_count": 2,
+      "outputs": [
+        "endpoint",
+        "proxy_endpoint",
+        "secret_arn",
+        "db_arn",
+        "db_identifier",
+        "runtime_secret_arn"
+      ],
+      "output_count": 6,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_57"
+      ]
+    },
+    {
+      "module": "redis",
+      "terraform_files": [
+        "terraform/modules/redis/main.tf",
+        "terraform/modules/redis/outputs.tf",
+        "terraform/modules/redis/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "subnet_ids",
+        "security_group_ids",
+        "kms_key_arn",
+        "engine_version",
+        "node_type",
+        "replicas",
+        "snapshot_retention_days",
+        "apply_immediately",
+        "tags"
+      ],
+      "variable_count": 10,
+      "validation_block_count": 8,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_elasticache_subnet_group",
+          "name": "this"
+        },
+        {
+          "type": "random_password",
+          "name": "auth"
+        },
+        {
+          "type": "aws_elasticache_replication_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_secretsmanager_secret",
+          "name": "runtime"
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "name": "runtime"
+        }
+      ],
+      "resource_count": 5,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "endpoint",
+        "port",
+        "replication_group_id",
+        "runtime_secret_arn"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_57"
+      ]
+    },
+    {
+      "module": "route53",
+      "terraform_files": [
+        "terraform/modules/route53/main.tf",
+        "terraform/modules/route53/outputs.tf",
+        "terraform/modules/route53/variables.tf"
+      ],
+      "variables": [
+        "enabled",
+        "zone_id",
+        "record_name",
+        "target_name",
+        "target_zone_id",
+        "create_ipv6"
+      ],
+      "variable_count": 6,
+      "validation_block_count": 4,
+      "check_block_count": 1,
+      "resources": [
+        {
+          "type": "aws_route53_record",
+          "name": "ipv4"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "ipv6"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "fqdn"
+      ],
+      "output_count": 1,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "s3_static",
+      "terraform_files": [
+        "terraform/modules/s3_static/main.tf",
+        "terraform/modules/s3_static/outputs.tf",
+        "terraform/modules/s3_static/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "force_destroy",
+        "kms_key_arn",
+        "create_tls_policy",
+        "access_log_bucket_id",
+        "noncurrent_version_expiration_days",
+        "tags"
+      ],
+      "variable_count": 7,
+      "validation_block_count": 4,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_s3_bucket",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_ownership_controls",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_public_access_block",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_versioning",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_server_side_encryption_configuration",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_logging",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_lifecycle_configuration",
+          "name": "this"
+        },
+        {
+          "type": "aws_s3_bucket_policy",
+          "name": "tls"
+        }
+      ],
+      "resource_count": 8,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "tls"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "bucket_id",
+        "bucket_arn",
+        "regional_domain_name"
+      ],
+      "output_count": 3,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_62",
+        "CKV_AWS_144"
+      ]
+    },
+    {
+      "module": "secrets_manager",
+      "terraform_files": [
+        "terraform/modules/secrets_manager/main.tf",
+        "terraform/modules/secrets_manager/outputs.tf",
+        "terraform/modules/secrets_manager/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "kms_key_arn",
+        "recovery_window_in_days",
+        "tags"
+      ],
+      "variable_count": 4,
+      "validation_block_count": 3,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_secretsmanager_secret",
+          "name": "social"
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "name": "initial"
+        }
+      ],
+      "resource_count": 2,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "secret_arn"
+      ],
+      "output_count": 1,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_57"
+      ]
+    },
+    {
+      "module": "security",
+      "terraform_files": [
+        "terraform/modules/security/main.tf",
+        "terraform/modules/security/outputs.tf",
+        "terraform/modules/security/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "vpc_id",
+        "vpc_cidr",
+        "app_port",
+        "tags"
+      ],
+      "variable_count": 5,
+      "validation_block_count": 4,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_security_group",
+          "name": "alb"
+        },
+        {
+          "type": "aws_security_group",
+          "name": "app"
+        },
+        {
+          "type": "aws_security_group",
+          "name": "db"
+        },
+        {
+          "type": "aws_security_group",
+          "name": "redis"
+        }
+      ],
+      "resource_count": 4,
+      "data_sources": [
+        {
+          "type": "aws_ec2_managed_prefix_list",
+          "name": "cloudfront"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "alb_sg_id",
+        "app_sg_id",
+        "db_sg_id",
+        "redis_sg_id"
+      ],
+      "output_count": 4,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV2_AWS_5"
+      ]
+    },
+    {
+      "module": "ses",
+      "terraform_files": [
+        "terraform/modules/ses/main.tf",
+        "terraform/modules/ses/outputs.tf",
+        "terraform/modules/ses/variables.tf"
+      ],
+      "variables": [
+        "domain_name",
+        "hosted_zone_id",
+        "create_dns",
+        "mail_from_subdomain",
+        "dmarc_policy",
+        "dmarc_percentage",
+        "dmarc_rua"
+      ],
+      "variable_count": 7,
+      "validation_block_count": 6,
+      "check_block_count": 1,
+      "resources": [
+        {
+          "type": "aws_ses_domain_identity",
+          "name": "this"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "verification"
+        },
+        {
+          "type": "aws_ses_domain_dkim",
+          "name": "this"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "dkim"
+        },
+        {
+          "type": "aws_ses_domain_mail_from",
+          "name": "this"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "mail_from_mx"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "mail_from_spf"
+        },
+        {
+          "type": "aws_route53_record",
+          "name": "dmarc"
+        }
+      ],
+      "resource_count": 8,
+      "data_sources": [
+        {
+          "type": "aws_region",
+          "name": "current"
+        }
+      ],
+      "data_source_count": 1,
+      "outputs": [
+        "identity_arn",
+        "mail_from_domain",
+        "dkim_tokens"
+      ],
+      "output_count": 3,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "sqs",
+      "terraform_files": [
+        "terraform/modules/sqs/main.tf",
+        "terraform/modules/sqs/outputs.tf",
+        "terraform/modules/sqs/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "kms_key_arn",
+        "visibility_timeout_seconds",
+        "message_retention_seconds",
+        "dlq_retention_seconds",
+        "max_receive_count",
+        "receive_wait_time_seconds",
+        "tags"
+      ],
+      "variable_count": 8,
+      "validation_block_count": 7,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_sqs_queue",
+          "name": "dlq"
+        },
+        {
+          "type": "aws_sqs_queue",
+          "name": "tasks"
+        },
+        {
+          "type": "aws_sqs_queue_redrive_allow_policy",
+          "name": "dlq"
+        },
+        {
+          "type": "aws_sqs_queue_policy",
+          "name": "tasks"
+        },
+        {
+          "type": "aws_sqs_queue_policy",
+          "name": "dlq"
+        }
+      ],
+      "resource_count": 5,
+      "data_sources": [
+        {
+          "type": "aws_iam_policy_document",
+          "name": "tasks"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "dlq"
+        }
+      ],
+      "data_source_count": 2,
+      "outputs": [
+        "queue_url",
+        "queue_arn",
+        "queue_name",
+        "dlq_arn",
+        "dlq_name"
+      ],
+      "output_count": 5,
+      "documented": true,
+      "checkov_exceptions": []
+    },
+    {
+      "module": "waf",
+      "terraform_files": [
+        "terraform/modules/waf/main.tf",
+        "terraform/modules/waf/outputs.tf",
+        "terraform/modules/waf/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "scope",
+        "rate_limit",
+        "log_retention_days",
+        "tags"
+      ],
+      "variable_count": 5,
+      "validation_block_count": 3,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_wafv2_web_acl",
+          "name": "this"
+        },
+        {
+          "type": "aws_kms_key",
+          "name": "logging"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "this"
+        },
+        {
+          "type": "aws_wafv2_web_acl_logging_configuration",
+          "name": "this"
+        }
+      ],
+      "resource_count": 4,
+      "data_sources": [
+        {
+          "type": "aws_caller_identity",
+          "name": "current"
+        },
+        {
+          "type": "aws_partition",
+          "name": "current"
+        },
+        {
+          "type": "aws_region",
+          "name": "current"
+        },
+        {
+          "type": "aws_iam_policy_document",
+          "name": "logging_kms"
+        }
+      ],
+      "data_source_count": 4,
+      "outputs": [
+        "arn",
+        "id"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": [
+        "CKV_AWS_109",
+        "CKV_AWS_111",
+        "CKV_AWS_356"
+      ]
+    },
+    {
+      "module": "xray",
+      "terraform_files": [
+        "terraform/modules/xray/main.tf",
+        "terraform/modules/xray/outputs.tf",
+        "terraform/modules/xray/variables.tf"
+      ],
+      "variables": [
+        "name",
+        "priority",
+        "reservoir_size",
+        "fixed_rate",
+        "url_path",
+        "host",
+        "http_method",
+        "service_type",
+        "service_name",
+        "resource_arn"
+      ],
+      "variable_count": 10,
+      "validation_block_count": 4,
+      "check_block_count": 0,
+      "resources": [
+        {
+          "type": "aws_xray_sampling_rule",
+          "name": "this"
+        }
+      ],
+      "resource_count": 1,
+      "data_sources": [],
+      "data_source_count": 0,
+      "outputs": [
+        "sampling_rule_arn",
+        "sampling_rule_name"
+      ],
+      "output_count": 2,
+      "documented": true,
+      "checkov_exceptions": []
+    }
+  ],
+  "validation_status": {
+    "module_contracts": "pass",
+    "security_invariants": "pass",
+    "workflow_validation": "pass",
+    "repository_static_checks": "pass",
+    "documentation_links": "pass",
+    "go_vet": "pass",
+    "go_race_tests": "pass",
+    "native_terraform_validate": "deferred_to_github",
+    "native_tflint": "deferred_to_github",
+    "native_checkov_after_deep_audit": "deferred_to_github"
+  },
+  "important_boundaries": [
+    "Pull requests receive offline validation only and cannot access AWS or remote Terraform state.",
+    "The plan role is used only after trusted code reaches main through the protected dev environment.",
+    "The apply role is used only by manual protected dev/prod environment jobs.",
+    "iam:PassRole is constrained to project-prefixed roles and approved AWS service principals.",
+    "GitHub OIDC provider, GuardDuty detector, advanced GuardDuty features, and enhanced ECR scanning are owned by the account foundation root."
+  ],
+  "documentation_link_count": 160,
+  "markdown_file_count": 53
+}

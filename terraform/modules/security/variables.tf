@@ -5,11 +5,21 @@
 variable "name" {
   type        = string
   description = "Stable name prefix used for security-group names and tags."
+
+  validation {
+    condition     = trimspace(var.name) != "" && length(var.name) <= 200
+    error_message = "name must be non-empty and no longer than 200 characters."
+  }
 }
 
 variable "vpc_id" {
   type        = string
   description = "ID of the VPC that owns every security group."
+
+  validation {
+    condition     = can(regex("^vpc-[0-9a-f]+$", var.vpc_id))
+    error_message = "vpc_id must be an AWS VPC ID."
+  }
 }
 
 variable "vpc_cidr" {

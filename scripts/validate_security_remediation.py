@@ -304,8 +304,8 @@ def main() -> int:
         "at_rest_encryption_enabled = true",
         "transit_encryption_enabled = true",
         "auth_token                 = random_password.auth.result",
-        "automatic_failover_enabled = true",
-        "multi_az_enabled           = true",
+        "automatic_failover_enabled = var.replicas > 0",
+        "multi_az_enabled           = var.replicas > 0",
         'REDIS_URL = "rediss://:',
     )
     require(
@@ -326,6 +326,107 @@ def main() -> int:
         'module "waf_alb"',
         'resource "aws_wafv2_web_acl_association" "alb"',
         "web_acl_arn  = module.waf_alb.arn",
+        "var.redis_replicas >= 1",
+    )
+    require(
+        "terraform/main.tf",
+        'resource "random_password" "origin_verify"',
+        "length  = 64",
+        "origin_verify_header_value = random_password.origin_verify.result",
+    )
+    require(
+        "terraform/modules/alb/variables.tf",
+        'variable "origin_verify_header_value"',
+        "sensitive   = true",
+        "length(var.origin_verify_header_value) >= 32",
+    )
+    require(
+        "terraform/modules/alb/main.tf",
+        'http_header_name = "X-Origin-Verify"',
+        "values           = [var.origin_verify_header_value]",
+        'status_code  = "403"',
+    )
+    require(
+        "terraform/modules/cloudfront/variables.tf",
+        'variable "origin_verify_header_value"',
+        "sensitive   = true",
+    )
+    require(
+        "terraform/modules/cloudfront/main.tf",
+        'name  = "X-Origin-Verify"',
+        "value = var.origin_verify_header_value",
+    )
+    require(
+        "terraform/modules/cloudfront/main.tf",
+        'resource "aws_cloudfront_function" "true_client_ip"',
+        'code    = file("${path.module}/true-client-ip.js")',
+        "function_arn = aws_cloudfront_function.true_client_ip.arn",
+        'resource "aws_cloudfront_cache_policy" "api_disabled"',
+        'resource "aws_cloudfront_origin_request_policy" "api"',
+        'resource "aws_cloudfront_cache_policy" "share"',
+        'resource "aws_cloudfront_origin_request_policy" "share"',
+        "cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id",
+        "origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id",
+        "cache_policy_id          = aws_cloudfront_cache_policy.share.id",
+        "origin_request_policy_id = aws_cloudfront_origin_request_policy.share.id",
+        '"X-Origin-Viewer-IP"',
+        '"Authorization"',
+        '"X-CSRFToken"',
+    )
+    cloudfront_text = (ROOT / "terraform/modules/cloudfront/main.tf").read_text(encoding="utf-8")
+    forbidden_cloudfront_patterns = [
+        'headers      = ["Host", "X-Origin-Viewer-IP"]',
+        'headers      = ["*"]',
+        'items = ["Host"',
+    ]
+    if any(pattern in cloudfront_text for pattern in forbidden_cloudfront_patterns):
+        ERRORS.append("terraform/modules/cloudfront/main.tf: viewer Host/wildcard headers must not be forwarded to the origin")
+    else:
+        PASSES.append("terraform/modules/cloudfront/main.tf: origin Host header remains CloudFront-controlled")
+    if 'headers      = ["Accept-Language", "X-Origin-Viewer-IP"]' in cloudfront_text:
+        ERRORS.append("terraform/modules/cloudfront/main.tf: viewer IP must not be part of the share cache key")
+    else:
+        PASSES.append("terraform/modules/cloudfront/main.tf: share viewer IP is origin-only and excluded from the cache key")
+    require(
+        "terraform/modules/cloudfront/true-client-ip.js",
+        'event.viewer.ip',
+        'request.headers["x-origin-viewer-ip"]',
+    )
+    require(
+        "terraform/modules/waf/main.tf",
+        "AWSManagedRulesAmazonIpReputationList",
+        "AWSManagedRulesSQLiRuleSet",
+        'aggregate_key_type = var.scope == "REGIONAL" ? "FORWARDED_IP" : "IP"',
+        'header_name       = "X-Origin-Viewer-IP"',
+        'name = "x-origin-verify"',
+    )
+    require(
+        "terraform/modules/rds_postgres/main.tf",
+        'resource "aws_cloudwatch_log_group" "postgresql"',
+        'resource "aws_cloudwatch_log_group" "upgrade"',
+        'retention_in_days = var.log_retention_days',
+        'kms_key_id        = var.kms_key_arn',
+    )
+    require(
+        "terraform/modules/redis/main.tf",
+        'resource "aws_cloudwatch_log_group" "engine"',
+        'resource "aws_cloudwatch_log_group" "slow"',
+        'log_type         = "engine-log"',
+        'log_type         = "slow-log"',
+    )
+    require(
+        "terraform/modules/ecs_service/main.tf",
+        'queue_statements = length(var.queue_actions) == 0 ? []',
+        'enable_ecs_managed_tags             = true',
+        'propagate_tags                      = "SERVICE"',
+        'resource "aws_appautoscaling_policy" "memory"',
+    )
+    require(
+        "terraform/main.tf",
+        'queue_actions = ["sqs:GetQueueAttributes", "sqs:SendMessage"]',
+        'queue_actions = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]',
+        'queue_actions             = []',
+        'Owner       = "DevOps Lab Inc."',
     )
     require(
         "terraform/global/bootstrap/main.tf",
@@ -335,6 +436,149 @@ def main() -> int:
         "prevent_destroy = true",
         "policy                  = data.aws_iam_policy_document.state_kms.json",
     )
+    require(
+        "terraform/global/account/main.tf",
+        'resource "aws_iam_openid_connect_provider" "github"',
+        'resource "aws_guardduty_detector" "this"',
+        'resource "aws_guardduty_detector_feature" "runtime_monitoring"',
+        'name   = "ECS_FARGATE_AGENT_MANAGEMENT"',
+        'resource "aws_ecr_registry_scanning_configuration" "this"',
+        'scan_frequency = "CONTINUOUS_SCAN"',
+        'resource "aws_iam_role" "terraform_plan"',
+        'resource "aws_iam_role" "terraform_apply"',
+        'policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/ReadOnlyAccess"',
+        'policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"',
+        'environment_role_arns = [',
+        'role/${var.project_name}-dev-*',
+        'role/${var.project_name}-prod-*',
+        'permissions_boundary_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"',
+        'sid       = "CreateBoundedEnvironmentRoles"',
+        'variable = "iam:PermissionsBoundary"',
+        'sid       = "AttachApprovedManagedPolicies"',
+        'variable = "iam:PolicyARN"',
+        'sid       = "PassBoundedEnvironmentRolesToApprovedServices"',
+        'variable = "iam:PassedToService"',
+        'state_kms_aliases = [',
+        'sid = "UseTerraformStateKeys"',
+        'variable = "kms:ResourceAliases"',
+        'values   = local.state_kms_aliases',
+    )
+    iam_role_modules = [
+        "backup",
+        "cloudtrail",
+        "ecs_service",
+        "eventbridge",
+        "github_oidc",
+        "networking",
+        "rds_postgres",
+    ]
+    require(
+        "terraform/modules/ecs_service/variables.tf",
+        'variable "ecr_repository_arns"',
+        "length(var.ecr_repository_arns) > 0",
+    )
+    require(
+        "terraform/modules/ecs_service/main.tf",
+        'resource "aws_iam_role_policy" "execution"',
+        '"ecr:GetAuthorizationToken"',
+        "Resource = var.ecr_repository_arns",
+        '"logs:CreateLogStream"',
+        '"logs:PutLogEvents"',
+        "Resource = local.secret_arns",
+    )
+    require(
+        "terraform/main.tf",
+        "ecr_repository_arns = module.ecr.repository_arns",
+    )
+    for module_name in iam_role_modules:
+        require(
+            f"terraform/modules/{module_name}/variables.tf",
+            'variable "permissions_boundary_arn"',
+            'iam::aws:policy/PowerUserAccess',
+        )
+        require(
+            f"terraform/modules/{module_name}/main.tf",
+            "permissions_boundary = var.permissions_boundary_arn",
+        )
+    require(
+        "terraform/main.tf",
+        'permissions_boundary_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/PowerUserAccess"',
+        "permissions_boundary_arn = local.permissions_boundary_arn",
+    )
+
+    account_text = (ROOT / "terraform/global/account/main.tf").read_text(encoding="utf-8")
+    forbidden_account_fragments = [
+        'AmazonECSTaskExecutionRolePolicy',
+        'project_role_arn = "arn:',
+        'role/${var.project_name}-*"',
+        'iam:DeleteRolePermissionsBoundary',
+        'ManageGitHubOIDCProvider',
+    ]
+    for fragment in forbidden_account_fragments:
+        if fragment in account_text:
+            ERRORS.append(f"Account apply policy contains forbidden broad control {fragment!r}")
+        else:
+            PASSES.append(f"Account apply policy excludes broad control {fragment}")
+
+
+    ecs_service_text = (ROOT / "terraform/modules/ecs_service/main.tf").read_text(encoding="utf-8")
+    if "AmazonECSTaskExecutionRolePolicy" in ecs_service_text:
+        ERRORS.append("ECS execution role must not use the broad AWS-managed task execution policy")
+    else:
+        PASSES.append("ECS execution role uses project-scoped inline permissions")
+
+    require(
+        "terraform/modules/github_oidc/main.tf",
+        'data "aws_iam_openid_connect_provider" "github"',
+        'identifiers = [data.aws_iam_openid_connect_provider.github.arn]',
+    )
+    require(
+        "terraform/modules/guardduty/main.tf",
+        'data "aws_guardduty_detector" "this"',
+    )
+    require(
+        "terraform/modules/ses/main.tf",
+        'resource "aws_ses_domain_mail_from" "this"',
+        'resource "aws_route53_record" "mail_from_spf"',
+        'resource "aws_route53_record" "dmarc"',
+        'behavior_on_mx_failure = "RejectMessage"',
+    )
+    require(
+        "terraform/modules/ses/variables.tf",
+        'variable "existing_identity_arn"',
+        'check "identity_source"',
+    )
+    require(
+        "terraform/main.tf",
+        "var.create_dns || var.ses_identity_arn != null",
+        "existing_identity_arn = var.ses_identity_arn",
+        "dmarc_rua             = var.alarm_email",
+    )
+    require(
+        "terraform/modules/cloudtrail/main.tf",
+        'event_selector {',
+        'type   = "AWS::S3::Object"',
+        'dynamic "insight_selector"',
+    )
+    require(
+        ".github/workflows/terraform.yml",
+        "terraform -chdir=terraform/global/bootstrap validate",
+        "terraform -chdir=terraform/global/account validate",
+        "bash -n terraform/scripts/bootstrap-account.sh",
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+        "role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}",
+        "role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}",
+    )
+    terraform_workflow = (ROOT / ".github/workflows/terraform.yml").read_text(encoding="utf-8")
+    if "AWS_TERRAFORM_ROLE_ARN" in terraform_workflow:
+        ERRORS.append("Terraform workflow must not fall back to a legacy broad role")
+    else:
+        PASSES.append("Terraform uses dedicated fail-closed plan/apply roles")
+    if 'default     = false' not in (ROOT / "terraform/global/account/variables.tf").read_text(encoding="utf-8"):
+        ERRORS.append("Account foundation must disable direct pull-request plan trust by default")
+    else:
+        PASSES.append("Direct pull-request OIDC trust is disabled by default")
+
     workflow_path = find_security_workflow()
     if workflow_path is None:
         ERRORS.append(
