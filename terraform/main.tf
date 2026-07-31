@@ -134,6 +134,14 @@ module "waf" {
   name = local.name
   tags = local.tags
 }
+
+# Protect the origin ALB independently from the CloudFront edge Web ACL.
+module "waf_alb" {
+  source = "./modules/waf"
+  name   = "${local.name}-origin"
+  scope  = "REGIONAL"
+  tags   = local.tags
+}
 # Invokes the reusable alb module and passes this environment configuration into it.
 module "alb" {
   source = "./modules/alb"
@@ -146,6 +154,11 @@ module "alb" {
   access_log_bucket_id = module.access_logs.bucket_id
   access_log_prefix    = "alb"
   tags                 = local.tags
+}
+
+resource "aws_wafv2_web_acl_association" "alb" {
+  resource_arn = module.alb.arn
+  web_acl_arn  = module.waf_alb.arn
 }
 # Invokes the reusable cloudfront module and passes this environment configuration into it.
 module "cloudfront" {

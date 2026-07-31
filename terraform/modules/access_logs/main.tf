@@ -16,14 +16,11 @@ locals {
   cloudfront_log_delivery_canonical_user_id = "c4c1ede66af53448b93c283ce9448c4ba468c9432aa01d700d3878632f77d2d0"
 }
 
-# The log sink cannot log to itself without creating an infinite delivery loop.
-#checkov:skip=CKV_AWS_18:A dedicated log sink is the terminal destination; self-logging would recurse indefinitely.
-# Cross-region replication and event notifications are organization-level integrations, not requirements of the log sink itself.
-#checkov:skip=CKV_AWS_144:Replication is intentionally delegated to the organization backup and disaster-recovery policy.
-#checkov:skip=CKV2_AWS_62:Security tooling reads the centralized prefix directly; per-object event notifications are not required.
-# ALB standard access-log delivery requires Amazon S3 managed encryption rather than a customer-managed KMS key.
-#checkov:skip=CKV_AWS_145:SSE-S3 is required for broad ALB and legacy CloudFront standard-log delivery compatibility.
 resource "aws_s3_bucket" "this" {
+  #checkov:skip=CKV_AWS_18:A dedicated terminal log sink cannot log to itself without recursively generating new access-log objects.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is delegated to the organization backup and disaster-recovery policy and destination account.
+  #checkov:skip=CKV2_AWS_62:Security analytics reads the centralized prefixes directly; per-object event notifications are not part of the control design.
+  #checkov:skip=CKV_AWS_145:ALB and legacy CloudFront standard-log delivery require S3-managed encryption compatibility; application and audit data use customer-managed KMS keys.
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
@@ -31,6 +28,7 @@ resource "aws_s3_bucket" "this" {
 
 # Keep ACL support enabled because CloudFront standard logging uses the S3 log-delivery canonical user.
 resource "aws_s3_bucket_ownership_controls" "this" {
+  #checkov:skip=CKV2_AWS_65:CloudFront legacy standard logging requires the documented log-delivery canonical-user ACL; public ACLs remain fully blocked.
   bucket = aws_s3_bucket.this.id
 
   rule {

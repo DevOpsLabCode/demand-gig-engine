@@ -51,16 +51,11 @@ resource "aws_cloudfront_response_headers_policy" "security" {
   }
 }
 
-# An API failover origin must be a separately deployed and independently healthy
-# application stack; substituting the static S3 site would return incorrect data.
-#checkov:skip=CKV_AWS_310:Origin failover requires an independently deployed secondary API stack and is implemented by the multi-region disaster-recovery layer, not this single-region module.
-# The public event platform intentionally serves a worldwide audience. WAF, rate
-# limiting, and application controls provide abuse protection without geographic exclusion.
-#checkov:skip=CKV_AWS_374:Worldwide delivery is a documented product requirement; geographic blocking would prevent legitimate global fans and organizers from accessing campaigns.
-# CloudFront's managed default certificate does not expose a configurable minimum
-# TLS policy; custom-domain deployments use TLSv1.2_2021 explicitly.
-#checkov:skip=CKV_AWS_174:The default CloudFront certificate controls its own protocol policy; custom certificates enforce TLSv1.2_2021.
 resource "aws_cloudfront_distribution" "this" {
+  #checkov:skip=CKV_AWS_310:Origin failover requires an independently deployed secondary API stack and is implemented by the multi-region disaster-recovery layer rather than this single-region module.
+  #checkov:skip=CKV_AWS_374:Worldwide delivery is a documented product requirement; geographic blocking would prevent legitimate global fans and organizers from accessing campaigns.
+  #checkov:skip=CKV_AWS_174:The managed CloudFront certificate controls its own protocol policy; custom-domain deployments explicitly enforce TLSv1.2_2021.
+  #checkov:skip=CKV2_AWS_47:The attached Web ACL includes AWSManagedRulesKnownBadInputsRuleSet, which contains the AWS-managed Log4j protections; the cross-module association is not resolved by this graph check.
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"

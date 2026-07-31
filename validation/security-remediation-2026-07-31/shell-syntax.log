@@ -1,1 +1,1 @@
-PASS: all shell scripts under scripts/ and terraform/scripts/ passed bash -n.
+PASS: shell syntax validation completed without errors.

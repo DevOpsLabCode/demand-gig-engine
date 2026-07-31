@@ -3,11 +3,30 @@
 # Purpose: Creates independently secured remote-state storage and its terminal access-log sink before the main stack exists.
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+data "aws_iam_policy_document" "state_kms" {
+  #checkov:skip=CKV_AWS_109:KMS bootstrap key-policy Resource "*" denotes only this attached state key and administration is limited to the exact owning-account root principal.
+  #checkov:skip=CKV_AWS_111:KMS key creation requires Resource "*" in the attached key policy; the only principal is the exact owning-account root identity.
+  #checkov:skip=CKV_AWS_356:The bootstrap key ARN does not exist while its policy is evaluated, so AWS requires Resource "*" to identify this key only.
+  statement {
+    sid       = "EnableAccountAdministration"
+    effect    = "Allow"
+    actions   = ["kms:*"]
+    resources = ["*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+}
 
 resource "aws_kms_key" "state" {
   description             = "${var.project_name}-${var.environment} Terraform state encryption"
   enable_key_rotation     = true
   deletion_window_in_days = 30
+  policy                  = data.aws_iam_policy_document.state_kms.json
 }
 
 resource "aws_kms_alias" "state" {
@@ -15,14 +34,11 @@ resource "aws_kms_alias" "state" {
   target_key_id = aws_kms_key.state.key_id
 }
 
-# This is the terminal bootstrap log sink. Logging it to itself would create an
-# infinite delivery loop; organization-level replication and notifications can
-# be layered on after the main governance account is available.
-#checkov:skip=CKV_AWS_18:A terminal S3 access-log sink cannot log to itself without recursively generating new logs.
-#checkov:skip=CKV_AWS_144:Cross-region replication is owned by the organization disaster-recovery account, which is intentionally outside bootstrap.
-#checkov:skip=CKV2_AWS_62:Bootstrap log objects are consumed by scheduled security tooling; per-object notifications are not required.
-#checkov:skip=CKV_AWS_145:S3 server-access-log delivery uses SSE-S3 for destination compatibility; the Terraform state bucket itself uses a customer-managed key.
 resource "aws_s3_bucket" "logs" {
+  #checkov:skip=CKV_AWS_18:A terminal S3 access-log sink cannot log to itself without recursively generating new log objects.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is owned by the organization disaster-recovery account, intentionally outside bootstrap.
+  #checkov:skip=CKV2_AWS_62:Bootstrap logs are consumed by scheduled security analytics; per-object notification fan-out is not required.
+  #checkov:skip=CKV_AWS_145:S3 server-access-log delivery uses S3-managed encryption for destination compatibility; Terraform state itself uses the customer-managed key.
   bucket = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}-tfstate-logs"
 }
 
@@ -136,10 +152,9 @@ resource "aws_s3_bucket_policy" "logs" {
   policy = data.aws_iam_policy_document.logs.json
 }
 
-# The state bucket is authoritative and intentionally protected against destroy.
-#checkov:skip=CKV_AWS_144:State replication is configured by the organization DR account so bootstrap never requires cross-account credentials.
-#checkov:skip=CKV2_AWS_62:Terraform state changes are monitored through CloudTrail and CI; per-object S3 notifications are not an authorization boundary.
 resource "aws_s3_bucket" "state" {
+  #checkov:skip=CKV_AWS_144:State replication is configured by the organization disaster-recovery account so bootstrap never requires cross-account credentials.
+  #checkov:skip=CKV2_AWS_62:Terraform state changes are monitored through CloudTrail and CI; per-object S3 notifications are not an authorization boundary.
   bucket = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}-tfstate"
 
   lifecycle {

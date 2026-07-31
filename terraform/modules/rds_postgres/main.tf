@@ -34,10 +34,8 @@ resource "random_password" "django" {
   special = false
 }
 
-# Rotation is coordinated with the RDS Proxy credential update workflow; a
-# standalone rotation Lambda would risk changing the secret before the database user.
-#checkov:skip=CKV2_AWS_57:Database credential rotation is an atomic RDS Proxy runbook that updates PostgreSQL and Secrets Manager together.
 resource "aws_secretsmanager_secret" "db" {
+  #checkov:skip=CKV2_AWS_57:Database credential rotation is an atomic RDS Proxy runbook that updates PostgreSQL and Secrets Manager together to avoid credential desynchronization.
   name                    = "${var.name}/database"
   kms_key_id              = var.kms_key_arn
   recovery_window_in_days = 7
@@ -179,10 +177,8 @@ resource "aws_db_proxy_target" "this" {
   target_group_name       = aws_db_proxy_default_target_group.this.name
 }
 
-# The runtime secret contains an application key and a proxy URL derived from the
-# atomically managed database credential; it follows the same controlled rotation runbook.
-#checkov:skip=CKV2_AWS_57:Runtime-secret rotation is coordinated with database credentials and application deployment rather than an independent Lambda.
 resource "aws_secretsmanager_secret" "runtime" {
+  #checkov:skip=CKV2_AWS_57:The runtime secret contains a database URL and Django key; rotation is coordinated with database credentials and an ECS deployment rather than an independent Lambda.
   name                    = "${var.name}/runtime"
   kms_key_id              = var.kms_key_arn
   recovery_window_in_days = 7

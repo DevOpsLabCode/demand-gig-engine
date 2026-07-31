@@ -21,8 +21,8 @@ resource "aws_elasticache_replication_group" "this" {
   engine_version             = "7.1"
   node_type                  = var.node_type
   num_cache_clusters         = var.replicas + 1
-  automatic_failover_enabled = var.replicas > 0
-  multi_az_enabled           = var.replicas > 0
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result
@@ -38,10 +38,8 @@ resource "aws_elasticache_replication_group" "this" {
   tags                       = var.tags
 }
 
-# Rotation must update both ElastiCache and the URL consumed by ECS. The runbook
-# uses auth_token_update_strategy=ROTATE before promoting the new secret value.
-#checkov:skip=CKV2_AWS_57:Redis credential rotation is coordinated with ElastiCache token rotation and ECS deployment, not an independent rotation Lambda.
 resource "aws_secretsmanager_secret" "runtime" {
+  #checkov:skip=CKV2_AWS_57:Redis credential rotation must coordinate ElastiCache ROTATE token staging with ECS deployment, so it is controlled by the documented runbook rather than an independent Lambda.
   name                    = "${var.name}/redis"
   description             = "Authenticated TLS Redis URL consumed by ECS tasks"
   kms_key_id              = var.kms_key_arn

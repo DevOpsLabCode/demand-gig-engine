@@ -1,12 +1,9 @@
-
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Creates a private, versioned, encrypted application bucket with centralized access logging and lifecycle controls.
 
-# Cross-region replication and event-driven object processing are optional product
-# integrations, not security prerequisites for these environment-local buckets.
-#checkov:skip=CKV_AWS_144:Cross-region replication is handled by the environment disaster-recovery design when a second region is provisioned.
-#checkov:skip=CKV2_AWS_62:Object event notifications are added only by consumers that require event-driven processing.
 resource "aws_s3_bucket" "this" {
+  #checkov:skip=CKV_AWS_144:Cross-region replication is provided by the organization disaster-recovery layer when a secondary region is provisioned.
+  #checkov:skip=CKV2_AWS_62:Object events are consumed through application workflows and audit logs; generic bucket-wide notifications would duplicate business events.
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags

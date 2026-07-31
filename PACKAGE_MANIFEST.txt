@@ -299,10 +299,12 @@ validation/security-remediation-2026-07-31/pdf-inspect.log
 validation/security-remediation-2026-07-31/pdf-preflight.log
 validation/security-remediation-2026-07-31/pdf-visual-inspection.log
 validation/security-remediation-2026-07-31/python-compile.log
+validation/security-remediation-2026-07-31/reported-checkov-41-coverage.log
 validation/security-remediation-2026-07-31/security-remediation.log
 validation/security-remediation-2026-07-31/shell-syntax.log
 validation/security-remediation-2026-07-31/static-checks.log
 validation/security-remediation-2026-07-31/terraform-contracts.log
+validation/security-remediation-2026-07-31/workflow-discovery-follow-up.log
 validation/security-remediation-2026-07-31/workflow-validation.log
 validation/security-remediation-2026-07-31/yaml-parse.log
 validation/security_scan_attempt_final.log

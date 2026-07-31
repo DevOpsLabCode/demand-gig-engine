@@ -9,7 +9,7 @@
 
 GitHub Actions run `30634658309` exposed two independent problems: the strict Checkov job detected AWS infrastructure weaknesses, and the npm job stopped before producing `npm-audit.json` because the repository did not yet contain `frontend/package-lock.json`. This remediation changes the underlying Terraform resources, preserves a strict blocking gate, and guarantees a diagnostic npm artifact even when dependency resolution fails.
 
-The project now includes a dependency-free control validator at `scripts/validate_security_remediation.py`. It protects the security-critical Terraform settings and documented exceptions before the full Checkov scan runs. The validator does not replace Checkov, Terraform validation, TFLint, or an AWS plan.
+The project now includes a dependency-free control validator at `scripts/validate_security_remediation.py`. It protects the security-critical Terraform settings and documented exceptions before the full Checkov scan runs. The validator discovers the security workflow by an optional `SECURITY_WORKFLOW_PATH`, the conventional filename, or required workflow content, so renaming or consolidating the workflow cannot produce a `FileNotFoundError`. The validator does not replace Checkov, Terraform validation, TFLint, or an AWS plan.
 
 ## Reported Checkov findings and resolution
 
@@ -52,7 +52,7 @@ The new `access_logs` module provides a single private destination for ALB, Clou
 
 - PostgreSQL uses KMS encryption, enforced TLS, Multi-AZ by default, deletion protection by default, 30-day backups, final snapshots, enhanced monitoring, IAM database authentication capability, and 731-day Performance Insights retention.
 - RDS Proxy requires TLS and reads credentials from Secrets Manager.
-- Redis uses encryption at rest and in transit, a generated 64-character authentication token, Multi-AZ failover when replicas exist, snapshots, maintenance windows, and a protected `rediss://` runtime secret.
+- Redis uses encryption at rest and in transit, a generated 64-character authentication token, Multi-AZ automatic failover with at least one required replica, snapshots, maintenance windows, and a protected `rediss://` runtime secret.
 
 ### Messaging, scheduling, and backups
 
@@ -73,7 +73,7 @@ Suppressions are not used to hide remediable findings. Each exception must satis
 
 1. The AWS API or product architecture makes the flagged construct unavoidable or intentionally required.
 2. The risk is bounded by technical compensating controls.
-3. The exact reason appears immediately above the resource using Checkov's supported inline syntax.
+3. The exact reason appears **inside the governed Terraform resource or data block**, which is where Checkov recognizes inline suppressions.
 4. `scripts/validate_security_remediation.py` rejects empty or generic exception reasons.
 
 Current exception categories are limited to:
@@ -92,6 +92,15 @@ The frontend audit job now supports both repository states:
 - Without a lockfile, it generates temporary metadata with `npm install --package-lock-only`, uploads the generated lockfile when possible, and clearly warns that reproducibility is reduced.
 
 Dependency resolution is captured rather than allowed to terminate the job before reporting. When resolution fails, the workflow writes a valid `npm-audit.json` document containing `DEPENDENCY_RESOLUTION_FAILED`, uploads it with `if-no-files-found: error`, and then fails the enforcement step. A successful resolution proceeds to the high/critical production dependency audit.
+
+## GitHub run #24 follow-up
+
+The later workflow run exposed two implementation defects in the first remediation package:
+
+1. The validator hard-coded `.github/workflows/security.yml`, although the repository had consolidated or renamed the security workflow. The validator now performs deterministic discovery and supports the `SECURITY_WORKFLOW_PATH` override.
+2. Checkov exception comments were outside Terraform definition scopes. They have been moved inside the exact resource or data block they govern, matching Checkov's supported syntax.
+
+The follow-up also adds real controls for the remaining graph findings: CloudTrail delivery to an encrypted 365-day CloudWatch log group, an explicit bootstrap KMS key policy, mandatory Redis replicas with Multi-AZ automatic failover, and a dedicated REGIONAL WAF association on the ALB. Architecture-specific findings retain narrowly documented in-scope exceptions only where the control is owned by another account/layer or conflicts with an AWS service requirement.
 
 ## Validation commands
 
@@ -121,4 +130,4 @@ Native `terraform fmt`, `terraform init -backend=false`, `terraform validate`, T
 
 ## Validation evidence
 
-The final offline evidence bundle is stored in [`../validation/security-remediation-2026-07-31/`](../validation/security-remediation-2026-07-31/). It includes the 99-invariant remediation validator, Terraform module-contract checks, five-workflow parsing/policy validation, 29 race-enabled Go tests, shell/Python checks, PDF preflight, and documentation-link validation. Native Checkov and Terraform provider-schema checks remain blocking in GitHub Actions because those tools and provider downloads were unavailable in the sandbox.
+The final offline evidence bundle is stored in [`../validation/security-remediation-2026-07-31/`](../validation/security-remediation-2026-07-31/). It includes the 100-check remediation validator, Terraform module-contract checks, five-workflow parsing/policy validation, 29 race-enabled Go tests, shell/Python checks, PDF preflight, and documentation-link validation. Native Checkov and Terraform provider-schema checks remain blocking in GitHub Actions because those tools and provider downloads were unavailable in the sandbox.

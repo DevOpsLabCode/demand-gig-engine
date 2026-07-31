@@ -1,0 +1,14 @@
+Security remediation workflow discovery follow-up
+===============================================
+
+PASS conventional filename:
+  Security workflow: .github/workflows/security.yml
+  Security remediation validation passed: 100 checks.
+
+PASS renamed filename reproduction:
+  .github/workflows/security.yml renamed temporarily to
+  .github/workflows/python-security-checks.yml
+  Security workflow: .github/workflows/python-security-checks.yml
+  Security remediation validation passed: 100 checks.
+
+The original FileNotFoundError path is no longer used.

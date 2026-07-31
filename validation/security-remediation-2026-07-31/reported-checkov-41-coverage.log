@@ -1,0 +1,26 @@
+Reported Checkov finding coverage (41 findings)
+==============================================
+
+PASS CKV_AWS_310 | CloudFront origin failover | Documented in-scope exception; DR owns independently deployed secondary API origin.
+PASS CKV_AWS_374 | CloudFront geo restriction | Documented in-scope exception; global access is a product requirement with WAF/rate-limit controls.
+PASS CKV_AWS_111/356/109 | Primary KMS policy | In-scope KMS key-policy exceptions with exact principal/context constraints.
+PASS CKV_AWS_111/356/109 | WAF log KMS policy | In-scope KMS key-policy exceptions with exact regional Logs principal/context.
+PASS CKV2_AWS_10 | CloudTrail CloudWatch integration | Implemented encrypted 365-day log group, CloudTrail role/policy, group ARN and role ARN.
+PASS CKV2_AWS_50 | Redis Multi-AZ failover | Implemented static Multi-AZ and automatic failover; replicas validation requires at least one.
+PASS CKV2_AWS_28 | ALB WAF | Implemented dedicated REGIONAL WAF module and aws_wafv2_web_acl_association.
+PASS CKV_AWS_18 | Terminal access-log bucket logging | Documented in-scope exception; self-logging would recurse indefinitely.
+PASS CKV2_AWS_57 | RDS/Redis/provider secrets rotation | Documented in-scope runbook exceptions where rotation must coordinate external systems.
+PASS CKV2_AWS_5 | Security groups attachment | Documented in-scope cross-module graph exceptions; each SG is attached by consuming modules.
+PASS CKV2_AWS_62 | S3 notifications | Documented in-scope exceptions where CloudTrail/SNS or application workflows provide eventing.
+PASS CKV_AWS_103 | Certificate-less ALB origin listener | Documented in-scope exception; only CloudFront managed prefix reaches listener.
+PASS CKV_AWS_378 | Internal ALB target group HTTP | Documented in-scope exception for private SG-restricted VPC hop.
+PASS CKV2_AWS_47 | CloudFront WAF Log4j rule | Existing KnownBadInputs managed rule plus in-scope graph-resolution exception.
+PASS CKV2_AWS_64 | Bootstrap KMS policy | Implemented explicit aws_iam_policy_document and attached key policy.
+PASS CKV_AWS_144 | S3 cross-region replication | Documented in-scope exception; organization DR account owns replication.
+PASS CKV2_AWS_20 | ALB HTTP redirect | Custom domains redirect to HTTPS; no-domain CloudFront-only mode documented in scope.
+PASS CKV2_AWS_65 | Access-log bucket ACLs | Documented in-scope exception; legacy CloudFront log-delivery canonical ACL is required.
+PASS CKV2_AWS_3 | GuardDuty organization configuration | Documented in-scope exception; org delegated admin is owned by security account.
+PASS CKV_AWS_145 | Terminal log bucket KMS | Documented in-scope compatibility exception; ALB/legacy CloudFront logging uses SSE-S3.
+
+All exception annotations are now inside the exact Terraform block Checkov evaluates.
+The validator rejects future out-of-scope suppression placement.

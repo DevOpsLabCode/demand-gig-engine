@@ -4,6 +4,8 @@
 # Reading guide: Each listener represents one deliberate origin-security mode.
 
 resource "aws_lb" "this" {
+  #checkov:skip=CKV2_AWS_28:The root stack attaches a dedicated REGIONAL Web ACL through aws_wafv2_web_acl_association; this reusable module cannot declare the cross-module association itself.
+  #checkov:skip=CKV2_AWS_20:Custom-domain deployments create an HTTP-to-HTTPS redirect; no-domain deployments accept only CloudFront managed-prefix traffic because the AWS ALB hostname cannot receive an ACM certificate.
   name                       = substr(var.name, 0, 32)
   load_balancer_type         = "application"
   subnets                    = var.subnet_ids
@@ -23,6 +25,7 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_lb_target_group" "backend" {
+  #checkov:skip=CKV_AWS_378:ALB-to-ECS traffic remains inside private VPC subnets and security groups; viewer and CloudFront-origin traffic is encrypted before reaching this internal hop.
   name        = substr("${var.name}-api", 0, 32)
   port        = 8000
   protocol    = "HTTP"
@@ -60,11 +63,9 @@ resource "aws_lb_listener" "http_redirect" {
   }
 }
 
-# The AWS-generated ALB hostname cannot receive an ACM certificate. In no-domain
-# development mode this listener accepts only CloudFront origin-facing traffic;
-# end users still connect to CloudFront through HTTPS.
-#checkov:skip=CKV_AWS_2:No-domain mode is CloudFront-only, viewer HTTPS is enforced, and ALB ingress is restricted to the AWS CloudFront managed prefix list.
 resource "aws_lb_listener" "http_cloudfront_origin" {
+  #checkov:skip=CKV_AWS_2:No-domain mode is CloudFront-only, viewer HTTPS is enforced, and ALB ingress is restricted to the AWS CloudFront managed prefix list.
+  #checkov:skip=CKV_AWS_103:This conditional HTTP listener exists only when no ACM origin certificate can be issued for the AWS-generated ALB hostname; direct internet ingress is blocked.
   count             = var.certificate_arn == null ? 1 : 0
   load_balancer_arn = aws_lb.this.arn
   port              = 80

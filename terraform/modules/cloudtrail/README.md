@@ -20,12 +20,17 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 - **`aws_s3_bucket_policy.logs`:** Applies service-delivery permissions and denies insecure transport.
 - **`aws_sns_topic.notifications`:** Creates an encrypted notification or alarm topic.
 - **`aws_sns_topic_policy.notifications`:** Restricts SNS administration, publication, and transport security.
+- **`aws_cloudwatch_log_group.trail`:** Stores encrypted logs with a policy-enforced retention period.
+- **`aws_iam_role.cloudtrail_logs`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy.cloudtrail_logs`:** Grants resource-scoped permissions required by the role.
 - **`aws_cloudtrail.this`:** Records validated multi-region AWS API activity.
 - **Data `data.aws_caller_identity.current`:** Reads the active AWS account for account-scoped ARNs and policies.
 - **Data `data.aws_partition.current`:** Keeps generated ARNs compatible with the active AWS partition.
 - **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
 - **Data `data.aws_iam_policy_document.logs`:** Builds a structured IAM, resource, trust, or key policy.
 - **Data `data.aws_iam_policy_document.notifications`:** Builds a structured IAM, resource, trust, or key policy.
+- **Data `data.aws_iam_policy_document.cloudtrail_logs_assume`:** Builds a structured IAM, resource, trust, or key policy.
+- **Data `data.aws_iam_policy_document.cloudtrail_logs`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 

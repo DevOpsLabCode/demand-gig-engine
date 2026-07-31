@@ -6,14 +6,10 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
-# KMS key policies use Resource "*" to mean the key to which the policy is
-# attached; the key ARN cannot be referenced from the policy used to create it.
-# Every statement below is constrained by an exact principal plus account,
-# service, source-ARN, or encryption-context conditions.
-#checkov:skip=CKV_AWS_109:KMS key-policy Resource "*" denotes only this attached key; permission-management access is limited to the exact owning-account root principal.
-#checkov:skip=CKV_AWS_111:KMS key-policy Resource "*" is required at key creation and every cryptographic service statement is constrained by principal and context.
-#checkov:skip=CKV_AWS_356:An attached KMS key policy cannot self-reference the not-yet-created key ARN; "*" is the AWS-defined scope for this key only.
 data "aws_iam_policy_document" "this" {
+  #checkov:skip=CKV_AWS_109:KMS key-policy Resource "*" denotes only the attached key; administrative access is limited to the exact owning-account root principal.
+  #checkov:skip=CKV_AWS_111:KMS key-policy Resource "*" is required during key creation, while every service cryptographic grant is constrained by principal and encryption context.
+  #checkov:skip=CKV_AWS_356:An attached KMS key policy cannot self-reference the not-yet-created key ARN; AWS defines Resource "*" as this key only.
   statement {
     sid       = "EnableAccountAdministration"
     effect    = "Allow"

@@ -11,11 +11,9 @@ locals {
   account_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
 }
 
-# A CloudTrail log bucket is the authoritative audit store. Replication is added
-# by the organization DR account when cross-region immutability is enabled.
-#checkov:skip=CKV_AWS_144:Cross-region replication is delegated to the organization-level immutable audit archive.
-#checkov:skip=CKV2_AWS_62:CloudTrail SNS notifications provide delivery events; duplicate per-object S3 notifications are unnecessary.
 resource "aws_s3_bucket" "logs" {
+  #checkov:skip=CKV_AWS_144:Cross-region replication is delegated to the organization-level immutable audit archive in the dedicated disaster-recovery account.
+  #checkov:skip=CKV2_AWS_62:CloudTrail already emits encrypted SNS delivery notifications; duplicate per-object S3 notifications add cost without an authorization boundary.
   bucket = "${var.name}-${data.aws_caller_identity.current.account_id}-cloudtrail"
   tags   = var.tags
 }
@@ -212,6 +210,46 @@ resource "aws_sns_topic_policy" "notifications" {
   policy = data.aws_iam_policy_document.notifications.json
 }
 
+
+resource "aws_cloudwatch_log_group" "trail" {
+  name              = "/aws/cloudtrail/${var.name}"
+  retention_in_days = 365
+  kms_key_id        = var.kms_key_arn
+  tags              = var.tags
+}
+
+data "aws_iam_policy_document" "cloudtrail_logs_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "cloudtrail_logs" {
+  name               = "${var.name}-cloudtrail-logs"
+  assume_role_policy = data.aws_iam_policy_document.cloudtrail_logs_assume.json
+  tags               = var.tags
+}
+
+data "aws_iam_policy_document" "cloudtrail_logs" {
+  statement {
+    sid       = "WriteCloudTrailEvents"
+    effect    = "Allow"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.trail.arn}:*"]
+  }
+}
+
+resource "aws_iam_role_policy" "cloudtrail_logs" {
+  name   = "${var.name}-cloudtrail-logs"
+  role   = aws_iam_role.cloudtrail_logs.id
+  policy = data.aws_iam_policy_document.cloudtrail_logs.json
+}
+
 resource "aws_cloudtrail" "this" {
   name                          = var.name
   s3_bucket_name                = aws_s3_bucket.logs.id
@@ -220,10 +258,13 @@ resource "aws_cloudtrail" "this" {
   include_global_service_events = true
   is_multi_region_trail         = true
   enable_log_file_validation    = true
+  cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.trail.arn}:*"
+  cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail_logs.arn
 
   depends_on = [
     aws_s3_bucket_policy.logs,
     aws_sns_topic_policy.notifications,
+    aws_iam_role_policy.cloudtrail_logs,
   ]
 
   tags = var.tags

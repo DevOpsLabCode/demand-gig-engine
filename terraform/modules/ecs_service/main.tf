@@ -232,12 +232,9 @@ resource "aws_iam_role" "task" {
   tags               = var.tags
 }
 
-# ECS Exec ssmmessages channels and X-Ray ingestion APIs do not expose
-# resource-level ARNs. Those wildcard-only service calls are isolated in their
-# own statements; SQS, KMS, SES, S3, and Secrets Manager remain ARN-scoped.
-#checkov:skip=CKV_AWS_111:ssmmessages channel APIs and X-Ray ingestion APIs do not support resource-level permissions; all restrictable actions are ARN-scoped.
-#checkov:skip=CKV_AWS_356:Only AWS APIs that formally require Resource "*" use it; every restrictable application permission has an exact ARN.
 resource "aws_iam_role_policy" "task" {
+  #checkov:skip=CKV_AWS_111:ssmmessages channel APIs and X-Ray ingestion APIs do not support resource-level permissions; all restrictable actions are ARN-scoped.
+  #checkov:skip=CKV_AWS_356:Only AWS APIs that formally require Resource "*" use it; every restrictable application permission has an exact ARN.
   role = aws_iam_role.task.id
   policy = jsonencode({
     Version   = "2012-10-17"

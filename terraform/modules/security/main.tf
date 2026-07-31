@@ -10,6 +10,7 @@ data "aws_ec2_managed_prefix_list" "cloudfront" {
 }
 
 resource "aws_security_group" "alb" {
+  #checkov:skip=CKV2_AWS_5:The ALB security group is attached by module.alb through security_group_ids; the attachment crosses the reusable module boundary.
   name_prefix = "${var.name}-alb-"
   description = "Allow only CloudFront origin-facing traffic to the public ALB"
   vpc_id      = var.vpc_id
@@ -47,6 +48,7 @@ resource "aws_security_group" "alb" {
 }
 
 resource "aws_security_group" "app" {
+  #checkov:skip=CKV2_AWS_5:The application security group is attached to ECS task ENIs by the backend, worker, and migration service modules.
   name_prefix = "${var.name}-app-"
   description = "Application tasks reachable only from the ALB"
   vpc_id      = var.vpc_id
@@ -110,6 +112,7 @@ resource "aws_security_group" "app" {
 }
 
 resource "aws_security_group" "db" {
+  #checkov:skip=CKV2_AWS_5:The database security group is attached to the RDS instance and RDS Proxy through the database module input.
   name_prefix = "${var.name}-db-"
   description = "PostgreSQL and RDS Proxy access from application tasks"
   vpc_id      = var.vpc_id
@@ -148,6 +151,7 @@ resource "aws_security_group" "db" {
 }
 
 resource "aws_security_group" "redis" {
+  #checkov:skip=CKV2_AWS_5:The Redis security group is attached to the ElastiCache replication group through the redis module input.
   name_prefix = "${var.name}-redis-"
   description = "Redis access from application tasks"
   vpc_id      = var.vpc_id

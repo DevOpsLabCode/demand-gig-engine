@@ -89,13 +89,10 @@ resource "aws_wafv2_web_acl" "this" {
   tags = var.tags
 }
 
-# KMS key policies must use Resource "*" to identify the key to which the policy
-# is attached. Exact account and CloudWatch Logs encryption-context constraints
-# prevent the wildcard from extending to any other key or principal.
-#checkov:skip=CKV_AWS_109:KMS key-policy Resource "*" is scoped to this attached logging key and account-root administration.
-#checkov:skip=CKV_AWS_111:CloudWatch Logs cryptographic access is constrained by the exact service principal and log-group encryption context.
-#checkov:skip=CKV_AWS_356:An attached KMS key policy cannot self-reference its not-yet-created ARN; AWS defines "*" as this key.
 data "aws_iam_policy_document" "logging_kms" {
+  #checkov:skip=CKV_AWS_109:KMS key-policy Resource "*" denotes only this attached logging key; administration is limited to the exact account-root principal.
+  #checkov:skip=CKV_AWS_111:CloudWatch Logs cryptographic access is constrained by the exact regional service principal and WAF log-group encryption context.
+  #checkov:skip=CKV_AWS_356:An attached KMS key policy cannot self-reference its not-yet-created ARN; AWS defines Resource "*" as this key only.
   statement {
     sid       = "EnableAccountAdministration"
     effect    = "Allow"

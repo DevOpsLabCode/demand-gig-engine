@@ -1,1 +1,2 @@
-Security remediation validation passed: 99 checks.
+Security workflow: .github/workflows/security.yml
+Security remediation validation passed: 100 checks.

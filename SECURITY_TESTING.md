@@ -8,7 +8,7 @@ The repository uses separate application, infrastructure, dependency, static-ana
 
 ## Security workflow
 
-`.github/workflows/security.yml` runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch.
+The supplied workflow is `.github/workflows/security.yml` and runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch. `scripts/validate_security_remediation.py` also discovers renamed or consolidated security workflow files, or accepts `SECURITY_WORKFLOW_PATH`, so validation does not depend on one filename.
 
 | Job | Scope | Blocking behavior | Artifact |
 |---|---|---|---|
@@ -26,7 +26,7 @@ Artifacts are retained for 14 days.
 
 The complete Checkov scan is a strict gate. It does not use `--soft-fail`. The step captures Checkov's exit code, uploads SARIF, publishes compatible findings to GitHub Security, and then enforces the original result.
 
-The repository uses inline suppressions only for documented architecture or AWS API constraints. Every suppression must include a specific reason. `scripts/validate_security_remediation.py` checks the controls added for the July 31, 2026 remediation and rejects undocumented exceptions. See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) for the finding-by-finding mapping.
+The repository uses inline suppressions only for documented architecture or AWS API constraints. Every suppression must include a specific reason and must be located inside the exact Terraform resource or data block it governs. `scripts/validate_security_remediation.py` checks the controls added for the July 31, 2026 remediation, rejects undocumented exceptions, and rejects out-of-scope suppression placement. See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) for the finding-by-finding mapping.
 
 `CKV_GHA_5` and `CKV_GHA_6` remain workflow-wide skips because this project does not currently publish signed release binaries or attestations from this workflow. Container and artifact signing should be added with the release process rather than represented as a control that does not yet exist.
 

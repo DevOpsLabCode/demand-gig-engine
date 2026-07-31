@@ -25,7 +25,7 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 | `security_group_ids` | `list(string)` | `required` | `false` | Security groups attached to the resource. |
 | `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for encryption. |
 | `node_type` | `string` | `required` | `false` | Configuration value for `node_type`. |
-| `replicas` | `number` | `required` | `false` | Configuration value for `replicas`. |
+| `replicas` | `number` | `required` | `false` | Number of Redis replicas. Production resilience requires at least one replica. |
 | `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
@@ -40,7 +40,7 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 
 - At-rest and in-transit encryption.
 - Generated authentication token.
-- Multi-AZ failover when replicas exist.
+- Multi-AZ automatic failover with at least one required replica.
 - Authenticated TLS URL stored in Secrets Manager.
 
 ## Example

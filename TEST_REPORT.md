@@ -118,7 +118,7 @@ Detailed evidence is stored in [`validation/documentation-enhancement-2026-07-31
 
 | Check | Result | Details |
 |---|---|---|
-| Security remediation invariants | PASS | 99 checks across Terraform and the security workflow |
+| Security remediation invariants | PASS | 100 checks across Terraform and the discovered security workflow |
 | Repository structural checks | PASS | 69 checks, 0 failures |
 | GitHub workflow validation | PASS | 5 workflows |
 | Terraform Go race tests | PASS | 29 tests |

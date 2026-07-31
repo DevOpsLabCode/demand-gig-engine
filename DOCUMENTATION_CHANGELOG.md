@@ -19,6 +19,9 @@
 - Added `AUTHORS.md` and a documentation map in the root README.
 - Regenerated package manifests and checksums after validation.
 
+- Fixed the security-remediation validator so renamed or consolidated GitHub workflow files are discovered safely instead of raising `FileNotFoundError`.
+- Moved all governed Checkov suppressions inside their Terraform resource/data scopes, added CloudTrail CloudWatch integration, explicit bootstrap KMS policy, mandatory Redis Multi-AZ failover, and a dedicated regional ALB WAF.
+
 ## Documentation rule
 
 Comments should explain intent, invariants, security boundaries, lifecycle decisions, and failure handling. They should not restate syntax or make claims that the implementation does not enforce.

@@ -24,7 +24,13 @@ variable "node_type" {
 }
 # Input `replicas`: Configured number of Redis replica nodes.
 variable "replicas" {
-  type = number
+  type        = number
+  description = "Number of Redis replicas. Production resilience requires at least one replica."
+
+  validation {
+    condition     = var.replicas >= 1
+    error_message = "replicas must be at least 1 so Multi-AZ automatic failover remains enabled."
+  }
 }
 # Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
 variable "tags" {

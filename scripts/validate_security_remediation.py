@@ -11,6 +11,7 @@ repository's Checkov findings before the full scanner runs.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -35,6 +36,59 @@ def require(path: str, *needles: str) -> None:
     else:
         PASSES.append(f"{path}: {len(needles)} security invariants present")
 
+
+
+def find_security_workflow() -> Path | None:
+    """Locate the workflow even when the repository uses a custom filename.
+
+    Resolution order: SECURITY_WORKFLOW_PATH environment override, conventional
+    security.yml/security.yaml names, then the workflow containing this validator
+    and the blocking Checkov command. This keeps renamed or consolidated workflows
+    valid while rejecting repositories where the security gate is actually absent.
+    """
+    workflows = ROOT / ".github" / "workflows"
+    override = os.environ.get("SECURITY_WORKFLOW_PATH", "").strip()
+    if override:
+        candidate = Path(override)
+        if not candidate.is_absolute():
+            candidate = ROOT / candidate
+        return candidate if candidate.is_file() else None
+
+    for name in ("security.yml", "security.yaml"):
+        candidate = workflows / name
+        if candidate.is_file():
+            return candidate
+
+    candidates: list[tuple[int, Path]] = []
+    for pattern in ("*.yml", "*.yaml"):
+        for candidate in workflows.glob(pattern):
+            text = candidate.read_text(encoding="utf-8")
+            score = sum(
+                marker in text
+                for marker in (
+                    "python scripts/validate_security_remediation.py",
+                    "checkov --directory .",
+                    "Enforce complete Checkov policy gate",
+                    "DEPENDENCY_RESOLUTION_FAILED",
+                )
+            )
+            if score >= 2:
+                candidates.append((score, candidate))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], str(item[1])))
+    return candidates[0][1]
+
+
+def require_text(path: Path, text: str, *needles: str) -> None:
+    """Require security-critical fragments in a previously discovered file."""
+    relative = path.relative_to(ROOT)
+    missing = [needle for needle in needles if needle not in text]
+    if missing:
+        for needle in missing:
+            ERRORS.append(f"{relative}: missing security invariant {needle!r}")
+    else:
+        PASSES.append(f"{relative}: {len(needles)} security invariants present")
 
 def remove_comments_and_strings(text: str) -> str:
     """Replace HCL comments and quoted-string contents while retaining delimiters."""
@@ -115,21 +169,33 @@ def validate_delimiters(path: Path) -> None:
 
 
 def validate_suppressions() -> None:
-    """Require every Checkov exception to include a substantive inline reason."""
+    """Require substantive Checkov exceptions located inside Terraform scopes."""
     pattern = re.compile(r"#checkov:skip=([A-Z0-9_]+):(.+)$")
     count = 0
     for path in sorted(TERRAFORM.rglob("*.tf")):
+        depth = 0
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if "#checkov:skip=" not in line:
-                continue
-            count += 1
-            match = pattern.search(line.strip())
-            if not match or len(match.group(2).strip()) < 35:
-                ERRORS.append(
-                    f"{path.relative_to(ROOT)}:{number}: Checkov suppression needs a specific risk justification"
-                )
+            if "#checkov:skip=" in line:
+                count += 1
+                match = pattern.search(line.strip())
+                if not match or len(match.group(2).strip()) < 35:
+                    ERRORS.append(
+                        f"{path.relative_to(ROOT)}:{number}: Checkov suppression needs a specific risk justification"
+                    )
+                if depth <= 0 or line == line.lstrip():
+                    ERRORS.append(
+                        f"{path.relative_to(ROOT)}:{number}: Checkov suppression must be indented inside the resource or data block it governs"
+                    )
+
+            # Count HCL braces after removing strings and comments from this line.
+            cleaned = remove_comments_and_strings(line + "\n")
+            depth += cleaned.count("{") - cleaned.count("}")
+            if depth < 0:
+                ERRORS.append(f"{path.relative_to(ROOT)}:{number}: invalid HCL scope depth")
+                depth = 0
+
     if count:
-        PASSES.append(f"Validated {count} documented Checkov exceptions")
+        PASSES.append(f"Validated {count} in-scope documented Checkov exceptions")
     else:
         ERRORS.append("No documented Checkov exceptions found")
 
@@ -186,6 +252,8 @@ def main() -> int:
         "abort_incomplete_multipart_upload",
         "sns_topic_name",
         "kms_master_key_id",
+        "cloud_watch_logs_group_arn",
+        "cloud_watch_logs_role_arn",
     )
     require(
         "terraform/modules/cloudwatch/main.tf",
@@ -236,6 +304,8 @@ def main() -> int:
         "at_rest_encryption_enabled = true",
         "transit_encryption_enabled = true",
         "auth_token                 = random_password.auth.result",
+        "automatic_failover_enabled = true",
+        "multi_az_enabled           = true",
         'REDIS_URL = "rediss://:',
     )
     require(
@@ -252,21 +322,38 @@ def main() -> int:
         "kms_key_id        = aws_kms_key.logging.arn",
     )
     require(
+        "terraform/main.tf",
+        'module "waf_alb"',
+        'resource "aws_wafv2_web_acl_association" "alb"',
+        "web_acl_arn  = module.waf_alb.arn",
+    )
+    require(
         "terraform/global/bootstrap/main.tf",
         "aws_kms_key",
         "aws_s3_bucket_logging",
         "abort_incomplete_multipart_upload",
         "prevent_destroy = true",
+        "policy                  = data.aws_iam_policy_document.state_kms.json",
     )
-    require(
-        ".github/workflows/security.yml",
-        "python scripts/validate_security_remediation.py",
-        "--enable-secret-scan-all-files",
-        "Enforce complete Checkov policy gate",
-        "DEPENDENCY_RESOLUTION_FAILED",
-    )
+    workflow_path = find_security_workflow()
+    if workflow_path is None:
+        ERRORS.append(
+            "No security workflow found. Set SECURITY_WORKFLOW_PATH or add a workflow "
+            "containing validate_security_remediation.py and the blocking Checkov gate."
+        )
+        workflow_text = ""
+    else:
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        print(f"Security workflow: {workflow_path.relative_to(ROOT)}")
+        require_text(
+            workflow_path,
+            workflow_text,
+            "python scripts/validate_security_remediation.py",
+            "--enable-secret-scan-all-files",
+            "Enforce complete Checkov policy gate",
+            "DEPENDENCY_RESOLUTION_FAILED",
+        )
 
-    workflow_text = (ROOT / ".github/workflows/security.yml").read_text(encoding="utf-8")
     executable_lines = "\n".join(
         line for line in workflow_text.splitlines() if not line.lstrip().startswith("#")
     )
