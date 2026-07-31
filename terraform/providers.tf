@@ -23,3 +23,6 @@ data "aws_caller_identity" "current" {
 # Read the selected workload region for regional resource configuration and outputs.
 data "aws_region" "current" {
 }
+
+# Read the active AWS partition so account and service ARNs remain portable.
+data "aws_partition" "current" {}

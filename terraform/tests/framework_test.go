@@ -44,7 +44,7 @@ func read(t *testing.T, path string) string {
 // Verify that every infrastructure module required by the documented production architecture is present.
 func TestRequiredModulesExist(t *testing.T) {
 	modules := []string{
-		"acm", "alb", "backup", "cloudfront", "cloudtrail", "cloudwatch",
+		"access_logs", "acm", "alb", "backup", "cloudfront", "cloudtrail", "cloudwatch",
 		"ecr", "ecs_cluster", "ecs_service", "eventbridge", "github_oidc",
 		"guardduty", "kms", "networking", "rds_postgres", "redis", "route53",
 		"s3_static", "secrets_manager", "security", "ses", "sqs", "waf", "xray",
@@ -512,6 +512,86 @@ func TestDeploySupportsNonInteractiveProviderSecretInjection(t *testing.T) {
 	} {
 		if !strings.Contains(deploy, expected) {
 			t.Errorf("non-interactive provider secret injection missing %q", expected)
+		}
+	}
+}
+
+// Verify that every resource-level control introduced by the Checkov remediation remains wired into the production stack.
+func TestCheckovRemediationControls(t *testing.T) {
+	checks := map[string][]string{
+		"modules/alb/main.tf": {
+			"enable_deletion_protection = var.deletion_protection",
+			"access_logs {",
+			`protocol          = "HTTPS"`,
+		},
+		"modules/cloudfront/main.tf": {
+			"logging_config {",
+			`viewer_protocol_policy     = "redirect-to-https"`,
+			"#checkov:skip=CKV_AWS_310:",
+			"#checkov:skip=CKV_AWS_374:",
+		},
+		"modules/cloudtrail/main.tf": {
+			"abort_incomplete_multipart_upload",
+			"sns_topic_name",
+			"kms_key_id",
+		},
+		"modules/networking/main.tf": {
+			"map_public_ip_on_launch = false",
+		},
+		"modules/rds_postgres/main.tf": {
+			"multi_az                            = var.multi_az",
+			"deletion_protection                 = var.deletion_protection",
+			"iam_database_authentication_enabled = true",
+		},
+		"modules/ecs_service/main.tf": {
+			`user                   = "app"`,
+			`privileged             = false`,
+			`drop = ["ALL"]`,
+		},
+		"modules/sqs/main.tf": {
+			"kms_master_key_id",
+			"aws_sqs_queue_redrive_allow_policy",
+			"DenyInsecureTransport",
+		},
+		"modules/redis/main.tf": {
+			"at_rest_encryption_enabled = true",
+			"transit_encryption_enabled = true",
+			"auth_token                 = random_password.auth.result",
+		},
+		"modules/backup/main.tf": {
+			"aws_backup_vault_lock_configuration",
+			"kms:GrantIsForAWSResource",
+		},
+		"modules/waf/main.tf": {
+			"aws_wafv2_web_acl_logging_configuration",
+			"redacted_fields",
+			"kms_key_id        = aws_kms_key.logging.arn",
+		},
+	}
+
+	for relative, required := range checks {
+		body := read(t, filepath.Join(root(t), relative))
+		for _, fragment := range required {
+			if !strings.Contains(body, fragment) {
+				t.Errorf("%s is missing remediation control %q", relative, fragment)
+			}
+		}
+	}
+
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "security.yml"))
+	for _, line := range strings.Split(workflow, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "--soft-fail") {
+			t.Error("Checkov must remain a blocking security gate")
+		}
+	}
+	for _, fragment := range []string{
+		"validate_security_remediation.py",
+		"DEPENDENCY_RESOLUTION_FAILED",
+		"if-no-files-found: error",
+	} {
+		if !strings.Contains(workflow, fragment) {
+			t.Errorf("security workflow is missing %q", fragment)
 		}
 	}
 }

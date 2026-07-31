@@ -1,72 +1,76 @@
-# Security Testing
+# Security testing
 
 > **Author:** Stan Zvenigorodskiy  
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
+The repository uses separate application, infrastructure, dependency, static-analysis, and aggregate security gates. The jobs are intentionally independent so each failure has a specific owner and artifact.
 
-The repository runs automated security checks in GitHub Actions in addition to the application test and coverage workflow.
-
-## GitHub Actions workflows
-
-### Security tests
+## Security workflow
 
 `.github/workflows/security.yml` runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch.
 
-Independent jobs run in parallel:
+| Job | Scope | Blocking behavior | Artifact |
+|---|---|---|---|
+| Workflow security validation | YAML structure, approved action majors, Python compilation, shell syntax, remediation invariants | Any validation failure blocks | Console output |
+| Checkov policy scan | Terraform, CloudFormation, Kubernetes, Helm, Bicep, ARM, Serverless, Dockerfile, GitHub Actions, OpenAPI, and secrets | Any unsuppressed policy failure blocks after SARIF upload | `checkov-results` |
+| Python dependency audit | Root Python runtime and development dependency graph | Vulnerability or incomplete audit blocks | `pip-audit-results` |
+| Bandit Python SAST | `backend/` and `scripts/` production automation | High severity with medium-or-higher confidence blocks | `bandit-results` |
+| Django deployment check | `manage.py check --deploy --fail-level WARNING` with production settings | Warning or error blocks | Console output |
+| npm dependency audit | Frontend production dependency graph | Resolution failure or high/critical vulnerability blocks | `npm-audit-results`; generated lockfile when needed |
+| Security gate | Results of all required jobs | Any non-success result blocks | Console summary |
 
-- **Workflow security validation:** parses every workflow, rejects unapproved action majors, and checks the local shell scripts.
-- **Checkov:** creates a full IaC/SARIF report and enforces a blocking baseline for Dockerfiles, GitHub Actions, and committed-secret detection.
-- **Bandit:** scans production Python and blocks high-severity findings with medium-or-higher confidence.
-- **pip-audit:** resolves `backend/requirements.txt` and blocks known vulnerable Python runtime dependencies.
-- **Django deployment check:** runs `manage.py check --deploy --fail-level WARNING` with production security settings.
-- **npm audit:** resolves frontend metadata without lifecycle scripts and blocks high or critical production vulnerabilities.
-- **Security gate:** provides one aggregate required status check.
+Artifacts are retained for 14 days.
 
-Reports are retained as GitHub Actions artifacts for 14 days.
+## Checkov enforcement
 
-### Checkov policy
+The complete Checkov scan is a strict gate. It does not use `--soft-fail`. The step captures Checkov's exit code, uploads SARIF, publishes compatible findings to GitHub Security, and then enforces the original result.
 
-The full Checkov scan covers Terraform, CloudFormation, Kubernetes, Helm, Bicep/ARM, Serverless, Dockerfiles, GitHub Actions, OpenAPI, and secrets. It is report-only so the repository receives complete SARIF results even while future infrastructure is being designed.
+The repository uses inline suppressions only for documented architecture or AWS API constraints. Every suppression must include a specific reason. `scripts/validate_security_remediation.py` checks the controls added for the July 31, 2026 remediation and rejects undocumented exceptions. See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) for the finding-by-finding mapping.
 
-The blocking Checkov gate covers Dockerfiles, GitHub Actions, and secret scanning. It does not use severity-based filtering because Checkov severity names require a Prisma Cloud API key. Any failure in the blocking scope fails the job. `CKV_GHA_5` and `CKV_GHA_6` remain skipped until the project publishes release artifacts that require Cosign signing and SBOM attestations.
+`CKV_GHA_5` and `CKV_GHA_6` remain workflow-wide skips because this project does not currently publish signed release binaries or attestations from this workflow. Container and artifact signing should be added with the release process rather than represented as a control that does not yet exist.
 
-### CodeQL
+## npm audit behavior
 
-`.github/workflows/codeql.yml` performs CodeQL analysis for Python and JavaScript/TypeScript. Findings appear under **Security → Code scanning** when code scanning is available for the repository.
+A committed `frontend/package-lock.json` is preferred because it makes `npm ci` and auditing deterministic. Older branches without a lockfile remain scannable:
 
-### Dependency review
+1. The job warns that the lockfile is missing.
+2. It runs `npm install --package-lock-only --ignore-scripts`.
+3. It uploads the generated lockfile when resolution succeeds.
+4. It runs `npm audit --omit=dev --audit-level=high`.
 
-`.github/workflows/dependency-review.yml` runs on pull requests and blocks newly introduced high- or critical-severity runtime dependency vulnerabilities.
+When npm cannot resolve dependencies, the job writes a valid `npm-audit.json` document with `DEPENDENCY_RESOLUTION_FAILED`, uploads it, and then fails. This prevents the former condition where the job failed before producing diagnostic evidence.
 
-### Dependabot
+## Other security workflows
 
-`.github/dependabot.yml` checks Python, npm, Docker, and GitHub Actions dependencies weekly.
+- `.github/workflows/codeql.yml` analyzes Python and JavaScript/TypeScript.
+- `.github/workflows/dependency-review.yml` blocks high/critical vulnerabilities newly introduced by pull requests.
+- `.github/workflows/python-package.yml` runs application tests, linting, type checking, frontend build, and the 90% coverage gate.
+- `.github/workflows/terraform.yml` runs native Terraform formatting/validation, TFLint, Go race tests, Checkov, plans, and protected deployments.
+- `.github/dependabot.yml` checks Python, npm, Docker, Terraform, and GitHub Actions dependencies on its configured cadence.
 
-## Recommended repository settings
+## Recommended repository rules
 
-Under **Settings → Code security and analysis**, enable:
-
-- Dependency graph
-- Dependabot alerts
-- Dependabot security updates
-- Secret scanning
-- Push protection
-
-Under branch protection or a ruleset for `main`, require:
+Enable the dependency graph, Dependabot alerts/security updates, secret scanning, and push protection. Require these statuses on `main`:
 
 - `Application tests / Backend / Python 3.12`
 - `Application tests / Frontend type-check and build`
 - `Security tests / Security gate`
-- Both CodeQL language checks
-- Dependency review for pull requests
+- Terraform validation and test gate
+- Both CodeQL language analyses
+- Dependency review on pull requests
 
-## Local execution
-
-Install and run the same security tools locally:
+## Local commands
 
 ```bash
+python scripts/static_checks.py
+python scripts/validate_workflows.py
+python scripts/validate_security_remediation.py
 ./scripts/security_scan.sh
+
+cd terraform/tests
+go test -race -count=1 ./...
+go vet ./...
 ```
 
-The script exits nonzero when workflow validation, the blocking Checkov scan, Bandit, pip-audit, or npm audit fails.
+The scanner-backed commands additionally require Python and npm dependencies, Terraform providers, vulnerability databases, and outbound registry access.

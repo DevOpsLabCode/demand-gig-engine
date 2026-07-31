@@ -89,8 +89,14 @@ variable "enable_autoscaling" {
 }
 # Input `log_retention_days`: Number of days CloudWatch retains logs before automatic expiration.
 variable "log_retention_days" {
-  type = number
-  default = 30
+  type        = number
+  description = "CloudWatch application-log retention; one year is the security baseline."
+  default     = 365
+
+  validation {
+    condition     = var.log_retention_days >= 365
+    error_message = "Application logs must be retained for at least 365 days."
+  }
 }
 # Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
 variable "tags" {

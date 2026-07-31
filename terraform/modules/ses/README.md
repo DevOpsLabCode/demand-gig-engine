@@ -4,37 +4,35 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Domain email identity
+## Purpose — Verified transactional-email identity
 
-Registers the sending domain and creates Route 53 verification and DKIM records.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_ses_domain_identity.this`:** Registers the domain identity used to send application email.
-- **Creates `aws_route53_record.verification`:** Creates the DNS record used for validation or service routing.
-- **Creates `aws_ses_domain_dkim.this`:** Generates DKIM tokens used to authenticate outgoing email.
-- **Creates `aws_route53_record.dkim`:** Creates the DNS record used for validation or service routing.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_ses_domain_identity.this`:** Registers a domain identity for outbound mail.
+- **`aws_route53_record.verification`:** Creates an alias record for the selected AWS endpoint.
+- **`aws_ses_domain_dkim.this`:** Creates DKIM tokens for authenticated email.
+- **`aws_route53_record.dkim`:** Creates an alias record for the selected AWS endpoint.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `domain_name` | `string` | `required` | `false` | Fully qualified DNS name exposed by the service. |
-| `hosted_zone_id` | `string` | `required` | `false` | Route 53 hosted-zone ID in which DNS records are created. |
-| `create_dns` | `bool` | `required` | `false` | Whether Terraform should create the dns resource or record. |
+| `domain_name` | `string` | `required` | `false` | Configuration value for `domain_name`. |
+| `hosted_zone_id` | `string` | `required` | `false` | Configuration value for `hosted_zone_id`. |
+| `create_dns` | `bool` | `required` | `false` | Configuration value for `create_dns`. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `identity_arn` | ARN of the identity resource consumed by this module. | `try(aws_ses_domain_identity.this[0].arn,null)` |
+| `identity_arn` | Published `identity_arn` value. | `try(aws_ses_domain_identity.this[0].arn,null)` |
+
+## Security and reliability controls
+
+- Resources use the root stack's encryption, network, logging, tagging, and least-privilege conventions where supported.
+- Review plans for public exposure, IAM expansion, encryption changes, replacement, and deletion before applying.
 
 ## Example
 
@@ -47,20 +45,7 @@ module "ses" {
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -70,6 +55,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

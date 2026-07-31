@@ -45,11 +45,12 @@ When DNS is enabled, Terraform creates two certificates: the CloudFront viewer c
 
 | Module | AWS responsibility | Important controls |
 |---|---|---|
-| `networking` | VPC, public/app/database subnets, IGW, NAT, route tables, S3 endpoint | Three subnet tiers; NAT per AZ in production |
+| `access_logs` | Central S3 audit-log sink | Private/versioned bucket, TLS-only policy, lifecycle cleanup, ALB/CloudFront/S3 delivery compatibility |
+| `networking` | VPC, public/app/database subnets, IGW, NAT, route tables, S3 endpoint | No automatic public IPs; three subnet tiers; encrypted one-year flow logs; NAT per AZ in production |
 | `security` | ALB, application, database, and Redis security groups | CloudFront-only ALB ingress; SG-to-SG application access |
 | `kms` | Customer-managed encryption key | Rotation; CloudWatch Logs and CloudTrail service conditions |
 | `acm` | Reusable DNS-validated TLS certificate | Instantiated separately for the `us-east-1` viewer certificate and regional ALB-origin certificate |
-| `waf` | Edge Web ACL | Common rules, known-bad inputs, IP rate limiting |
+| `waf` | Edge Web ACL | Managed rules, IP rate limiting, encrypted full-request logs, sensitive-header redaction |
 | `cloudfront` | CDN, S3 OAC, API routing, SPA rewrite, headers | HTTP/2+3, TLS, WAF, OAC, security headers |
 | `route53` | Alias records | A and AAAA records for viewer and ALB-origin names |
 | `s3_static` | Private static/media buckets | Public-access block, ownership enforcement, versioning, encryption, TLS-only policy |
@@ -58,8 +59,8 @@ When DNS is enabled, Terraform creates two certificates: the CloudFront viewer c
 | `ecs_cluster` | Fargate cluster and logging | Container Insights and encrypted logs |
 | `ecs_service` | API, worker, and migration task definitions/services | Read-only root FS, writable `/tmp`, secret injection, least-privilege roles, circuit breaker, autoscaling, X-Ray sidecar |
 | `rds_postgres` | PostgreSQL, RDS Proxy, secrets | Private Multi-AZ option, encryption, PI, enhanced monitoring, TLS proxy |
-| `redis` | ElastiCache replication group | Transit/at-rest encryption, replicas and failover |
-| `sqs` | Work queue and DLQ | Long polling, SSE, redrive policy |
+| `redis` | ElastiCache replication group and runtime secret | Transit/at-rest encryption, generated auth token, TLS URL, replicas and failover |
+| `sqs` | Work queue and DLQ | Customer-managed KMS encryption, TLS-only policies, long polling, restricted redrive |
 | `eventbridge` | Domain bus and expiry schedule | Scheduler IAM role, retries, DLQ |
 | `ses` | Domain identity and DKIM | Route 53 verification and DKIM records |
 | `secrets_manager` | OAuth/payment/integration credential vault | KMS encryption; Terraform ignores later secret rotations |
@@ -67,10 +68,10 @@ When DNS is enabled, Terraform creates two certificates: the CloudFront viewer c
 | `cloudtrail` | Multi-region audit trail | Log validation, KMS, versioned archive, TLS-only policy |
 | `guardduty` | Threat detection | Optional detector per account/region |
 | `xray` | Sampling policy | X-Ray sampling rule; ECS daemon sidecar and Django SDK integration |
-| `backup` | Database backup policy | Encrypted vault and daily retention plan |
+| `backup` | Database backup policy | Encrypted vault, Vault Lock, cold storage, and 365-day minimum retention |
 | `github_oidc` | Workload identity for GitHub | Repository/branch/PR/environment subject restrictions; no long-lived AWS keys |
 
-There are 24 module directories. The root stack has 29 module instances because `acm` is used for viewer and origin certificates, `route53` is used for viewer and origin records, `s3_static` is used for static and media buckets, and `ecs_service` is used for API, worker, and migration task definitions.
+There are 25 module directories. The root stack has 29 module instances because `acm` is used for viewer and origin certificates, `route53` is used for viewer and origin records, `s3_static` is used for static and media buckets, and `ecs_service` is used for API, worker, and migration task definitions.
 
 ## Environment isolation
 
@@ -113,7 +114,7 @@ AWS credentials, OAuth/provider secrets, and—when custom DNS is enabled—the 
 
 ## Tests and policy gates
 
-The 27 local Go tests verify the module inventory, environment contracts, production safety values, credentials, state bootstrap, deployment order, migration gating, regional certificates, CloudFront-only origin access, SPA/API routing, Docker/Compose contracts, same-origin frontend behavior, KMS/TLS storage, tracing, ECS Exec IAM, IPv4 origin DNS, autoscaling identifiers, static cache controls, secret injection, and workflow commands. Mock binaries exercise the entire deployment script without contacting AWS.
+The 29 local Go tests verify the module inventory, environment contracts, production safety values, credentials, state bootstrap, deployment order, migration gating, regional certificates, CloudFront-only origin access, SPA/API routing, Docker/Compose contracts, same-origin frontend behavior, KMS/TLS storage, tracing, ECS Exec IAM, IPv4 origin DNS, autoscaling identifiers, static cache controls, secret injection, and workflow commands. Mock binaries exercise the entire deployment script without contacting AWS.
 
 GitHub Actions supplies the definitive native checks unavailable in an offline sandbox:
 

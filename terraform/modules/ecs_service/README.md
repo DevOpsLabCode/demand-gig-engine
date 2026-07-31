@@ -4,68 +4,69 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Reusable Fargate workload
+## Purpose — Fargate workload, IAM, logging, and autoscaling
 
-Creates IAM roles, logs, task definitions, services, autoscaling, secrets, sidecars, and optional load-balancer integration for API or worker workloads.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_iam_role.execution`:** Creates an IAM role with a narrowly defined trust relationship.
-- **Creates `aws_iam_role_policy_attachment.execution`:** Attaches a managed IAM policy required by the role.
-- **Creates `aws_iam_role_policy.secrets`:** Attaches least-privilege inline permissions to the IAM role.
-- **Creates `aws_iam_role.task`:** Creates an IAM role with a narrowly defined trust relationship.
-- **Creates `aws_iam_role_policy.task`:** Attaches least-privilege inline permissions to the IAM role.
-- **Creates `aws_cloudwatch_log_group.this`:** Stores application, task, or ECS Exec logs with controlled retention.
-- **Creates `aws_ecs_task_definition.this`:** Defines immutable container, role, logging, health, and resource settings for a workload revision.
-- **Creates `aws_ecs_service.this`:** Keeps the requested number of application tasks running and connected to networking and load balancing.
-- **Creates `aws_appautoscaling_target.this`:** Registers the ECS service as a scalable target with capacity limits.
-- **Creates `aws_appautoscaling_policy.cpu`:** Adjusts ECS task count in response to measured utilization.
-- **Reads `aws_iam_policy_document.assume`:** Build the shared ECS task trust policy used by both execution and application task roles.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_iam_role.execution`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy_attachment.execution`:** Attaches an AWS managed service-role policy.
+- **`aws_iam_role_policy.secrets`:** Grants resource-scoped permissions required by the role.
+- **`aws_iam_role.task`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy.task`:** Grants resource-scoped permissions required by the role.
+- **`aws_cloudwatch_log_group.this`:** Stores encrypted logs with a policy-enforced retention period.
+- **`aws_ecs_task_definition.this`:** Defines containers, secrets, health checks, resource limits, and logging.
+- **`aws_ecs_service.this`:** Runs and maintains the requested number of private Fargate tasks.
+- **`aws_appautoscaling_target.this`:** Registers an ECS service as an autoscaling target.
+- **`aws_appautoscaling_policy.cpu`:** Scales the ECS service in response to utilization.
+- **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
+- **Data `data.aws_iam_policy_document.assume`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `cluster_arn` | `string` | `required` | `false` | ARN of the ECS cluster that will run this service. |
-| `subnet_ids` | `list(string)` | `required` | `false` | Subnet IDs that determine the private or public network placement of the resource. |
-| `security_group_ids` | `list(string)` | `required` | `false` | Security groups attached to the workload network interface. |
-| `image` | `string` | `required` | `false` | Container image URI and tag or digest launched by the task definition. |
-| `container_port` | `number` | `8000` | `false` | TCP port on which the application container listens. |
-| `expose_port` | `bool` | `true` | `false` | Whether the ECS service should register the application port and load-balancer mapping. |
-| `cpu` | `number` | `required` | `false` | Fargate CPU units reserved by the task definition. |
-| `memory` | `number` | `required` | `false` | Memory in MiB reserved by the task definition. |
-| `desired_count` | `number` | `required` | `false` | Number of service tasks Terraform requests at steady state. |
-| `target_group_arn` | `string` | `null` | `false` | Optional ALB target-group ARN used to register this ECS service. |
-| `command` | `list(string)` | `[]` | `false` | Optional container command that overrides the image default. |
-| `environment` | `map(string)` | `{}` | `false` | Deployment environment name or the container environment-variable map, according to module context. |
-| `secrets` | `map(string)` | `{}` | `false` | Map of container environment names to Secrets Manager or Parameter Store value ARNs. |
-| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used to encrypt supported data, logs, queues, or secrets. |
-| `queue_arn` | `string` | `required` | `false` | SQS queue ARN the task may read from or publish to. |
-| `object_storage_bucket_arn` | `string` | `null` | `false` | Optional S3 bucket ARN the task may access for private application objects. |
-| `enable_health_check` | `bool` | `true` | `false` | Whether the task definition includes the application container health check. |
-| `enable_autoscaling` | `bool` | `true` | `false` | Whether Application Auto Scaling resources are created for the service. |
-| `log_retention_days` | `number` | `30` | `false` | Number of days CloudWatch retains logs before automatic expiration. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
+| `cluster_arn` | `string` | `required` | `false` | Configuration value for `cluster_arn`. |
+| `subnet_ids` | `list(string)` | `required` | `false` | Subnet IDs that determine resource placement. |
+| `security_group_ids` | `list(string)` | `required` | `false` | Security groups attached to the resource. |
+| `image` | `string` | `required` | `false` | Configuration value for `image`. |
+| `container_port` | `number` | `8000` | `false` | Configuration value for `container_port`. |
+| `expose_port` | `bool` | `true` | `false` | Configuration value for `expose_port`. |
+| `cpu` | `number` | `required` | `false` | Configuration value for `cpu`. |
+| `memory` | `number` | `required` | `false` | Configuration value for `memory`. |
+| `desired_count` | `number` | `required` | `false` | Configuration value for `desired_count`. |
+| `target_group_arn` | `string` | `null` | `false` | Configuration value for `target_group_arn`. |
+| `command` | `list(string)` | `[]` | `false` | Configuration value for `command`. |
+| `environment` | `map(string)` | `{}` | `false` | Configuration value for `environment`. |
+| `secrets` | `map(string)` | `{}` | `false` | Configuration value for `secrets`. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for encryption. |
+| `queue_arn` | `string` | `required` | `false` | Configuration value for `queue_arn`. |
+| `object_storage_bucket_arn` | `string` | `null` | `false` | Configuration value for `object_storage_bucket_arn`. |
+| `enable_health_check` | `bool` | `true` | `false` | Configuration value for `enable_health_check`. |
+| `enable_autoscaling` | `bool` | `true` | `false` | Configuration value for `enable_autoscaling`. |
+| `log_retention_days` | `number` | `365` | `false` | CloudWatch application-log retention; one year is the security baseline. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 | `ses_identity_arn` | `string` | `null` | `false` | Verified SES identity that tasks may use for outbound mail. |
 | `enable_xray` | `bool` | `true` | `false` | Run the AWS X-Ray daemon sidecar and grant trace write permissions. |
-| `xray_image` | `string` | `public.ecr.aws/xray/aws-xray-daemon:3.x` | `false` | Pinned AWS X-Ray daemon container image. |
+| `xray_image` | `string` | `"public.ecr.aws/xray/aws-xray-daemon:3.x"` | `false` | Pinned AWS X-Ray daemon container image. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `service_name` | Name of the ECS service used by deployment, autoscaling, and monitoring commands. | `aws_ecs_service.this.name` |
-| `service_arn` | ARN of the service resource consumed by this module. | `aws_ecs_service.this.id` |
-| `task_role_arn` | ARN of the task role resource consumed by this module. | `aws_iam_role.task.arn` |
-| `task_definition_arn` | ARN of the task definition resource consumed by this module. | `aws_ecs_task_definition.this.arn` |
+| `service_name` | Published `service_name` value. | `aws_ecs_service.this.name` |
+| `service_arn` | Published `service_arn` value. | `aws_ecs_service.this.id` |
+| `task_role_arn` | Published `task_role_arn` value. | `aws_iam_role.task.arn` |
+| `task_definition_arn` | Published `task_definition_arn` value. | `aws_ecs_task_definition.this.arn` |
+
+## Security and reliability controls
+
+- Private Fargate networking.
+- KMS-encrypted logs retained at least 365 days.
+- Secrets injected by ARN.
+- Resource-scoped IAM except AWS APIs that cannot be scoped.
 
 ## Example
 
@@ -78,23 +79,14 @@ module "ecs_service" {
   security_group_ids = var.security_group_ids
   image = var.image
   cpu = var.cpu
+  memory = var.memory
+  desired_count = var.desired_count
+  kms_key_arn = var.kms_key_arn
+  queue_arn = var.queue_arn
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -104,6 +96,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

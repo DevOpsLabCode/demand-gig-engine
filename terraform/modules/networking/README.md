@@ -4,54 +4,64 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Multi-tier network foundation
+## Purpose — Isolated multi-AZ VPC networking
 
-Creates the VPC, public/application/database subnets, internet and NAT paths, route tables, and S3 gateway endpoint.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_vpc.this`:** Creates the isolated virtual network that contains all environment resources.
-- **Creates `aws_internet_gateway.this`:** Connects public subnets to the internet while private tiers remain route-controlled.
-- **Creates `aws_subnet.public`:** Creates one subnet tier across the selected Availability Zones.
-- **Creates `aws_subnet.app`:** Creates one subnet tier across the selected Availability Zones.
-- **Creates `aws_subnet.db`:** Creates one subnet tier across the selected Availability Zones.
-- **Creates `aws_eip.nat`:** Allocates stable public addresses used by NAT gateways.
-- **Creates `aws_nat_gateway.this`:** Provides outbound internet access for private application subnets without accepting inbound connections.
-- **Creates `aws_route_table.public`:** Defines how traffic leaves or moves within a subnet tier.
-- **Creates `aws_route_table_association.public`:** Attaches a route table to the intended subnet.
-- **Creates `aws_route_table.app`:** Defines how traffic leaves or moves within a subnet tier.
-- **Creates `aws_route_table_association.app`:** Attaches a route table to the intended subnet.
-- **Creates `aws_route_table.db`:** Defines how traffic leaves or moves within a subnet tier.
-- **Creates `aws_route_table_association.db`:** Attaches a route table to the intended subnet.
-- **Creates `aws_vpc_endpoint.s3`:** Keeps supported AWS service traffic on the AWS network instead of traversing the public internet.
-- **Reads `aws_availability_zones.available`:** Read the currently available Availability Zones so subnet placement follows the target region.
-- **Reads `aws_region.current`:** Read the active region to select the AWS-managed S3 prefix list for private endpoint routing.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_vpc.this`:** Creates the isolated network boundary.
+- **`aws_default_security_group.this`:** Removes rules from the VPC default security group.
+- **`aws_internet_gateway.this`:** Provides controlled internet routing for public subnets.
+- **`aws_subnet.public`:** Creates public, application, or database subnets across Availability Zones.
+- **`aws_subnet.app`:** Creates public, application, or database subnets across Availability Zones.
+- **`aws_subnet.db`:** Creates public, application, or database subnets across Availability Zones.
+- **`aws_eip.nat`:** Creates and manages `aws_eip` for this module.
+- **`aws_nat_gateway.this`:** Provides outbound-only internet access for private application subnets.
+- **`aws_route_table.public`:** Defines subnet routing behavior.
+- **`aws_route_table_association.public`:** Associates a subnet with its intended route table.
+- **`aws_route_table.app`:** Defines subnet routing behavior.
+- **`aws_route_table_association.app`:** Associates a subnet with its intended route table.
+- **`aws_route_table.db`:** Defines subnet routing behavior.
+- **`aws_route_table_association.db`:** Associates a subnet with its intended route table.
+- **`aws_vpc_endpoint.s3`:** Creates and manages `aws_vpc_endpoint` for this module.
+- **`aws_cloudwatch_log_group.flow`:** Stores encrypted logs with a policy-enforced retention period.
+- **`aws_iam_role.flow`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy.flow`:** Grants resource-scoped permissions required by the role.
+- **`aws_flow_log.this`:** Records accepted and rejected VPC traffic for security analysis.
+- **Data `data.aws_availability_zones.available`:** Discovers available zones for deterministic multi-AZ placement.
+- **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
+- **Data `data.aws_partition.current`:** Keeps generated ARNs compatible with the active AWS partition.
+- **Data `data.aws_caller_identity.current`:** Reads the active AWS account for account-scoped ARNs and policies.
+- **Data `data.aws_iam_policy_document.flow_assume`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `cidr` | `string` | `required` | `false` | IPv4 CIDR block allocated to the VPC. |
-| `az_count` | `number` | `required` | `false` | Number of Availability Zones across which subnet tiers are created. |
-| `nat_gateway_per_az` | `bool` | `false` | `false` | Whether each application Availability Zone receives its own NAT gateway for resilience. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
+| `cidr` | `string` | `required` | `false` | Configuration value for `cidr`. |
+| `az_count` | `number` | `required` | `false` | Configuration value for `az_count`. |
+| `nat_gateway_per_az` | `bool` | `false` | `false` | Configuration value for `nat_gateway_per_az`. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key used by the VPC flow-log group. |
+| `flow_log_retention_days` | `number` | `365` | `false` | Configuration value for `flow_log_retention_days`. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `vpc_id` | ID of the VPC that owns the resource. | `aws_vpc.this.id` |
-| `public_subnet_ids` | Public subnet IDs used by internet-facing load-balancing or NAT resources. | `[for s in aws_subnet.public :s.id]` |
-| `app_subnet_ids` | Private application subnet IDs used by ECS workloads. | `[for s in aws_subnet.app :s.id]` |
-| `db_subnet_ids` | Private database subnet IDs used by PostgreSQL or Redis. | `[for s in aws_subnet.db :s.id]` |
+| `vpc_id` | Published `vpc_id` value. | `aws_vpc.this.id` |
+| `public_subnet_ids` | Published `public_subnet_ids` value. | `[for s in aws_subnet.public :s.id]` |
+| `app_subnet_ids` | Published `app_subnet_ids` value. | `[for s in aws_subnet.app :s.id]` |
+| `db_subnet_ids` | Published `db_subnet_ids` value. | `[for s in aws_subnet.db :s.id]` |
+
+## Security and reliability controls
+
+- No automatic public IP assignment.
+- Private application and database subnets.
+- Encrypted one-year VPC flow logs.
+- Empty default security group.
 
 ## Example
 
@@ -61,23 +71,11 @@ module "networking" {
   name = var.name
   cidr = var.cidr
   az_count = var.az_count
+  kms_key_arn = var.kms_key_arn
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -87,6 +85,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

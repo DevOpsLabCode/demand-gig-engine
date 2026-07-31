@@ -1,13 +1,19 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares the input contract for the sqs Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the input contract for the SQS Terraform module.
+
 variable "name" {
-  type = string
+  type        = string
+  description = "Stable queue-name prefix."
 }
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
+variable "kms_key_arn" {
+  type        = string
+  description = "Customer-managed KMS key ARN used by both queues."
+}
+
 variable "tags" {
-  type = map(string)
-  default = {}
+  type        = map(string)
+  description = "Common ownership, environment, cost, and governance tags."
+  default     = {}
 }

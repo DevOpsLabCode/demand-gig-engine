@@ -4,36 +4,42 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Durable asynchronous queueing
+## Purpose — Encrypted work queue and dead-letter queue
 
-Creates the primary task queue and dead-letter queue with encryption, retries, and retention controls.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_sqs_queue.dlq`:** Creates a durable work queue or dead-letter queue for asynchronous processing.
-- **Creates `aws_sqs_queue.tasks`:** Creates a durable work queue or dead-letter queue for asynchronous processing.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_sqs_queue.dlq`:** Creates a KMS-encrypted task or dead-letter queue.
+- **`aws_sqs_queue.tasks`:** Creates a KMS-encrypted task or dead-letter queue.
+- **`aws_sqs_queue_redrive_allow_policy.dlq`:** Limits which source queue may redrive messages from the DLQ.
+- **`aws_sqs_queue_policy.tasks`:** Denies non-TLS queue access.
+- **`aws_sqs_queue_policy.dlq`:** Denies non-TLS queue access.
+- **Data `data.aws_iam_policy_document.tasks`:** Builds a structured IAM, resource, trust, or key policy.
+- **Data `data.aws_iam_policy_document.dlq`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `name` | `string` | `required` | `false` | Stable queue-name prefix. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used by both queues. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `queue_url` | SQS queue URL consumed by the worker process. | `aws_sqs_queue.tasks.url` |
-| `queue_arn` | SQS queue ARN the task may read from or publish to. | `aws_sqs_queue.tasks.arn` |
-| `dlq_arn` | Dead-letter queue ARN that receives messages after retries are exhausted. | `aws_sqs_queue.dlq.arn` |
+| `queue_url` | Published `queue_url` value. | `aws_sqs_queue.tasks.url` |
+| `queue_arn` | Published `queue_arn` value. | `aws_sqs_queue.tasks.arn` |
+| `dlq_arn` | Published `dlq_arn` value. | `aws_sqs_queue.dlq.arn` |
+
+## Security and reliability controls
+
+- Customer-managed KMS encryption.
+- TLS-only resource policies.
+- 14-day DLQ retention.
+- Source-restricted redrive.
 
 ## Example
 
@@ -41,23 +47,11 @@ Creates the primary task queue and dead-letter queue with encryption, retries, a
 module "sqs" {
   source = "./modules/sqs"
   name = var.name
+  kms_key_arn = var.kms_key_arn
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -67,6 +61,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

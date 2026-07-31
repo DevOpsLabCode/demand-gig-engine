@@ -4,30 +4,30 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Distributed tracing policy
+## Purpose — Distributed tracing resources
 
-Creates the sampling rule that controls how much application trace data is retained.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_xray_sampling_rule.this`:** Controls which requests are retained for distributed tracing.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_xray_sampling_rule.this`:** Creates and manages `aws_xray_sampling_rule` for this module.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
+| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
 
 ## Outputs
 
-This module does not publish outputs.
+| Name | Description | Value source |
+|---|---|---|
+| — | This module does not publish outputs. | — |
+
+## Security and reliability controls
+
+- Resources use the root stack's encryption, network, logging, tagging, and least-privilege conventions where supported.
+- Review plans for public exposure, IAM expansion, encryption changes, replacement, and deletion before applying.
 
 ## Example
 
@@ -38,20 +38,7 @@ module "xray" {
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -61,6 +48,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

@@ -4,38 +4,46 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Managed backup policy
+## Purpose — Immutable encrypted backups
 
-Creates an encrypted AWS Backup vault, retention plan, service role, and tag-based resource selection.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_iam_role.this`:** Creates an IAM role with a narrowly defined trust relationship.
-- **Creates `aws_iam_role_policy_attachment.this`:** Attaches a managed IAM policy required by the role.
-- **Creates `aws_backup_vault.this`:** Creates encrypted storage for AWS Backup recovery points.
-- **Creates `aws_backup_plan.this`:** Defines backup frequency, retention, and lifecycle policy.
-- **Creates `aws_backup_selection.this`:** Selects protected resources through the backup service role and tags.
-- **Reads `aws_iam_policy_document.assume`:** Build the trust policy that permits only the AWS Backup service to assume the backup role.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_iam_role.this`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy_attachment.this`:** Attaches an AWS managed service-role policy.
+- **`aws_iam_role_policy.kms`:** Grants resource-scoped permissions required by the role.
+- **`aws_backup_vault.this`:** Stores recovery points under a customer-managed KMS key.
+- **`aws_backup_vault_lock_configuration.this`:** Makes backup retention immutable after the changeable grace period.
+- **`aws_backup_plan.this`:** Defines the backup schedule, cold-storage transition, and retention lifecycle.
+- **`aws_backup_selection.this`:** Selects the protected resources for the backup plan.
+- **Data `data.aws_iam_policy_document.assume`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used to encrypt supported data, logs, queues, or secrets. |
+| `name` | `string` | `required` | `false` | Stable name for the backup vault and plan. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used by the backup vault. |
 | `resource_arns` | `list(string)` | `required` | `false` | Protected resource ARNs selected by the AWS Backup plan. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `minimum_retention_days` | `number` | `365` | `false` | Minimum immutable retention and normal deletion point for recovery points. |
+| `maximum_retention_days` | `number` | `3650` | `false` | Maximum recovery-point retention accepted by Vault Lock. |
+| `cold_storage_after_days` | `number` | `90` | `false` | Days before eligible recovery points transition to cold storage. |
+| `vault_lock_changeable_for_days` | `number` | `3` | `false` | Grace period before Vault Lock becomes immutable compliance mode. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
-This module does not publish outputs.
+| Name | Description | Value source |
+|---|---|---|
+| — | This module does not publish outputs. | — |
+
+## Security and reliability controls
+
+- Customer-managed KMS encryption.
+- Vault Lock compliance controls.
+- 365-day minimum retention.
+- KMS grants constrained to AWS resources.
 
 ## Example
 
@@ -48,20 +56,7 @@ module "backup" {
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -71,6 +66,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

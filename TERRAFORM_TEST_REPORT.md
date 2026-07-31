@@ -6,12 +6,12 @@
 
 
 **Project:** Demand Gig Engine  
-**Validation date:** July 30, 2026  
+**Validation date:** July 31, 2026  
 **Framework:** `terraform/` AWS development and production stacks
 
 ## Executive result
 
-The framework passed every executable offline test available in this environment after a deep source, security, orchestration, and deployment-contract review. The final package contains **24 reusable AWS modules**, **76 Terraform files**, **29 root module instances**, and **27 Go tests**. All Go tests passed with the race detector, including a mocked end-to-end deployment that exercises remote-state bootstrap, image publication, zero-capacity provisioning, one-off migrations, service scale-up, static publication, and CloudFront invalidation.
+The framework passed every executable offline test available in this environment after a deep source, security, orchestration, and deployment-contract review. The final package contains **25 reusable AWS modules**, **79 Terraform files**, **30 root module instances**, and **29 Go tests**. All Go tests passed with the race detector, including a mocked end-to-end deployment that exercises remote-state bootstrap, image publication, zero-capacity provisioning, one-off migrations, service scale-up, static publication, and CloudFront invalidation.
 
 Native Terraform provider initialization, provider-schema validation, TFLint, Checkov, Docker builds, and an AWS plan/apply could not be executed locally because this sandbox does not provide those binaries, blocks external package downloads, and has no AWS credentials. These checks are wired into `.github/workflows/terraform.yml` and remain required before a real environment deployment.
 
@@ -20,13 +20,13 @@ Native Terraform provider initialization, provider-schema validation, TFLint, Ch
 | Check | Result | Evidence |
 |---|---|---|
 | Archive/source integrity | PASS | Working tree extracted and inspected successfully |
-| Terraform structural scan | PASS | 76 `.tf` files; balanced blocks, strings, and expressions |
-| Root/module interface contracts | PASS | 29 root module instances matched declared module variables and outputs |
+| Terraform structural scan | PASS | 79 `.tf` files; balanced blocks, strings, and expressions |
+| Root/module interface contracts | PASS | 30 root module instances matched declared module variables and outputs |
 | Same-line HCL object separator regression | PASS | No compressed object assignments without comma/newline separators |
-| Required module inventory | PASS | 24 distinct service/responsibility modules present |
+| Required module inventory | PASS | 25 distinct service/responsibility modules present |
 | Dev/prod `.tfvars` contract | PASS | Real environment values and required keys present |
 | Production safety contract | PASS | Multi-AZ, deletion protection, API redundancy, Redis replicas, NAT-per-AZ |
-| Go test suite | PASS | 27 tests passed |
+| Go test suite | PASS | 29 tests passed |
 | Go race detector | PASS | `go test -race -count=1 -v ./...` |
 | Go static analysis | PASS | `go vet ./...` |
 | Mock state bootstrap | PASS | Idempotent secure S3 backend, versioning, encryption, public block, TLS policy |
@@ -43,7 +43,7 @@ Native Terraform provider initialization, provider-schema validation, TFLint, Ch
 
 ## Critical defects found and fixed
 
-1. **Invalid compressed HCL:** generated one-line blocks and object expressions would have failed native Terraform parsing. All 76 Terraform files were normalized into readable blocks, and invalid EventBridge IAM object separators were corrected.
+1. **Invalid compressed HCL:** generated one-line blocks and object expressions would have failed native Terraform parsing. All 79 Terraform files were normalized into readable blocks, and invalid EventBridge IAM object separators were corrected.
 2. **Incorrect certificate region coupling:** one `us-east-1` certificate was being reused for CloudFront and the ALB. The stack now creates a CloudFront viewer certificate in `us-east-1` and a separate ALB-origin certificate in the workload region.
 3. **WAF placement:** the Web ACL is attached to CloudFront using the `CLOUDFRONT` scope.
 4. **Origin bypass:** ALB ingress is restricted to the AWS-managed CloudFront origin-facing prefix list.
@@ -113,4 +113,19 @@ Production uses the same command with `prod`, a protected AWS role/environment, 
 
 ## Documentation-only verification - July 31, 2026
 
-All 76 Terraform files received inline explanations for resources, modules, variables, outputs, policies, lifecycle rules, and nested configuration blocks. All 24 reusable module READMEs were rebuilt from the modules' actual interfaces and resources. A comment-stripped comparison confirmed that the Terraform executable content remained equivalent to the validated pre-documentation baseline. The complete evidence is in [`validation/documentation-enhancement-2026-07-31/`](validation/documentation-enhancement-2026-07-31/).
+All Terraform files received inline explanations for resources, modules, variables, outputs, policies, lifecycle rules, and nested configuration blocks. All 25 reusable module READMEs were rebuilt from the modules' actual interfaces and resources. A comment-stripped comparison confirmed that the Terraform executable content remained equivalent to the validated pre-documentation baseline. The complete evidence is in [`validation/documentation-enhancement-2026-07-31/`](validation/documentation-enhancement-2026-07-31/).
+
+## Checkov and CI remediation — July 31, 2026
+
+The package now remediates the reported ALB, CloudFront, CloudTrail, SNS, CloudWatch Logs, EventBridge Scheduler, KMS/IAM, subnet, and RDS findings at the Terraform resource level. It also adds encrypted SQS, authenticated Redis, immutable backup retention, encrypted WAF request logging, constrained security-group egress, a centralized access-log sink, and reliable npm failure artifacts.
+
+| Validation | Result |
+|---|---|
+| Dependency-free remediation validator | PASS — 99 security invariants |
+| Repository static checks | PASS — 69 checks |
+| Workflow parser and action policy | PASS — 5 workflows |
+| Terraform Go tests with race detector | PASS — 29 tests |
+| Shell syntax | PASS |
+| Native Checkov/Terraform/TFLint | DEFERRED TO GITHUB — required binaries/provider downloads unavailable locally |
+
+See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md).

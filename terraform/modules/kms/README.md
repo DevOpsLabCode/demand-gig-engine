@@ -4,37 +4,39 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - Customer-managed encryption
+## Purpose — Customer-managed application encryption key
 
-Creates the KMS key, policy, rotation configuration, and alias used by data services and logs.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_kms_key.this`:** Creates the customer-managed encryption key shared by protected services.
-- **Creates `aws_kms_alias.this`:** Provides a stable, human-readable name for the KMS key.
-- **Reads `aws_iam_policy_document.this`:** Build the KMS key policy that preserves account administration and grants only required AWS services cryptographic access.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_kms_key.this`:** Creates a rotating customer-managed encryption key with a constrained key policy.
+- **`aws_kms_alias.this`:** Publishes a stable human-readable alias for the KMS key.
+- **Data `data.aws_caller_identity.current`:** Reads the active AWS account for account-scoped ARNs and policies.
+- **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
+- **Data `data.aws_partition.current`:** Keeps generated ARNs compatible with the active AWS partition.
+- **Data `data.aws_iam_policy_document.this`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `deletion_window` | `number` | `30` | `false` | Configured KMS recovery window before a scheduled deletion becomes permanent. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
+| `deletion_window` | `number` | `30` | `false` | Configuration value for `deletion_window`. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `key_arn` | ARN of the key resource consumed by this module. | `aws_kms_key.this.arn` |
-| `key_id` | Identifier of the key resource consumed by this module. | `aws_kms_key.this.key_id` |
+| `key_arn` | Published `key_arn` value. | `aws_kms_key.this.arn` |
+| `key_id` | Published `key_id` value. | `aws_kms_key.this.key_id` |
+
+## Security and reliability controls
+
+- Annual key rotation.
+- 30-day deletion window by default.
+- Service principals constrained by account, source ARN, or encryption context.
 
 ## Example
 
@@ -45,20 +47,7 @@ module "kms" {
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -68,6 +57,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

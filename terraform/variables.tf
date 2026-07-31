@@ -113,7 +113,7 @@ variable "db_allocated_storage" {
 # Input `db_multi_az`: Create a synchronous standby in another Availability Zone for production resilience.
 variable "db_multi_az" {
   type = bool
-  default = false
+  default = true
 }
 # Input `redis_node_type`: ElastiCache node class used by the Redis replication group.
 variable "redis_node_type" {
@@ -123,12 +123,12 @@ variable "redis_node_type" {
 # Input `redis_replicas`: Number of Redis read replicas; values above zero enable automatic failover.
 variable "redis_replicas" {
   type = number
-  default = 0
+  default = 1
 }
 # Input `deletion_protection`: Whether the managed service rejects accidental deletion.
 variable "deletion_protection" {
   type = bool
-  default = false
+  default = true
 }
 # Input `schedule_enabled`: Whether the campaign-expiry schedule is active.
 variable "schedule_enabled" {

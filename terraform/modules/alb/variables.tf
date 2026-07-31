@@ -1,35 +1,47 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares the input contract for the alb Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the input contract for the ALB Terraform module.
+
 variable "name" {
   type = string
 }
-# Input `vpc_id`: ID of the VPC that owns the resource.
+
 variable "vpc_id" {
   type = string
 }
-# Input `subnet_ids`: Subnet IDs that determine the private or public network placement of the resource.
+
 variable "subnet_ids" {
   type = list(string)
 }
-# Input `security_group_ids`: Security groups attached to the workload network interface.
+
 variable "security_group_ids" {
   type = list(string)
 }
-# Input `certificate_arn`: ACM certificate ARN used to terminate TLS.
+
+# ACM certificate used by the HTTPS listener. Null is supported only for the restricted no-domain development path.
 variable "certificate_arn" {
-  type = string
+  type    = string
   default = null
 }
-# Input `deletion_protection`: Whether the managed service rejects accidental deletion.
+
+# Production-safe default prevents accidental ALB deletion.
 variable "deletion_protection" {
-  type = bool
-  default = false
+  type    = bool
+  default = true
 }
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
+# Central log-bucket name configured in the ALB access_logs block.
+variable "access_log_bucket_id" {
+  type = string
+}
+
+# Prefix matched by the centralized log-bucket delivery policy.
+variable "access_log_prefix" {
+  type    = string
+  default = "alb"
+}
+
 variable "tags" {
-  type = map(string)
+  type    = map(string)
   default = {}
 }

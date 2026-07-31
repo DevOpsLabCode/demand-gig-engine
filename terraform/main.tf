@@ -15,7 +15,6 @@ locals {
     DEBUG                   = "false",
     AWS_REGION              = var.aws_region,
     AWS_STORAGE_BUCKET_NAME = module.media.bucket_id,
-    REDIS_URL               = "rediss://${module.redis.endpoint}:6379/0",
     SQS_QUEUE_URL           = module.sqs.queue_url,
     PUBLIC_BASE_URL         = local.application_url,
     FRONTEND_URL            = local.application_url,
@@ -34,6 +33,7 @@ locals {
   common_secrets = merge(local.provider_secrets, {
     DATABASE_URL = "${module.database.runtime_secret_arn}:DATABASE_URL::",
     SECRET_KEY   = "${module.database.runtime_secret_arn}:SECRET_KEY::",
+    REDIS_URL    = "${module.redis.runtime_secret_arn}:REDIS_URL::",
   })
 }
 # Validates an invariant early so an unsafe or inconsistent plan cannot proceed.
@@ -53,8 +53,16 @@ check "production_safety" {
 # Invokes the reusable kms module and passes this environment configuration into it.
 module "kms" {
   source = "./modules/kms"
-  name = local.name
-  tags = local.tags
+  name   = local.name
+  tags   = local.tags
+}
+
+# Central terminal log sink for ALB, CloudFront, source-bucket, and CloudTrail access records.
+module "access_logs" {
+  source        = "./modules/access_logs"
+  name          = "${local.name}-${data.aws_caller_identity.current.account_id}-access-logs"
+  force_destroy = var.environment == "dev"
+  tags          = local.tags
 }
 # Invokes the reusable networking module and passes this environment configuration into it.
 module "networking" {
@@ -63,14 +71,16 @@ module "networking" {
   cidr = var.vpc_cidr
   az_count = var.az_count
   nat_gateway_per_az = var.nat_gateway_per_az
-  tags = local.tags
+  kms_key_arn       = module.kms.key_arn
+  tags              = local.tags
 }
 # Invokes the reusable security module and passes this environment configuration into it.
 module "security" {
-  source = "./modules/security"
-  name = local.name
-  vpc_id = module.networking.vpc_id
-  tags = local.tags
+  source   = "./modules/security"
+  name     = local.name
+  vpc_id   = module.networking.vpc_id
+  vpc_cidr = var.vpc_cidr
+  tags     = local.tags
 }
 # Invokes the reusable ecr module and passes this environment configuration into it.
 module "ecr" {
@@ -85,8 +95,9 @@ module "static" {
   source            = "./modules/s3_static"
   name              = "${local.name}-${data.aws_caller_identity.current.account_id}-static"
   force_destroy     = var.environment == "dev"
-  create_tls_policy = false
-  tags              = local.tags
+  create_tls_policy    = false
+  access_log_bucket_id = module.access_logs.bucket_id
+  tags                 = local.tags
 }
 # Invokes the reusable media module and passes this environment configuration into it.
 module "media" {
@@ -94,8 +105,9 @@ module "media" {
   name              = "${local.name}-${data.aws_caller_identity.current.account_id}-media"
   force_destroy     = var.environment == "dev"
   kms_key_arn       = module.kms.key_arn
-  create_tls_policy = true
-  tags              = local.tags
+  create_tls_policy    = true
+  access_log_bucket_id = module.access_logs.bucket_id
+  tags                 = local.tags
 }
 # Invokes the reusable acm viewer module and passes this environment configuration into it.
 module "acm_viewer" {
@@ -131,7 +143,9 @@ module "alb" {
   security_group_ids = [module.security.alb_sg_id]
   certificate_arn = module.acm_origin.certificate_arn
   deletion_protection = var.deletion_protection
-  tags = local.tags
+  access_log_bucket_id = module.access_logs.bucket_id
+  access_log_prefix    = "alb"
+  tags                 = local.tags
 }
 # Invokes the reusable cloudfront module and passes this environment configuration into it.
 module "cloudfront" {
@@ -145,8 +159,9 @@ module "cloudfront" {
   domain_name = var.domain_name
   certificate_arn = module.acm_viewer.certificate_arn
   price_class = var.cloudfront_price_class
-  web_acl_arn = module.waf.arn
-  tags = local.tags
+  web_acl_arn                  = module.waf.arn
+  access_log_bucket_domain_name = module.access_logs.bucket_domain_name
+  tags                         = local.tags
 }
 # Invokes the reusable route53 module and passes this environment configuration into it.
 module "route53" {
@@ -193,18 +208,20 @@ module "redis" {
 }
 # Invokes the reusable sqs module and passes this environment configuration into it.
 module "sqs" {
-  source = "./modules/sqs"
-  name = local.name
-  tags = local.tags
+  source      = "./modules/sqs"
+  name        = local.name
+  kms_key_arn = module.kms.key_arn
+  tags        = local.tags
 }
 # Invokes the reusable eventbridge module and passes this environment configuration into it.
 module "eventbridge" {
   source = "./modules/eventbridge"
   name = local.name
   queue_arn = module.sqs.queue_arn
-  dlq_arn = module.sqs.dlq_arn
+  dlq_arn          = module.sqs.dlq_arn
+  kms_key_arn      = module.kms.key_arn
   schedule_enabled = var.schedule_enabled
-  tags = local.tags
+  tags             = local.tags
 }
 # Invokes the reusable secrets manager module and passes this environment configuration into it.
 module "secrets_manager" {
@@ -320,16 +337,19 @@ module "cloudwatch" {
   alb_arn_suffix = split("loadbalancer/",module.alb.arn)[1]
   cluster_name = module.cluster.cluster_name
   service_name = module.backend.service_name
-  sns_email = var.alarm_email
-  tags = local.tags
+  sns_email       = var.alarm_email
+  kms_key_arn     = module.kms.key_arn
+  account_root_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+  tags            = local.tags
 }
 # Invokes the reusable cloudtrail module and passes this environment configuration into it.
 module "cloudtrail" {
   source = "./modules/cloudtrail"
   name = local.name
   kms_key_arn = module.kms.key_arn
-  retention_days = var.cloudtrail_retention_days
-  tags = local.tags
+  retention_days       = var.cloudtrail_retention_days
+  access_log_bucket_id = module.access_logs.bucket_id
+  tags                 = local.tags
 }
 # Invokes the reusable guardduty module and passes this environment configuration into it.
 module "guardduty" {

@@ -1,34 +1,47 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares the input contract for the waf Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Input `name`: Name prefix for the web ACL.
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares WAF scope, request-rate threshold, log retention, and tags.
+
 variable "name" {
-  type = string
-  description = "Name prefix for the web ACL."
+  type        = string
+  description = "Name prefix for the Web ACL and its encrypted log group."
 }
-# Input `scope`: WAF scope. CloudFront requires CLOUDFRONT and an us-east-1 provider.
+
 variable "scope" {
-  type = string
+  type        = string
   description = "WAF scope. CloudFront requires CLOUDFRONT and an us-east-1 provider."
-  default = "CLOUDFRONT"
+  default     = "CLOUDFRONT"
+
   validation {
-    condition = contains(["CLOUDFRONT","REGIONAL"],var.scope)
+    condition     = contains(["CLOUDFRONT", "REGIONAL"], var.scope)
     error_message = "scope must be CLOUDFRONT or REGIONAL."
   }
 }
-# Input `rate_limit`: Maximum requests per five-minute evaluation window per source IP.
+
 variable "rate_limit" {
-  type = number
+  type        = number
   description = "Maximum requests per five-minute evaluation window per source IP."
-  default = 2000
+  default     = 2000
+
   validation {
-    condition = var.rate_limit >= 100
+    condition     = var.rate_limit >= 100
     error_message = "rate_limit must be at least 100."
   }
 }
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
+variable "log_retention_days" {
+  type        = number
+  description = "CloudWatch retention for full WAF request logs."
+  default     = 365
+
+  validation {
+    condition     = var.log_retention_days >= 365
+    error_message = "WAF logs must be retained for at least 365 days."
+  }
+}
+
 variable "tags" {
-  type = map(string)
-  default = {}
+  type        = map(string)
+  description = "Common ownership, environment, cost, and governance tags."
+  default     = {}
 }

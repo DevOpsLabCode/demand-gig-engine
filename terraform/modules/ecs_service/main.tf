@@ -63,6 +63,11 @@ locals {
         Resource = var.queue_arn
       },
       {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = var.kms_key_arn
+      },
+      {
         Effect = "Allow"
         Action = [
           "ssmmessages:CreateControlChannel",
@@ -82,8 +87,16 @@ locals {
     name                   = var.name
     image                  = var.image
     essential              = true
+    user                   = "app"
+    privileged             = false
     readonlyRootFilesystem = true
     stopTimeout            = 30
+    linuxParameters = {
+      initProcessEnabled = true
+      capabilities = {
+        drop = ["ALL"]
+      }
+    }
     mountPoints = [
       {
         sourceVolume  = "tmp"
@@ -219,7 +232,11 @@ resource "aws_iam_role" "task" {
   tags               = var.tags
 }
 
-# Attaches least-privilege inline permissions to the IAM role.
+# ECS Exec ssmmessages channels and X-Ray ingestion APIs do not expose
+# resource-level ARNs. Those wildcard-only service calls are isolated in their
+# own statements; SQS, KMS, SES, S3, and Secrets Manager remain ARN-scoped.
+#checkov:skip=CKV_AWS_111:ssmmessages channel APIs and X-Ray ingestion APIs do not support resource-level permissions; all restrictable actions are ARN-scoped.
+#checkov:skip=CKV_AWS_356:Only AWS APIs that formally require Resource "*" use it; every restrictable application permission has an exact ARN.
 resource "aws_iam_role_policy" "task" {
   role = aws_iam_role.task.id
   policy = jsonencode({

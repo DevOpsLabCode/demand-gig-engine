@@ -1,87 +1,168 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates a CloudFront-scoped Web ACL with AWS managed protections, IP rate limiting, logging, and metrics.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Create and manage the aws wafv2 web acl resource owned by this file.
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates a CloudFront-scoped Web ACL with managed protections, rate limiting, encrypted logs, and metrics.
+
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+data "aws_region" "current" {}
+
 resource "aws_wafv2_web_acl" "this" {
-  name = var.name
+  name  = var.name
   scope = var.scope
-  # Specifies the action used when no more-specific WAF rule matches.
+
   default_action {
-    allow {
-    }
+    allow {}
   }
-  # Enables metrics and sampled-request visibility for this WAF scope.
+
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name = var.name
-    sampled_requests_enabled = true
+    metric_name                = var.name
+    sampled_requests_enabled   = true
   }
-  # Defines one ordered policy or lifecycle rule.
+
   rule {
-    name = "AWSManagedCommon"
+    name     = "AWSManagedCommon"
     priority = 10
+
     override_action {
-      none {
-      }
+      none {}
     }
-    # Apply AWS managed baseline protections for common web exploits and malformed requests.
+
     statement {
       managed_rule_group_statement {
-        name = "AWSManagedRulesCommonRuleSet"
+        name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
       }
     }
-    # Enables metrics and sampled-request visibility for this WAF scope.
+
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name = "common"
-      sampled_requests_enabled = true
+      metric_name                = "common"
+      sampled_requests_enabled   = true
     }
   }
-  # Defines one ordered policy or lifecycle rule.
+
   rule {
-    name = "KnownBadInputs"
+    name     = "KnownBadInputs"
     priority = 20
+
     override_action {
-      none {
-      }
+      none {}
     }
-    # Block request patterns AWS identifies as known malicious or high-risk input.
+
     statement {
       managed_rule_group_statement {
-        name = "AWSManagedRulesKnownBadInputsRuleSet"
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
         vendor_name = "AWS"
       }
     }
-    # Enables metrics and sampled-request visibility for this WAF scope.
+
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name = "bad-inputs"
-      sampled_requests_enabled = true
+      metric_name                = "bad-inputs"
+      sampled_requests_enabled   = true
     }
   }
-  # Defines one ordered policy or lifecycle rule.
+
   rule {
-    name = "RateLimit"
+    name     = "RateLimit"
     priority = 30
+
     action {
-      block {
-      }
+      block {}
     }
-    # Rate-limit each source IP to reduce abuse and protect the application origin from request floods.
+
     statement {
       rate_based_statement {
-        limit = var.rate_limit
+        limit              = var.rate_limit
         aggregate_key_type = "IP"
       }
     }
-    # Enables metrics and sampled-request visibility for this WAF scope.
+
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name = "rate"
-      sampled_requests_enabled = true
+      metric_name                = "rate"
+      sampled_requests_enabled   = true
     }
   }
+
   tags = var.tags
+}
+
+# KMS key policies must use Resource "*" to identify the key to which the policy
+# is attached. Exact account and CloudWatch Logs encryption-context constraints
+# prevent the wildcard from extending to any other key or principal.
+#checkov:skip=CKV_AWS_109:KMS key-policy Resource "*" is scoped to this attached logging key and account-root administration.
+#checkov:skip=CKV_AWS_111:CloudWatch Logs cryptographic access is constrained by the exact service principal and log-group encryption context.
+#checkov:skip=CKV_AWS_356:An attached KMS key policy cannot self-reference its not-yet-created ARN; AWS defines "*" as this key.
+data "aws_iam_policy_document" "logging_kms" {
+  statement {
+    sid       = "EnableAccountAdministration"
+    effect    = "Allow"
+    actions   = ["kms:*"]
+    resources = ["*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid    = "AllowCloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:ReEncrypt*",
+    ]
+    resources = ["*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "kms:EncryptionContext:aws:logs:arn"
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:aws-waf-logs-*"]
+    }
+  }
+}
+
+resource "aws_kms_key" "logging" {
+  description             = "${var.name} WAF log encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  policy                  = data.aws_iam_policy_document.logging_kms.json
+  tags                    = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "this" {
+  name              = "aws-waf-logs-${var.name}"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = aws_kms_key.logging.arn
+  tags              = var.tags
+}
+
+resource "aws_wafv2_web_acl_logging_configuration" "this" {
+  resource_arn            = aws_wafv2_web_acl.this.arn
+  log_destination_configs = [aws_cloudwatch_log_group.this.arn]
+
+  redacted_fields {
+    single_header {
+      name = "authorization"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "cookie"
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.this]
 }

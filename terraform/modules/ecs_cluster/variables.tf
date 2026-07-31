@@ -1,17 +1,22 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Declares the input contract for the ecs cluster Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
-variable "name" {
-  type = string
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the ECS cluster and audit-log contract.
+
+variable "name" { type = string }
+variable "kms_key_arn" { type = string }
+
+variable "log_retention_days" {
+  type        = number
+  description = "ECS Exec log retention; one year is the security baseline."
+  default     = 365
+
+  validation {
+    condition     = var.log_retention_days >= 365
+    error_message = "ECS Exec logs must be retained for at least 365 days."
+  }
 }
-# Input `kms_key_arn`: Customer-managed KMS key ARN used to encrypt supported data, logs, queues, or secrets.
-variable "kms_key_arn" {
-  type = string
-}
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
 variable "tags" {
-  type = map(string)
+  type    = map(string)
   default = {}
 }

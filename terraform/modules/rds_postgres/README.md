@@ -4,61 +4,62 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - PostgreSQL data tier
+## Purpose — Resilient encrypted PostgreSQL and RDS Proxy
 
-Creates credentials, secrets, subnet groups, encrypted PostgreSQL, enhanced monitoring, RDS Proxy, and runtime connection settings.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_iam_role.monitoring`:** Creates an IAM role with a narrowly defined trust relationship.
-- **Creates `aws_iam_role_policy_attachment.monitoring`:** Attaches a managed IAM policy required by the role.
-- **Creates `random_password.db`:** Generates a high-entropy value without placing a human-selected password in source control.
-- **Creates `random_password.django`:** Generates a high-entropy value without placing a human-selected password in source control.
-- **Creates `aws_secretsmanager_secret.db`:** Creates a protected secret container whose value is consumed at runtime.
-- **Creates `aws_secretsmanager_secret_version.db`:** Initializes or updates the JSON value stored in Secrets Manager.
-- **Creates `aws_db_subnet_group.this`:** Restricts the database to private database subnets across Availability Zones.
-- **Creates `aws_db_instance.this`:** Creates the managed PostgreSQL database with encryption, backups, and production safety controls.
-- **Creates `aws_iam_role.proxy`:** Creates an IAM role with a narrowly defined trust relationship.
-- **Creates `aws_iam_role_policy.proxy`:** Attaches least-privilege inline permissions to the IAM role.
-- **Creates `aws_db_proxy.this`:** Pools and manages database connections between ECS tasks and PostgreSQL.
-- **Creates `aws_db_proxy_default_target_group.this`:** Defines connection-pool behavior for the database proxy.
-- **Creates `aws_db_proxy_target.this`:** Registers the PostgreSQL instance as a target behind the database proxy.
-- **Creates `aws_secretsmanager_secret.runtime`:** Creates a protected secret container whose value is consumed at runtime.
-- **Creates `aws_secretsmanager_secret_version.runtime`:** Initializes or updates the JSON value stored in Secrets Manager.
-- **Reads `aws_iam_policy_document.monitoring_assume`:** Build the trust policy that permits the RDS monitoring service to publish enhanced-monitoring metrics.
-- **Reads `aws_iam_policy_document.proxy_assume`:** Build the trust policy that allows the managed RDS Proxy service to assume its Secrets Manager access role.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_iam_role.monitoring`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy_attachment.monitoring`:** Attaches an AWS managed service-role policy.
+- **`random_password.db`:** Generates a strong credential without storing plaintext in source control.
+- **`random_password.django`:** Generates a strong credential without storing plaintext in source control.
+- **`aws_secretsmanager_secret.db`:** Creates a KMS-encrypted secret with a recovery window.
+- **`aws_secretsmanager_secret_version.db`:** Stores the generated runtime or integration value.
+- **`aws_db_subnet_group.this`:** Places database resources in isolated subnets.
+- **`aws_db_parameter_group.this`:** Enforces database-engine settings such as PostgreSQL TLS.
+- **`aws_db_instance.this`:** Creates encrypted Multi-AZ PostgreSQL with backups and deletion protection.
+- **`aws_iam_role.proxy`:** Creates a narrowly trusted service or deployment role.
+- **`aws_iam_role_policy.proxy`:** Grants resource-scoped permissions required by the role.
+- **`aws_db_proxy.this`:** Provides pooled TLS database connections using a protected secret.
+- **`aws_db_proxy_default_target_group.this`:** Defines RDS Proxy connection-pool behavior.
+- **`aws_db_proxy_target.this`:** Registers PostgreSQL as the RDS Proxy target.
+- **`aws_secretsmanager_secret.runtime`:** Creates a KMS-encrypted secret with a recovery window.
+- **`aws_secretsmanager_secret_version.runtime`:** Stores the generated runtime or integration value.
+- **Data `data.aws_iam_policy_document.monitoring_assume`:** Builds a structured IAM, resource, trust, or key policy.
+- **Data `data.aws_iam_policy_document.proxy_assume`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Stable name prefix used for resource names, logs, tags, and service identifiers. |
-| `subnet_ids` | `list(string)` | `required` | `false` | Subnet IDs that determine the private or public network placement of the resource. |
-| `security_group_ids` | `list(string)` | `required` | `false` | Security groups attached to the workload network interface. |
-| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used to encrypt supported data, logs, queues, or secrets. |
-| `engine_version` | `string` | `17` | `false` | Requested major or minor managed-service engine version. |
-| `instance_class` | `string` | `required` | `false` | RDS instance size controlling CPU, memory, and network capacity. |
-| `allocated_storage` | `number` | `required` | `false` | Initial PostgreSQL storage allocation in GiB. |
-| `multi_az` | `bool` | `required` | `false` | Whether RDS maintains a synchronous standby in another Availability Zone. |
-| `deletion_protection` | `bool` | `required` | `false` | Whether the managed service rejects accidental deletion. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `name` | `string` | `required` | `false` | Stable name prefix used for resource names and tags. |
+| `subnet_ids` | `list(string)` | `required` | `false` | Subnet IDs that determine resource placement. |
+| `security_group_ids` | `list(string)` | `required` | `false` | Security groups attached to the resource. |
+| `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for encryption. |
+| `engine_version` | `string` | `"17"` | `false` | Configuration value for `engine_version`. |
+| `instance_class` | `string` | `required` | `false` | Configuration value for `instance_class`. |
+| `allocated_storage` | `number` | `required` | `false` | Configuration value for `allocated_storage`. |
+| `multi_az` | `bool` | `true` | `false` | Maintain a synchronous standby in another Availability Zone. |
+| `deletion_protection` | `bool` | `true` | `false` | Reject accidental database deletion. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `endpoint` | Direct RDS PostgreSQL writer endpoint, excluding the port. | `aws_db_instance.this.address` |
-| `proxy_endpoint` | RDS Proxy endpoint used by ECS tasks to pool and protect PostgreSQL connections. | `aws_db_proxy.this.endpoint` |
-| `secret_arn` | ARN of the secret resource consumed by this module. | `aws_secretsmanager_secret.db.arn` |
-| `db_arn` | ARN of the db resource consumed by this module. | `aws_db_instance.this.arn` |
-| `runtime_secret_arn` | ARN of the runtime secret resource consumed by this module. | `aws_secretsmanager_secret.runtime.arn` |
+| `endpoint` | Published `endpoint` value. | `aws_db_instance.this.address` |
+| `proxy_endpoint` | Published `proxy_endpoint` value. | `aws_db_proxy.this.endpoint` |
+| `secret_arn` | Published `secret_arn` value. | `aws_secretsmanager_secret.db.arn` |
+| `db_arn` | Published `db_arn` value. | `aws_db_instance.this.arn` |
+| `runtime_secret_arn` | Published `runtime_secret_arn` value. | `aws_secretsmanager_secret.runtime.arn` |
+
+## Security and reliability controls
+
+- Multi-AZ and deletion protection enabled by default.
+- KMS encryption and enforced TLS.
+- 30-day backups and 731-day Performance Insights.
+- RDS Proxy with protected credentials.
 
 ## Example
 
@@ -71,24 +72,10 @@ module "rds_postgres" {
   kms_key_arn = var.kms_key_arn
   instance_class = var.instance_class
   allocated_storage = var.allocated_storage
-  multi_az = var.multi_az
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -98,6 +85,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

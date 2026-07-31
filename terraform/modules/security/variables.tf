@@ -1,22 +1,40 @@
+
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Declares the input contract for the security Terraform module.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
 variable "name" {
-  type = string
+  type        = string
+  description = "Stable name prefix used for security-group names and tags."
 }
-# Input `vpc_id`: ID of the VPC that owns the resource.
+
 variable "vpc_id" {
-  type = string
+  type        = string
+  description = "ID of the VPC that owns every security group."
 }
-# Input `app_port`: Application TCP port allowed between the ALB and ECS tasks.
+
+variable "vpc_cidr" {
+  type        = string
+  description = "Private VPC CIDR used to constrain east-west egress rules."
+
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr))
+    error_message = "vpc_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
 variable "app_port" {
-  type = number
-  default = 8000
+  type        = number
+  description = "Application TCP port allowed between the ALB and ECS tasks."
+  default     = 8000
+
+  validation {
+    condition     = var.app_port >= 1 && var.app_port <= 65535
+    error_message = "app_port must be a valid TCP port."
+  }
 }
-# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
+
 variable "tags" {
-  type = map(string)
-  default = {}
+  type        = map(string)
+  description = "Common ownership, environment, cost, and governance tags."
+  default     = {}
 }

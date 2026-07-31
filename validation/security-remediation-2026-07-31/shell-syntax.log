@@ -1,0 +1,1 @@
+PASS: all shell scripts under scripts/ and terraform/scripts/ passed bash -n.

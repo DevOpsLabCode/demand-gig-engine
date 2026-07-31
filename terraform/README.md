@@ -5,13 +5,13 @@
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
 
-This directory deploys the AWS production architecture documented in [`../docs/terraform-module-architecture.md`](../docs/terraform-module-architecture.md). It contains 24 reusable service modules, isolated development and production values, secure S3 remote state, Go contract/orchestration tests, GitHub OIDC, and an automated build–migrate–deploy pipeline.
+This directory deploys the AWS production architecture documented in [`../docs/terraform-module-architecture.md`](../docs/terraform-module-architecture.md). It contains 25 reusable service modules, isolated development and production values, secure S3 remote state, Go contract/orchestration tests, GitHub OIDC, and an automated build–migrate–deploy pipeline.
 
 ## Structure
 
 ```text
 terraform/
-├── modules/                  # 24 reusable AWS modules
+├── modules/                  # 25 reusable AWS modules
 ├── envs/
 │   ├── dev/terraform.tfvars
 │   └── prod/terraform.tfvars
@@ -36,6 +36,11 @@ terraform/
 - `jq`, Git, and Go 1.23+ for tests.
 - Route 53 hosted-zone ID and domain when `create_dns=true`.
 - OAuth/payment/integration credentials supplied through a secure JSON file or entered into the generated Secrets Manager secret.
+
+
+## Security remediation baseline
+
+The framework includes a centralized `access_logs` module, blocking Checkov enforcement, a dependency-free remediation validator, encrypted queue/scheduler/notification paths, 365-day security-log retention, Vault Lock, authenticated Redis, secure subnet defaults, and production-safe RDS/ALB deletion controls. See [`../docs/CHECKOV_REMEDIATION.md`](../docs/CHECKOV_REMEDIATION.md) for the finding-by-finding mapping and justified exceptions.
 
 ## Validate
 

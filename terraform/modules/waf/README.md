@@ -4,36 +4,44 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-## Purpose - CloudFront web firewall
+## Purpose — Managed web firewall and encrypted request logging
 
-Creates a CloudFront-scope WAF web ACL with AWS managed rules, rate limiting, visibility, and safe exclusions.
+This module is consumed by the production composition in `terraform/main.tf`. The Terraform source remains authoritative; this README is generated from the current module interface.
 
-## What this module does
+## Resources and data flow
 
-- **Creates `aws_wafv2_web_acl.this`:** Applies managed and custom web-application firewall rules at CloudFront.
-
-## Execution flow
-
-1. The root stack supplies the inputs listed below.
-2. Terraform resolves data sources and derived local values.
-3. Resources are created with the inline security and lifecycle controls in `main.tf`.
-4. Values in `outputs.tf` are returned to the root stack or deployment scripts.
+- **`aws_wafv2_web_acl.this`:** Applies AWS managed rules and per-IP rate limiting at the edge.
+- **`aws_kms_key.logging`:** Creates a rotating customer-managed encryption key with a constrained key policy.
+- **`aws_cloudwatch_log_group.this`:** Stores encrypted logs with a policy-enforced retention period.
+- **`aws_wafv2_web_acl_logging_configuration.this`:** Sends redacted full-request WAF logs to encrypted CloudWatch Logs.
+- **Data `data.aws_caller_identity.current`:** Reads the active AWS account for account-scoped ARNs and policies.
+- **Data `data.aws_partition.current`:** Keeps generated ARNs compatible with the active AWS partition.
+- **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
+- **Data `data.aws_iam_policy_document.logging_kms`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
 
 | Name | Type | Required/default | Sensitive | Description |
 |---|---|---|---|---|
-| `name` | `string` | `required` | `false` | Name prefix for the web ACL. |
-| `scope` | `string` | `CLOUDFRONT` | `false` | WAF scope. CloudFront requires CLOUDFRONT and an us-east-1 provider. |
+| `name` | `string` | `required` | `false` | Name prefix for the Web ACL and its encrypted log group. |
+| `scope` | `string` | `"CLOUDFRONT"` | `false` | WAF scope. CloudFront requires CLOUDFRONT and an us-east-1 provider. |
 | `rate_limit` | `number` | `2000` | `false` | Maximum requests per five-minute evaluation window per source IP. |
-| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags applied to supported resources. |
+| `log_retention_days` | `number` | `365` | `false` | CloudWatch retention for full WAF request logs. |
+| `tags` | `map(string)` | `{}` | `false` | Common ownership, environment, cost, and governance tags. |
 
 ## Outputs
 
 | Name | Description | Value source |
 |---|---|---|
-| `arn` | ARN of the CloudFront-scoped Web ACL attached to the distribution. | `aws_wafv2_web_acl.this.arn` |
-| `id` | Web ACL identifier used by logging and diagnostics. | `aws_wafv2_web_acl.this.id` |
+| `arn` | Published `arn` value. | `aws_wafv2_web_acl.this.arn` |
+| `id` | Published `id` value. | `aws_wafv2_web_acl.this.id` |
+
+## Security and reliability controls
+
+- AWS managed rule groups.
+- Per-IP rate limiting.
+- KMS-encrypted 365-day logs.
+- Authorization and Cookie fields redacted.
 
 ## Example
 
@@ -44,20 +52,7 @@ module "waf" {
 }
 ```
 
-> The root `terraform/main.tf` contains the authoritative production composition. The example above shows the module interface, not a complete standalone deployment.
-
-## Security and reliability notes
-
-- Review every input before production use; defaults are conveniences, not substitutes for environment-specific risk review.
-- Keep secret values in AWS Secrets Manager or protected CI/CD secrets. Do not place credentials in `.tfvars` committed to Git.
-- Run `terraform fmt`, `terraform validate`, TFLint, Checkov, and the Go contract tests before applying changes.
-- Inspect the plan for replacement, deletion, public exposure, IAM expansion, encryption changes, and cross-account effects.
-
-## Files
-
-- `main.tf` - resources and service configuration.
-- `variables.tf` - input contract, validation, and defaults.
-- `outputs.tf` - values exposed to callers when present.
+> The example shows the module contract only. Use `terraform/main.tf` for the complete dependency graph and production wiring.
 
 ## Validation
 
@@ -67,6 +62,7 @@ terraform init -backend=false
 terraform validate
 tflint --recursive
 checkov -d .
+python scripts/validate_security_remediation.py
 ```
 
-See [`../../README.md`](../../README.md) for environment deployment and [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md) for the complete architecture.
+See [`../../README.md`](../../README.md), [`../../../docs/terraform-module-architecture.md`](../../../docs/terraform-module-architecture.md), and [`../../../docs/CHECKOV_REMEDIATION.md`](../../../docs/CHECKOV_REMEDIATION.md).

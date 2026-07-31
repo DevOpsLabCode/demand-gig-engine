@@ -1,53 +1,100 @@
-# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates an encrypted AWS Backup vault, service role, schedule, retention policy, and protected-resource selection.
-# Reading guide: Each comment explains why the following Terraform block exists.
 
-# Build the trust policy that permits only the AWS Backup service to assume the backup role.
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates an encrypted AWS Backup vault, immutable retention controls, schedule, role, and protected-resource selection.
+
 data "aws_iam_policy_document" "assume" {
-  # Allow AWS Backup to assume the service role that protects the selected resources.
   statement {
     actions = ["sts:AssumeRole"]
+
     principals {
-      type = "Service"
+      type        = "Service"
       identifiers = ["backup.amazonaws.com"]
     }
   }
 }
-# Creates an IAM role with a narrowly defined trust relationship.
+
 resource "aws_iam_role" "this" {
-  name = "${var.name}-backup"
+  name               = "${var.name}-backup"
   assume_role_policy = data.aws_iam_policy_document.assume.json
+  tags               = var.tags
 }
-# Attaches a managed IAM policy required by the role.
+
 resource "aws_iam_role_policy_attachment" "this" {
-  role = aws_iam_role.this.name
+  role       = aws_iam_role.this.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
 }
-# Creates encrypted storage for AWS Backup recovery points.
-resource "aws_backup_vault" "this" {
-  name = var.name
-  kms_key_arn = var.kms_key_arn
-  tags = var.tags
+
+# Grant the backup service role access only to this environment's vault key.
+# CreateGrant is constrained to grants created for AWS-managed resources.
+resource "aws_iam_role_policy" "kms" {
+  name = "${var.name}-backup-kms"
+  role = aws_iam_role.this.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "UseBackupVaultKey"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*",
+        ]
+        Resource = var.kms_key_arn
+      },
+      {
+        Sid      = "CreateAWSResourceGrant"
+        Effect   = "Allow"
+        Action   = ["kms:CreateGrant"]
+        Resource = var.kms_key_arn
+        Condition = {
+          Bool = {
+            "kms:GrantIsForAWSResource" = "true"
+          }
+        }
+      },
+    ]
+  })
 }
-# Defines backup frequency, retention, and lifecycle policy.
+
+resource "aws_backup_vault" "this" {
+  name        = var.name
+  kms_key_arn = var.kms_key_arn
+  tags        = var.tags
+}
+
+# Vault Lock prevents recovery points from being shortened or deleted before the
+# configured minimum. The grace period permits correction of a mistaken first apply.
+resource "aws_backup_vault_lock_configuration" "this" {
+  backup_vault_name   = aws_backup_vault.this.name
+  changeable_for_days = var.vault_lock_changeable_for_days
+  min_retention_days  = var.minimum_retention_days
+  max_retention_days  = var.maximum_retention_days
+}
+
 resource "aws_backup_plan" "this" {
   name = var.name
-  # Defines one ordered policy or lifecycle rule.
+
   rule {
-    rule_name = "daily"
+    rule_name         = "daily"
     target_vault_name = aws_backup_vault.this.name
-    schedule = "cron(0 5 ? * * *)"
-    # Controls replacement, deletion protection, and drift behavior for this resource.
+    schedule          = "cron(0 5 ? * * *)"
+
     lifecycle {
-      delete_after = 35
+      cold_storage_after = var.cold_storage_after_days
+      delete_after       = var.minimum_retention_days
     }
   }
+
   tags = var.tags
 }
-# Selects protected resources through the backup service role and tags.
+
 resource "aws_backup_selection" "this" {
   iam_role_arn = aws_iam_role.this.arn
-  name = var.name
-  plan_id = aws_backup_plan.this.id
-  resources = var.resource_arns
+  name         = var.name
+  plan_id      = aws_backup_plan.this.id
+  resources    = var.resource_arns
 }

@@ -62,7 +62,11 @@ resource "aws_iam_role" "github" {
   tags                 = var.tags
 }
 
-# Attaches least-privilege inline permissions to the IAM role.
+# ECR GetAuthorizationToken is an AWS account-level API that does not support
+# resource-level permissions; every repository upload and ECS update permission
+# below it remains constrained to exact repository or service ARNs.
+#checkov:skip=CKV_AWS_111:ecr:GetAuthorizationToken cannot be resource-scoped; all write operations use exact ECR repository or ECS service ARNs.
+#checkov:skip=CKV_AWS_356:AWS requires Resource "*" for ecr:GetAuthorizationToken and no other statement in this deployment policy uses a wildcard resource.
 resource "aws_iam_role_policy" "github" {
   role = aws_iam_role.github.id
   policy = jsonencode({

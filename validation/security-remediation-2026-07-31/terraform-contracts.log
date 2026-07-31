@@ -1,0 +1,4 @@
+PASS: all Terraform var.* references are declared.
+PASS: every required root-module input is supplied.
+PASS: no unknown root-module arguments were introduced.
+PASS: every referenced module output exists.

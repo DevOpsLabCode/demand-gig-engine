@@ -6,8 +6,8 @@
 
 
 **Project:** Demand-Driven Gig Creation MVP  
-**Validation date:** July 30, 2026  
-**Source tested:** `demand-gig-engine-social-auth-aws-prod.zip`, followed by the fixes documented below
+**Validation date:** July 31, 2026  
+**Source tested:** security-remediated Demand Gig Engine package
 
 ## Executive result
 
@@ -21,7 +21,7 @@ The previous GitHub application baseline succeeded with **84 tests plus 7 subtes
 |---|---|---|
 | Dependency-free repository validation | PASS | 69 checks, 0 failures |
 | Python parsing and bytecode compilation | PASS | 49 Python files parsed; backend and scripts compiled |
-| GitHub workflow validation | PASS | 4 workflow files validated |
+| GitHub workflow validation | PASS | 5 workflow files validated |
 | Shell syntax | PASS | `run_full_tests.sh`, `run_all_tests.sh`, and `security_scan.sh` |
 | VibesMeet contract unit tests | PASS | 2 tests passed |
 | TypeScript/TSX syntax transpilation | PASS | 12 source files, 0 syntax errors |
@@ -79,8 +79,8 @@ The AWS framework received an additional infrastructure-specific validation pass
 
 | Check | Result | Details |
 |---|---|---|
-| Terraform structural/module contracts | PASS | 76 Terraform files and 29 root module instances |
-| Go infrastructure tests | PASS | 27 tests with the race detector |
+| Terraform structural/module contracts | PASS | 79 Terraform files and 30 root module instances |
+| Go infrastructure tests | PASS | 29 tests with the race detector |
 | Go static analysis | PASS | `go vet ./...` |
 | Mock deployment orchestration | PASS | State bootstrap, ECR build/push, zero capacity, migration, scale-up, S3, CloudFront |
 | GitHub workflow validation | PASS | 5 workflows; current Terraform/TFLint action majors |
@@ -108,8 +108,21 @@ A repository-wide documentation pass added author attribution, file-purpose head
 | Documentation integrity | PASS | 46 Markdown files and 100 local links checked |
 | Author attribution | PASS | 232 applicable source/documentation files checked; 0 missing |
 | Repository checks | PASS | 69 checks, 0 failures; 5 GitHub workflows validated |
-| Terraform Go tests | PASS | 27 tests passed with the race detector; `go vet ./...` passed |
-| Updated PDF | PASS | 30 pages; preflight and 200-DPI visual inspection passed |
+| Terraform Go tests | PASS | 29 tests passed with the race detector; `go vet ./...` passed |
+| Updated PDF | PASS | 26 pages; preflight and 160-DPI visual inspection passed |
 | Flake8 | NOT RUN LOCALLY | Tool unavailable in the sandbox; blocking rules remain configured in CI |
 
 Detailed evidence is stored in [`validation/documentation-enhancement-2026-07-31/`](validation/documentation-enhancement-2026-07-31/).
+
+## Security remediation validation — July 31, 2026
+
+| Check | Result | Details |
+|---|---|---|
+| Security remediation invariants | PASS | 99 checks across Terraform and the security workflow |
+| Repository structural checks | PASS | 69 checks, 0 failures |
+| GitHub workflow validation | PASS | 5 workflows |
+| Terraform Go race tests | PASS | 29 tests |
+| Shell syntax validation | PASS | Root and Terraform automation scripts |
+| Native Checkov rerun | DEFERRED | Runs in GitHub Actions; scanner unavailable in this sandbox |
+
+The updated npm job always produces `npm-audit.json`, even when dependency resolution fails, and the strict Checkov job uploads SARIF before enforcing the result. See [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) and [`validation/security-remediation-2026-07-31/`](validation/security-remediation-2026-07-31/).

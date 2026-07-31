@@ -30,6 +30,7 @@ This repository is documented for three audiences:
 | [`docs/SOCIAL_AUTHENTICATION.md`](docs/SOCIAL_AUTHENTICATION.md) | Google, Facebook, Instagram, and TikTok authentication design |
 | [`docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md`](docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md) | VibesMeet ownership boundaries, contracts, and integration modules |
 | [`SECURITY_TESTING.md`](SECURITY_TESTING.md) | Security gates, tools, CI jobs, and local commands |
+| [`docs/CHECKOV_REMEDIATION.md`](docs/CHECKOV_REMEDIATION.md) | Checkov finding-by-finding remediation, exceptions, and verification |
 | [`TEST_REPORT.md`](TEST_REPORT.md) | Executed application validation and environment limitations |
 | [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md) | Infrastructure test evidence and deployment-contract validation |
 
@@ -933,7 +934,7 @@ The recommended production topology is documented in [`docs/AWS_PRODUCTION_ARCHI
 
 # AWS Terraform framework
 
-A complete modular AWS framework is available under [`terraform/`](terraform/README.md). It implements 24 reusable modules and isolated development/production stacks with native S3 state lockfiles, CloudFront/WAF/S3, a CloudFront-only ALB origin, ECS Fargate API/worker/migration tasks, PostgreSQL with RDS Proxy, Redis, SQS/EventBridge, SES, Secrets Manager/KMS, CloudWatch, CloudTrail, GuardDuty, X-Ray, AWS Backup, ECR, and GitHub OIDC.
+A complete modular AWS framework is available under [`terraform/`](terraform/README.md). It implements 25 reusable modules and isolated development/production stacks with native S3 state lockfiles, CloudFront/WAF/S3, a CloudFront-only ALB origin, ECS Fargate API/worker/migration tasks, PostgreSQL with RDS Proxy, Redis, SQS/EventBridge, SES, Secrets Manager/KMS, CloudWatch, CloudTrail, GuardDuty, X-Ray, AWS Backup, ECR, and GitHub OIDC.
 
 The deployment workflow builds and pushes both images, provisions services at zero capacity, injects optional provider credentials, runs a dedicated migration task, scales API/worker services, uploads the React build with safe cache headers, and invalidates CloudFront. The browser uses same-origin `/api` in AWS; Docker Compose injects the local backend URL during the frontend build.
 

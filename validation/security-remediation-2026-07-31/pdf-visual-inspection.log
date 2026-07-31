@@ -1,0 +1,6 @@
+PDF visual inspection: PASS
+Artifact: docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf
+Renderer: pdftoppm via /home/oai/skills/pdfs/scripts/render_pdf.py
+Resolution: 160 DPI
+Pages inspected: all 26 pages in a contact sheet; full-size spot checks on pages 1, 4, and 26
+Verified: no clipped text, overlapping content, black squares, broken glyphs, truncated screenshots, or missing page furniture.
