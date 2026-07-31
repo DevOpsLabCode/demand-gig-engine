@@ -1263,7 +1263,7 @@ Declares the input contract for the rds postgres Terraform module.
 
 ### `terraform/modules/redis/main.tf`
 
-Creates an encrypted, subnet-isolated Redis replication group with automatic failover when replicas are enabled.
+Creates an encrypted, subnet-isolated Redis replication group with mandatory Multi-AZ automatic failover.
 
 - `resource aws_elasticache_subnet_group.this` - Create and manage the aws elasticache subnet group resource owned by this file.
 - `resource aws_elasticache_replication_group.this` - Creates encrypted Redis primary and replica nodes with failover support.
@@ -1589,7 +1589,7 @@ Declares configurable environment, networking, scaling, DNS, security, and integ
 - `variable db_allocated_storage` - Input `db_allocated_storage`: Initial encrypted PostgreSQL storage allocation in GiB.
 - `variable db_multi_az` - Input `db_multi_az`: Create a synchronous standby in another Availability Zone for production resilience.
 - `variable redis_node_type` - Input `redis_node_type`: ElastiCache node class used by the Redis replication group.
-- `variable redis_replicas` - Input `redis_replicas`: Number of Redis read replicas; values above zero enable automatic failover.
+- `variable redis_replicas` - Input `redis_replicas`: Number of Redis read replicas; at least one is required for Multi-AZ automatic failover.
 - `variable deletion_protection` - Input `deletion_protection`: Whether the managed service rejects accidental deletion.
 - `variable schedule_enabled` - Input `schedule_enabled`: Whether the campaign-expiry schedule is active.
 - `variable enable_guardduty` - Input `enable_guardduty`: Whether to enable guardduty behavior.

@@ -34,6 +34,15 @@ resource "aws_guardduty_detector" "this" {
   tags                         = local.tags
 }
 
+# In a delegated GuardDuty administrator account, enroll every existing and future
+# AWS Organizations member in this region. Workload accounts leave this disabled
+# because only the delegated administrator may manage organization configuration.
+resource "aws_guardduty_organization_configuration" "this" {
+  count                            = var.enable_guardduty_organization_auto_enrollment ? 1 : 0
+  auto_enable_organization_members = "ALL"
+  detector_id                      = aws_guardduty_detector.this.id
+}
+
 # Protect S3 activity with GuardDuty data-event analysis.
 resource "aws_guardduty_detector_feature" "s3_data_events" {
   detector_id = aws_guardduty_detector.this.id

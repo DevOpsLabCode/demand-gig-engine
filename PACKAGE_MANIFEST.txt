@@ -280,6 +280,8 @@ terraform/variables.tf
 terraform/versions.tf
 validation/README.md
 validation/architecture_diagrams.log
+validation/checkov-policy-fix-2026-07-31/README.md
+validation/checkov-policy-fix-2026-07-31/validation.log
 validation/checksums_final.log
 validation/django_runtime_attempt.log
 validation/docker_runtime_attempt.log

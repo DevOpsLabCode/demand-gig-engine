@@ -66,6 +66,7 @@ The new `access_logs` module provides a single private destination for ALB, Clou
 - Full WAF request logs are KMS encrypted, retained at least 365 days, and redact `Authorization` and `Cookie` headers.
 - CloudTrail is multi-region, validates log files, uses KMS encryption, and sends encrypted SNS delivery notifications.
 - S3 source buckets deliver access logs centrally and abort abandoned multipart uploads.
+- The account foundation can enroll all existing and future AWS Organizations accounts into GuardDuty in each governed region when applied from the delegated GuardDuty administrator account.
 
 ## Documented exceptions
 
@@ -101,6 +102,15 @@ The later workflow run exposed two implementation defects in the first remediati
 2. Checkov exception comments were outside Terraform definition scopes. They have been moved inside the exact resource or data block they govern, matching Checkov's supported syntax.
 
 The follow-up also adds real controls for the remaining graph findings: CloudTrail delivery to an encrypted 365-day CloudWatch log group, an explicit bootstrap KMS key policy, mandatory Redis replicas with Multi-AZ automatic failover, and a dedicated REGIONAL WAF association on the ALB. Architecture-specific findings retain narrowly documented in-scope exceptions only where the control is owned by another account/layer or conflicts with an AWS service requirement.
+
+## GitHub run #31 final Checkov remediation
+
+The final scan reported exactly two failures:
+
+- `CKV2_AWS_50` on `module.redis.aws_elasticache_replication_group.this`. The Redis module now sets `automatic_failover_enabled = true` and `multi_az_enabled = true` as literal enforced controls. The replica contract is 1-5, and the development environment now provisions one replica instead of a non-failover single node.
+- `CKV2_AWS_3` on `aws_guardduty_detector.this`. The account foundation now contains an `aws_guardduty_organization_configuration` connected to the regional detector with `auto_enable_organization_members = "ALL"`. Creation is controlled by `enable_guardduty_organization_auto_enrollment` and must be enabled only in the delegated GuardDuty administrator account.
+
+The security workflow remains fail-closed and no global Checkov exclusions were added.
 
 ## Validation commands
 

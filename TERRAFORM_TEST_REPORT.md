@@ -119,6 +119,15 @@ All Terraform files received inline explanations for resources, modules, variabl
 
 The package now remediates the reported ALB, CloudFront, CloudTrail, SNS, CloudWatch Logs, EventBridge Scheduler, KMS/IAM, subnet, and RDS findings at the Terraform resource level. It also adds encrypted SQS, authenticated Redis, immutable backup retention, encrypted WAF request logging, constrained security-group egress, a centralized access-log sink, and reliable npm failure artifacts.
 
+### Final policy-gate correction
+
+The last two reported graph findings are now addressed directly:
+
+- Redis automatic failover and Multi-AZ are unconditional, and every environment requires at least one replica.
+- The regional GuardDuty detector is connected to an optional delegated-administrator organization configuration that auto-enrolls `ALL` current and future member accounts.
+
+Offline regression results after this change: 156 security-remediation assertions, 6 workflow-discovery scenarios, 44 Go Terraform tests with the race detector, 25 module/31 root-instance contract checks, 5 workflow validations, 169 documentation links, and 69 repository static checks all passed. Native Checkov execution remains delegated to GitHub because the sandbox package mirror does not provide Checkov or Terraform binaries.
+
 | Validation | Result |
 |---|---|
 | Dependency-free remediation validator | PASS — 116 security invariants |

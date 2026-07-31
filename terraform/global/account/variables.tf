@@ -107,6 +107,12 @@ variable "guardduty_finding_frequency" {
   }
 }
 
+variable "enable_guardduty_organization_auto_enrollment" {
+  type        = bool
+  description = "Manage GuardDuty AWS Organizations auto-enrollment in this region. Enable only in the delegated GuardDuty administrator account."
+  default     = false
+}
+
 variable "enable_guardduty_runtime_monitoring" {
   type        = bool
   description = "Enable GuardDuty Runtime Monitoring and automatic Fargate agent management."

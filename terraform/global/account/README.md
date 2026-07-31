@@ -12,11 +12,14 @@ This one-time Terraform root owns resources that are singletons at the AWS accou
 - Read-only Terraform plan role that can manage only native S3 `.tflock` files.
 - Protected Terraform apply role using `PowerUserAccess` plus narrowly scoped IAM lifecycle permissions—not `AdministratorAccess`.
 - Regional GuardDuty detector.
+- Optional AWS Organizations auto-enrollment for all existing and future member accounts when this stack runs in the delegated GuardDuty administrator account.
 - GuardDuty S3 data-event, EBS malware, and RDS login protections.
 - Optional GuardDuty Runtime Monitoring with automatic ECS Fargate agent management.
 - Optional Inspector-backed ECR enhanced continuous scanning.
 
 Environment stacks create only application-release roles and read the shared OIDC provider and GuardDuty detector as data sources.
+
+Set `enable_guardduty_organization_auto_enrollment = true` only in the delegated GuardDuty administrator account. Keep the default `false` in ordinary workload accounts; AWS rejects organization-configuration updates from non-administrator accounts.
 
 ## One-time bootstrap
 

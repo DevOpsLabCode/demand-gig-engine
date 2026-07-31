@@ -28,7 +28,7 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 | `kms_key_arn` | `string` | `required` | `false` | Customer-managed KMS key ARN used for data and secret encryption. |
 | `engine_version` | `string` | `"7.1"` | `false` | Redis-compatible ElastiCache engine version. |
 | `node_type` | `string` | `required` | `false` | ElastiCache node type controlling memory, network, and CPU capacity. |
-| `replicas` | `number` | `required` | `false` | Number of read replicas. Zero is permitted for cost-limited development; production is enforced at the root module. |
+| `replicas` | `number` | `required` | `false` | Number of read replicas. At least one replica is required so Multi-AZ automatic failover is always available. |
 | `snapshot_retention_days` | `number` | `7` | `false` | Number of days ElastiCache retains automatic snapshots. |
 | `log_retention_days` | `number` | `365` | `false` | CloudWatch retention for Redis engine and slow-query logs. |
 | `apply_immediately` | `bool` | `false` | `false` | Apply service changes immediately rather than during the maintenance window. Keep false for production. |

@@ -348,8 +348,8 @@ def main() -> int:
         "at_rest_encryption_enabled = true",
         "transit_encryption_enabled = true",
         "auth_token                 = random_password.auth.result",
-        "automatic_failover_enabled = var.replicas > 0",
-        "multi_az_enabled           = var.replicas > 0",
+        "automatic_failover_enabled = true",
+        "multi_az_enabled           = true",
         'REDIS_URL = "rediss://:',
     )
     require(
@@ -484,6 +484,8 @@ def main() -> int:
         "terraform/global/account/main.tf",
         'resource "aws_iam_openid_connect_provider" "github"',
         'resource "aws_guardduty_detector" "this"',
+        'resource "aws_guardduty_organization_configuration" "this"',
+        'auto_enable_organization_members = "ALL"',
         'resource "aws_guardduty_detector_feature" "runtime_monitoring"',
         'name   = "ECS_FARGATE_AGENT_MANAGEMENT"',
         'resource "aws_ecr_registry_scanning_configuration" "this"',

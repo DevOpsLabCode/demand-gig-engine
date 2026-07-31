@@ -23,6 +23,7 @@
 - Extended workflow discovery to the Terraform pipeline, added the `TERRAFORM_WORKFLOW_PATH` override, and changed Terraform workflow path filters to `.github/workflows/**` so workflow renames remain validated and trigger CI.
 - Pinned the canonical Terraform and security workflow paths in the security workflow and added regression tests for conventional filenames, renamed workflows, and explicit environment overrides.
 - Moved all governed Checkov suppressions inside their Terraform resource/data scopes, added CloudTrail CloudWatch integration, explicit bootstrap KMS policy, mandatory Redis Multi-AZ failover, and a dedicated regional ALB WAF.
+- Resolved the final two Checkov failures by requiring at least one Redis replica with literal Multi-AZ automatic failover in every environment and adding optional GuardDuty AWS Organizations auto-enrollment for the delegated administrator account.
 
 ## Documentation rule
 

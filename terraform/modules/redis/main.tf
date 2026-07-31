@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Creates authenticated, encrypted, subnet-isolated Redis with environment-aware failover and a protected runtime connection secret.
+# Purpose: Creates authenticated, encrypted, subnet-isolated Redis with mandatory Multi-AZ automatic failover and a protected runtime connection secret.
 
 resource "aws_elasticache_subnet_group" "this" {
   name       = var.name
@@ -36,8 +36,8 @@ resource "aws_elasticache_replication_group" "this" {
   engine_version             = var.engine_version
   node_type                  = var.node_type
   num_cache_clusters         = var.replicas + 1
-  automatic_failover_enabled = var.replicas > 0
-  multi_az_enabled           = var.replicas > 0
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   auth_token                 = random_password.auth.result

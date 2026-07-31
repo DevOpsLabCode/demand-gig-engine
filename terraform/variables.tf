@@ -132,10 +132,15 @@ variable "redis_node_type" {
   type = string
   default = "cache.t4g.micro"
 }
-# Input `redis_replicas`: Number of Redis read replicas; values above zero enable automatic failover.
+# Input `redis_replicas`: Number of Redis read replicas; at least one is required for Multi-AZ automatic failover.
 variable "redis_replicas" {
-  type = number
+  type    = number
   default = 1
+
+  validation {
+    condition     = floor(var.redis_replicas) == var.redis_replicas && var.redis_replicas >= 1 && var.redis_replicas <= 5
+    error_message = "redis_replicas must be a whole number between 1 and 5."
+  }
 }
 # Input `deletion_protection`: Whether the managed service rejects accidental deletion.
 variable "deletion_protection" {

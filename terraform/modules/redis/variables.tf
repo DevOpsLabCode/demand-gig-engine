@@ -64,11 +64,11 @@ variable "node_type" {
 
 variable "replicas" {
   type        = number
-  description = "Number of read replicas. Zero is permitted for cost-limited development; production is enforced at the root module."
+  description = "Number of read replicas. At least one replica is required so Multi-AZ automatic failover is always available."
 
   validation {
-    condition     = floor(var.replicas) == var.replicas && var.replicas >= 0 && var.replicas <= 5
-    error_message = "replicas must be a whole number between 0 and 5."
+    condition     = floor(var.replicas) == var.replicas && var.replicas >= 1 && var.replicas <= 5
+    error_message = "replicas must be a whole number between 1 and 5 so automatic failover remains enabled."
   }
 }
 

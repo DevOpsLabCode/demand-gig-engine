@@ -538,15 +538,15 @@ func TestEnvironmentAwareDataProtection(t *testing.T) {
 	prod := read(t, filepath.Join(root(t), "envs", "prod", "terraform.tfvars"))
 
 	for _, fragment := range []string{
-		"automatic_failover_enabled = var.replicas > 0",
-		"multi_az_enabled           = var.replicas > 0",
+		"automatic_failover_enabled = true",
+		"multi_az_enabled           = true",
 	} {
 		if !strings.Contains(redisMain, fragment) {
-			t.Errorf("Redis environment-aware availability missing %q", fragment)
+			t.Errorf("Redis mandatory availability control missing %q", fragment)
 		}
 	}
-	if !strings.Contains(redisVars, "var.replicas >= 0") {
-		t.Error("Redis module does not permit a single-node development deployment")
+	if !strings.Contains(redisVars, "var.replicas >= 1") {
+		t.Error("Redis module does not enforce at least one failover replica")
 	}
 	for _, fragment := range []string{
 		"count = var.enable_vault_lock ? 1 : 0",
@@ -559,8 +559,8 @@ func TestEnvironmentAwareDataProtection(t *testing.T) {
 	if !strings.Contains(rootMain, "enable_vault_lock           = var.enable_backup_vault_lock") {
 		t.Error("Root module does not wire environment-specific Vault Lock")
 	}
-	if !regexp.MustCompile(`(?m)^redis_replicas\s*=\s*0\s*$`).MatchString(dev) {
-		t.Error("Development should explicitly select a single-node Redis topology")
+	if !regexp.MustCompile(`(?m)^redis_replicas\s*=\s*1\s*$`).MatchString(dev) {
+		t.Error("Development must retain one Redis replica for Multi-AZ automatic failover")
 	}
 	if !regexp.MustCompile(`(?m)^enable_backup_vault_lock\s*=\s*false\s*$`).MatchString(dev) {
 		t.Error("Development should not enable immutable Compliance Vault Lock")
@@ -724,6 +724,8 @@ func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
 	for _, fragment := range []string{
 		`resource "aws_iam_openid_connect_provider" "github"`,
 		`resource "aws_guardduty_detector" "this"`,
+		`resource "aws_guardduty_organization_configuration" "this"`,
+		`auto_enable_organization_members = "ALL"`,
 		`resource "aws_guardduty_detector_feature" "runtime_monitoring"`,
 		`ECS_FARGATE_AGENT_MANAGEMENT`,
 		`resource "aws_ecr_registry_scanning_configuration" "this"`,
