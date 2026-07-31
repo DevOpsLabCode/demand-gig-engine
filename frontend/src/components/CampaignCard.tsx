@@ -1,3 +1,9 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Presents campaign status and progress, captures supporter/sponsor input, completes deposits, and exposes sharing integrations.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import { FormEvent, useMemo, useState } from "react";
 import { Elements } from "@stripe/react-stripe-js";
 import { CalendarDays, CheckCircle2, MapPin, Share2, Users } from "lucide-react";
@@ -7,6 +13,9 @@ import { DepositPayment } from "./DepositPayment";
 import { FacebookIntegration } from "./FacebookIntegration";
 import { trackMetaEvent } from "../meta";
 
+/**
+ * Receive one campaign plus callbacks for state transitions, commitments, sponsorships, and authoritative reloads.
+ */
 interface Props {
   campaign: Campaign;
   onLaunch: (slug: string) => Promise<void>;
@@ -15,7 +24,13 @@ interface Props {
   onReload: () => Promise<void>;
 }
 
+/**
+ * Render lifecycle status, threshold metrics, confirmation state, pledge/sponsor forms, Stripe deposit completion, and social sharing.
+ */
 export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload }: Props) {
+  /**
+   * Format server-supplied decimal strings in the campaign currency for readable progress and target values.
+   */
   const money = (value: string | number) => new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: campaign.currency,
@@ -37,6 +52,7 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     benefits_requested: "",
   });
 
+  /** Submit one idempotent supporter commitment and open Stripe only when the backend returns a client secret. */
   async function pledge(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -77,6 +93,7 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     }
   }
 
+  /** Validate and submit a sponsor commitment, then reset only the form fields after success. */
   async function submitSponsor(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -91,6 +108,7 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     }
   }
 
+  /** Use the native share sheet when available, otherwise copy the public campaign URL to the clipboard. */
   async function share() {
     const url = `${window.location.origin}/?campaign=${campaign.slug}&source=facebook_group`;
     const data = { title: campaign.title, text: campaign.pitch, url };

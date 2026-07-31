@@ -1,3 +1,6 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares production Python dependencies for the Django API container.
+
 Django>=5.1,<5.3
 djangorestframework>=3.15,<3.17
 django-cors-headers>=4.4,<5.0

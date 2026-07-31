@@ -1,3 +1,7 @@
+// Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+// Purpose: Defines the source graph used to render the documented architecture or authentication-flow diagram.
+// Nodes represent services or actors; directed edges represent request, data, or trust flow.
+
 digraph DemandGigAWS {
   graph [rankdir=TB, newrank=true, bgcolor="#07111F", fontname="Arial", fontsize=24, pad=0.35, nodesep=0.42, ranksep=0.62, compound=true, splines=spline, label="Demand Gig Engine — AWS Production Architecture", labelloc=t, fontcolor="white", size="16,10!", ratio=fill];
   node [shape=box, style="rounded,filled", fontname="Arial", fontsize=10, color="#64748B", fillcolor="#172033", fontcolor="white", margin="0.13,0.09"];

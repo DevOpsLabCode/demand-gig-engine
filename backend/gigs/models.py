@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Defines the persistent domain model for accounts, demand campaigns, pledges, sponsors, events, and integration audit records.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Defines the persistent domain model for accounts, demand campaigns, pledges, sponsors, events, and integration audit records.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from __future__ import annotations
 
 import uuid
@@ -10,6 +20,9 @@ from django.utils.text import slugify
 
 
 class AccountType(models.TextChoices):
+    """
+    Enumerate the stable database/API values for AccountType.
+    """
     FAN = "fan", "Fan"
     BAND = "band", "Band / artist"
     VENUE = "venue", "Venue"
@@ -19,7 +32,7 @@ class AccountType(models.TextChoices):
 
 
 class GigUserProfile(models.Model):
-    """Application profile shared by fans, bands, venues, and organizers."""
+    """Persist GigUserProfile state and enforce its domain-level invariants."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name="gig_profile", on_delete=models.CASCADE)
     account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.FAN)
@@ -34,10 +47,19 @@ class GigUserProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        """
+        Return a readable user/profile label for Django Admin, logs, and debugging.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return self.display_name or self.user.get_full_name() or self.user.get_username()
 
 
 class CampaignStatus(models.TextChoices):
+    """
+    Enumerate the stable database/API values for CampaignStatus.
+    """
     DRAFT = "draft", "Draft"
     COLLECTING = "collecting", "Collecting support"
     TARGET_REACHED = "target_reached", "Target reached"
@@ -52,12 +74,18 @@ class CampaignStatus(models.TextChoices):
 
 
 class GoalType(models.TextChoices):
+    """
+    Enumerate the stable database/API values for GoalType.
+    """
     SUPPORTERS = "supporters", "Supporters"
     MONEY = "money", "Committed amount"
     BOTH = "both", "Both supporters and amount"
 
 
 class DemandCampaign(models.Model):
+    """
+    Persist DemandCampaign state and enforce its domain-level invariants.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -97,6 +125,9 @@ class DemandCampaign(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        """
+        Declare model or serializer metadata such as ordering, fields, and uniqueness constraints.
+        """
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["status", "deadline"], name="gig_status_deadline_idx"),
@@ -104,16 +135,35 @@ class DemandCampaign(models.Model):
         ]
 
     def clean(self):
+        """
+        Validate cross-field campaign rules such as positive targets and future deadlines.
+        
+        Raises:
+            ValidationError: When the documented validation or integration precondition fails.
+        """
+        # A supporter-based goal must require at least one attendee; zero would make the campaign immediately successful.
         if self.goal_type in (GoalType.SUPPORTERS, GoalType.BOTH) and self.supporter_target < 1:
             raise ValidationError("Supporter target must be at least 1.")
+        # A money-based goal must be positive so progress and threshold evaluation remain meaningful.
         if self.goal_type in (GoalType.MONEY, GoalType.BOTH) and self.amount_target <= 0:
             raise ValidationError("Amount target must be greater than zero.")
 
     def save(self, *args, **kwargs):
+        """
+        Generate a unique slug when needed, then persist the campaign normally.
+        
+        Args:
+            *args: Additional positional arguments forwarded to the underlying implementation.
+            **kwargs: Additional keyword arguments forwarded to the underlying implementation.
+        """
+        # Generate the public slug once, preserving an existing slug so shared links remain stable.
         if not self.slug:
             root = slugify(f"{self.artist_name}-{self.city}")[:180] or "gig"
             candidate = root
             counter = 2
+            # Repeat this block while
+            # `DemandCampaign.objects.filter(slug=candidate).exclude(pk=self.pk).exists()` remains
+            # true.
             while DemandCampaign.objects.filter(slug=candidate).exclude(pk=self.pk).exists():
                 candidate = f"{root}-{counter}"
                 counter += 1
@@ -122,12 +172,24 @@ class DemandCampaign(models.Model):
 
     @property
     def active_supporter_count(self) -> int:
+        """
+        Count ticket quantities from pledges that still contribute to the campaign.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return self.pledges.filter(status__in=Pledge.active_statuses()).aggregate(
             total=models.Sum("quantity")
         )["total"] or 0
 
     @property
     def committed_amount(self) -> Decimal:
+        """
+        Sum active supporter deposits and sponsor commitments in the campaign currency.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         supporter_total = self.pledges.filter(status__in=Pledge.active_statuses()).aggregate(
             total=models.Sum("amount")
         )["total"] or Decimal("0.00")
@@ -138,29 +200,54 @@ class DemandCampaign(models.Model):
 
     @property
     def target_reached(self) -> bool:
+        """
+        Evaluate the configured supporter-count or monetary threshold.
+        
+        Returns:
+            True when the documented condition is satisfied; otherwise False.
+        """
         supporters_met = self.active_supporter_count >= self.supporter_target
         amount_met = self.committed_amount >= self.amount_target
+        # Evaluate or display progress against supporter quantity for a supporter-only campaign.
         if self.goal_type == GoalType.SUPPORTERS:
             return supporters_met
+        # Evaluate or display progress against committed value for a money-only campaign.
         if self.goal_type == GoalType.MONEY:
             return amount_met
         return supporters_met and amount_met
 
     @property
     def progress_percent(self) -> int:
+        """
+        Return threshold progress as a percentage capped at 100 for display.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         supporter_pct = 100 if not self.supporter_target else int(self.active_supporter_count * 100 / self.supporter_target)
         amount_pct = 100 if not self.amount_target else int(self.committed_amount * 100 / self.amount_target)
+        # Evaluate or display progress against supporter quantity for a supporter-only campaign.
         if self.goal_type == GoalType.SUPPORTERS:
             return min(100, supporter_pct)
+        # Evaluate or display progress against committed value for a money-only campaign.
         if self.goal_type == GoalType.MONEY:
             return min(100, amount_pct)
         return min(100, min(supporter_pct, amount_pct))
 
     def __str__(self):
+        """
+        Return the campaign title as its human-readable model representation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return self.title
 
 
 class PledgeStatus(models.TextChoices):
+    """
+    Enumerate the stable database/API values for PledgeStatus.
+    """
     PENDING = "pending", "Pending payment"
     PAID = "paid", "Paid refundable deposit"
     COMMITTED = "committed", "Attendance commitment"
@@ -172,6 +259,9 @@ class PledgeStatus(models.TextChoices):
 
 
 class Pledge(models.Model):
+    """
+    Persist Pledge state and enforce its domain-level invariants.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supporter_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -198,6 +288,9 @@ class Pledge(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        """
+        Declare model or serializer metadata such as ordering, fields, and uniqueness constraints.
+        """
         ordering = ["-created_at"]
         constraints = [
             models.CheckConstraint(condition=models.Q(quantity__gte=1), name="pledge_quantity_gte_1"),
@@ -210,13 +303,28 @@ class Pledge(models.Model):
 
     @classmethod
     def active_statuses(cls):
+        """
+        Return pledge states that still count toward demand and committed value.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return [PledgeStatus.PAID, PledgeStatus.COMMITTED, PledgeStatus.CAPTURED]
 
     def __str__(self):
+        """
+        Return a readable supporter-to-campaign label for administration and logs.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return f"{self.supporter_email} → {self.campaign.title}"
 
 
 class SponsorStatus(models.TextChoices):
+    """
+    Enumerate the stable database/API values for SponsorStatus.
+    """
     PLEDGED = "pledged", "Pledged"
     PAID = "paid", "Paid"
     FINALIZED = "finalized", "Finalized"
@@ -226,6 +334,9 @@ class SponsorStatus(models.TextChoices):
 
 
 class SponsorCommitment(models.Model):
+    """
+    Persist SponsorCommitment state and enforce its domain-level invariants.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     contact_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -248,11 +359,17 @@ class SponsorCommitment(models.Model):
 
     @classmethod
     def active_statuses(cls):
+        """
+        Return sponsor states that still count toward the campaign funding threshold.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         return [SponsorStatus.PLEDGED, SponsorStatus.PAID, SponsorStatus.FINALIZED]
 
 
 class CampaignEvent(models.Model):
-    """Immutable business-event log for auditability and later analytics."""
+    """Persist CampaignEvent state and enforce its domain-level invariants."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     campaign = models.ForeignKey(DemandCampaign, related_name="events", on_delete=models.CASCADE)
@@ -261,10 +378,16 @@ class CampaignEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """
+        Declare model or serializer metadata such as ordering, fields, and uniqueness constraints.
+        """
         ordering = ["created_at"]
 
 
 class IntegrationSyncStatus(models.TextChoices):
+    """
+    Enumerate the stable database/API values for IntegrationSyncStatus.
+    """
     PENDING = "pending", "Pending"
     SYNCED = "synced", "Synced"
     CONFLICT = "conflict", "Conflict"
@@ -273,7 +396,7 @@ class IntegrationSyncStatus(models.TextChoices):
 
 
 class ExternalResourceLink(models.Model):
-    """Durable mapping between a local record and a partner resource."""
+    """Persist ExternalResourceLink state and enforce its domain-level invariants."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     provider = models.CharField(max_length=40, default="vibesmeet")
@@ -293,6 +416,9 @@ class ExternalResourceLink(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        """
+        Declare model or serializer metadata such as ordering, fields, and uniqueness constraints.
+        """
         constraints = [
             models.UniqueConstraint(
                 fields=["provider", "local_resource_type", "local_resource_id", "remote_resource_type"],
@@ -309,6 +435,9 @@ class ExternalResourceLink(models.Model):
 
 
 class IntegrationWebhookStatus(models.TextChoices):
+    """
+    Enumerate the stable database/API values for IntegrationWebhookStatus.
+    """
     RECEIVED = "received", "Received"
     PROCESSED = "processed", "Processed"
     QUARANTINED = "quarantined", "Quarantined"
@@ -316,7 +445,7 @@ class IntegrationWebhookStatus(models.TextChoices):
 
 
 class IntegrationWebhookEvent(models.Model):
-    """Idempotent webhook inbox for partner events and replay."""
+    """Persist IntegrationWebhookEvent state and enforce its domain-level invariants."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     provider = models.CharField(max_length=40, default="vibesmeet")
@@ -337,6 +466,9 @@ class IntegrationWebhookEvent(models.Model):
     processed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        """
+        Declare model or serializer metadata such as ordering, fields, and uniqueness constraints.
+        """
         constraints = [
             models.UniqueConstraint(
                 fields=["provider", "event_id"],

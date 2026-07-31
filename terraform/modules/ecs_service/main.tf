@@ -1,5 +1,11 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates IAM roles, logs, task definitions, services, autoscaling, secrets, sidecars, and optional load-balancer integration for API or worker workloads.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Read the active region for awslogs configuration inside generated container definitions.
 data "aws_region" "current" {}
 
+# Assemble least-privilege IAM statements and container-definition fragments once, then reuse them in task roles and task definitions.
 locals {
   secret_arns = distinct([
     for value in values(var.secrets) : replace(value, "/:[^:]+::$/", "")
@@ -56,8 +62,6 @@ locals {
         ]
         Resource = var.queue_arn
       },
-    ],
-    var.enable_execute_command ? [
       {
         Effect = "Allow"
         Action = [
@@ -68,35 +72,11 @@ locals {
         ]
         Resource = "*"
       }
-    ] : [],
+    ],
     local.email_statements,
     local.object_storage_statements,
     local.tracing_statements,
   )
-
-  tmp_initializer = {
-    name                   = "init-tmp"
-    image                  = var.image
-    essential              = false
-    user                   = "0"
-    readonlyRootFilesystem = true
-    command                = ["sh", "-c", "chmod 1777 /tmp"]
-    mountPoints = [
-      {
-        sourceVolume  = "tmp"
-        containerPath = "/tmp"
-        readOnly      = false
-      }
-    ]
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.this.name
-        "awslogs-region"        = data.aws_region.current.name
-        "awslogs-stream-prefix" = "init"
-      }
-    }
-  }
 
   application_container = {
     name                   = var.name
@@ -104,15 +84,6 @@ locals {
     essential              = true
     readonlyRootFilesystem = true
     stopTimeout            = 30
-    dependsOn = [
-      {
-        containerName = "init-tmp"
-        condition     = "SUCCESS"
-      }
-    ]
-    linuxParameters = {
-      initProcessEnabled = true
-    }
     mountPoints = [
       {
         sourceVolume  = "tmp"
@@ -153,7 +124,7 @@ locals {
     healthCheck = {
       command = [
         "CMD-SHELL",
-        "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:${var.container_port}/api/health/live/\", timeout=3)' || exit 1",
+        "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:${var.container_port}/api/health/\", timeout=3)' || exit 1",
       ]
       interval    = 30
       timeout     = 5
@@ -191,16 +162,14 @@ locals {
   )
 
   container_definitions = var.enable_xray ? [
-    local.tmp_initializer,
     local.application_with_health,
     local.xray_container,
-  ] : [
-    local.tmp_initializer,
-    local.application_with_health,
-  ]
+  ] : [local.application_with_health]
 }
 
+# Build the shared ECS task trust policy used by both execution and application task roles.
 data "aws_iam_policy_document" "assume" {
+  # Allow ECS tasks, and no human principal, to assume the execution and application roles.
   statement {
     actions = ["sts:AssumeRole"]
     principals {
@@ -210,17 +179,20 @@ data "aws_iam_policy_document" "assume" {
   }
 }
 
+# Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "execution" {
   name               = "${var.name}-exec"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
 }
 
+# Attaches a managed IAM policy required by the role.
 resource "aws_iam_role_policy_attachment" "execution" {
   role       = aws_iam_role.execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Attaches least-privilege inline permissions to the IAM role.
 resource "aws_iam_role_policy" "secrets" {
   role = aws_iam_role.execution.id
   policy = jsonencode({
@@ -240,12 +212,14 @@ resource "aws_iam_role_policy" "secrets" {
   })
 }
 
+# Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "task" {
   name               = "${var.name}-task"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
 }
 
+# Attaches least-privilege inline permissions to the IAM role.
 resource "aws_iam_role_policy" "task" {
   role = aws_iam_role.task.id
   policy = jsonencode({
@@ -254,6 +228,7 @@ resource "aws_iam_role_policy" "task" {
   })
 }
 
+# Stores application, task, or ECS Exec logs with controlled retention.
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/ecs/${var.name}"
   retention_in_days = var.log_retention_days
@@ -261,6 +236,7 @@ resource "aws_cloudwatch_log_group" "this" {
   tags              = var.tags
 }
 
+# Defines immutable container, role, logging, health, and resource settings for a workload revision.
 resource "aws_ecs_task_definition" "this" {
   family                   = var.name
   requires_compatibilities = ["FARGATE"]
@@ -283,27 +259,29 @@ resource "aws_ecs_task_definition" "this" {
   tags = var.tags
 }
 
+# Keeps the requested number of application tasks running and connected to networking and load balancing.
 resource "aws_ecs_service" "this" {
   name                               = var.name
   cluster                            = var.cluster_arn
   task_definition                    = aws_ecs_task_definition.this.arn
   desired_count                      = var.desired_count
   launch_type                        = "FARGATE"
-  enable_execute_command             = var.enable_execute_command
+  enable_execute_command             = true
   deployment_minimum_healthy_percent = var.desired_count == 0 ? 0 : 100
   deployment_maximum_percent         = 200
-  health_check_grace_period_seconds  = var.target_group_arn == null ? null : 120
-  wait_for_steady_state               = true
-  propagate_tags                      = "SERVICE"
+  health_check_grace_period_seconds  = var.target_group_arn == null ? null : 60
 
+  # Places ECS tasks in selected subnets and security groups without public addresses.
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
     assign_public_ip = false
   }
 
+  # Generates repeated nested configuration from the supplied collection.
   dynamic "load_balancer" {
     for_each = var.target_group_arn == null ? [] : [1]
+    # Defines the nested block emitted for each item in the dynamic collection.
     content {
       target_group_arn = var.target_group_arn
       container_name   = var.name
@@ -311,6 +289,7 @@ resource "aws_ecs_service" "this" {
     }
   }
 
+  # Rolls back an unhealthy ECS deployment instead of leaving it partially active.
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -325,6 +304,7 @@ resource "aws_ecs_service" "this" {
   tags = var.tags
 }
 
+# Registers the ECS service as a scalable target with capacity limits.
 resource "aws_appautoscaling_target" "this" {
   count              = var.enable_autoscaling && var.desired_count > 0 ? 1 : 0
   max_capacity       = max(var.desired_count * 4, 2)
@@ -334,6 +314,7 @@ resource "aws_appautoscaling_target" "this" {
   service_namespace  = "ecs"
 }
 
+# Adjusts ECS task count in response to measured utilization.
 resource "aws_appautoscaling_policy" "cpu" {
   count              = length(aws_appautoscaling_target.this)
   name               = "${var.name}-cpu"

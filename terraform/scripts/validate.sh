@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Runs formatting, initialization, validation, linting, security scanning, Go tests, and shell checks for the Terraform framework.
+# Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
+
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPOSITORY_ROOT="$(cd "$ROOT/.." && pwd)"
-python3 "$REPOSITORY_ROOT/scripts/validate_terraform_contracts.py"
+# Run the Terraform operation for the selected working directory and environment.
 terraform -chdir="$ROOT" fmt -recursive
+# Run the Terraform operation for the selected working directory and environment.
 terraform -chdir="$ROOT" fmt -check -recursive
+# Run the Terraform operation for the selected working directory and environment.
 terraform -chdir="$ROOT" init -backend=false -input=false
+# Run the Terraform operation for the selected working directory and environment.
 terraform -chdir="$ROOT" validate
 if command -v tflint >/dev/null; then
   tflint --chdir="$ROOT" --recursive

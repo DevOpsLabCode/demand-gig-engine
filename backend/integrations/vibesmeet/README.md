@@ -1,5 +1,10 @@
 # VibesMeet integration bridge
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 This package is a **contract-first scaffold**, not a claim that the proposed endpoint paths are already available publicly.
 
 It provides:

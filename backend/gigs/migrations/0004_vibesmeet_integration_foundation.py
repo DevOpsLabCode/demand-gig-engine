@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Records the database schema transition represented by migration 0004_vibesmeet_integration_foundation.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Records the database schema transition represented by migration 0004_vibesmeet_integration_foundation.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 # Generated manually for the contract-first VibesMeet integration foundation.
 
 import uuid
@@ -5,6 +15,9 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    """
+    Describe the database schema transition and its dependency on earlier migrations.
+    """
     dependencies = [("gigs", "0003_scope_pledge_idempotency")]
 
     operations = [

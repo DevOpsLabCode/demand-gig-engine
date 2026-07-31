@@ -1,5 +1,10 @@
 # Demand-Driven Gig Creation MVP
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 A production-minded reference implementation of the missing Open Concert / VibesMeet workflow:
 
 > **Plant the seed → gather supporters → reach the target → confirm the artist and venue → produce the gig.**

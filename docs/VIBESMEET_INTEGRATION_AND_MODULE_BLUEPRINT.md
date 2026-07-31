@@ -1,4 +1,9 @@
 # Demand Gig Engine × VibesMeet
+
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
 ## Deep Module Brainstorm, Product Boundaries, and Integration Blueprint
 
 **Status:** Product and architecture proposal  

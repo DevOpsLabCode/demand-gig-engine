@@ -1,4 +1,9 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Defines the local PostgreSQL, Django, and React/Nginx stack, including health dependencies, environment boundaries, persistent data, and developer ports.
+# Comments explain each service role, dependency boundary, persistent volume, and developer-facing port.
+
 services:
+  # PostgreSQL persists campaign, pledge, sponsor, user, and integration records for the local stack.
   db:
     image: postgres:16-alpine
     environment:
@@ -13,6 +18,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # Django applies migrations after PostgreSQL is healthy, then exposes the REST and authentication APIs.
   backend:
     build:
       context: .
@@ -43,6 +49,7 @@ services:
         condition: service_healthy
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
 
+  # The production-style Nginx image serves the compiled React UI and points browser API calls at the local backend.
   frontend:
     build:
       context: .
@@ -55,4 +62,5 @@ services:
       - backend
 
 volumes:
+  # Named storage keeps PostgreSQL data across container recreation during development.
   demandgig_db:

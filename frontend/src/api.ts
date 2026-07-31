@@ -1,3 +1,9 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Provides typed browser functions for calling campaign, authentication, Facebook, Stripe, and VibesMeet API endpoints.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import type {
   Campaign,
   CampaignCreate,
@@ -13,9 +19,12 @@ import type {
   AuthUser,
 } from "./types";
 
+// Use same-origin /api in production unless a local or test build explicitly supplies another backend URL.
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+// Cache the server-issued token because HttpOnly/session configurations may not expose a csrftoken cookie.
 let serverCsrfToken = "";
 
+/** Send one credentialed JSON request, normalize empty bodies, and convert non-2xx responses into Error objects. */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
@@ -32,6 +41,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/**
+ * Return the Django CSRF header from the browser cookie, falling back to the token returned by the auth configuration endpoint.
+ */
 function csrfHeaders(): Record<string, string> {
   const token = document.cookie
     .split("; ")
@@ -41,51 +53,66 @@ function csrfHeaders(): Record<string, string> {
   return value ? { "X-CSRFToken": value } : {};
 }
 
+/** Group every browser-facing backend operation behind typed methods with shared credentials, CSRF, and error handling. */
 export const api = {
+  // Load social-provider availability, current identity, account types, and the CSRF token used by later writes.
   authConfig: async () => {
     const config = await request<AuthConfig>("/auth/config/");
     serverCsrfToken = config.csrf_token;
     return config;
   },
+  // Update only the authenticated profile fields supplied by the account panel.
   updateAuthProfile: (data: Partial<AuthUser>) => request<AuthUser>("/auth/profile/", { method: "PATCH", body: JSON.stringify(data), headers: csrfHeaders() }),
+  // End the current server session using a CSRF-protected POST.
   logout: () => request<void>("/auth/logout/", { method: "POST", body: "{}", headers: csrfHeaders() }),
+  // Read campaigns with server-calculated thresholds, status, and totals.
   listCampaigns: () => request<Campaign[]>("/campaigns/"),
+  // Create a draft demand campaign owned by the authenticated organizer when signed in.
   createCampaign: (data: CampaignCreate) =>
     request<Campaign>("/campaigns/", { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() }),
+  // Transition a draft campaign into the collecting state through the lifecycle action endpoint.
   launchCampaign: (slug: string) =>
     request<Campaign>(`/campaigns/${slug}/launch/`, { method: "POST", body: "{}", headers: csrfHeaders() }),
+  // Create or resume an idempotent supporter pledge and receive payment data when a deposit is required.
   pledge: (slug: string, data: PledgeInput) =>
     request<PledgeResult>(`/campaigns/${slug}/pledge/`, {
       method: "POST",
       body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
+  // Record a sponsor commitment that contributes to the monetary threshold.
   sponsor: (slug: string, data: SponsorInput) =>
     request<unknown>(`/campaigns/${slug}/sponsor/`, {
       method: "POST",
       body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
+  // Read public Meta configuration and capability flags; secrets never leave the backend.
   facebookConfig: () => request<FacebookConfig>("/facebook/config/"),
+  // Read the optional VibesMeet bridge readiness and supported-contract status.
   vibesMeetConfig: () => request<VibesMeetConfig>("/vibesmeet/config/"),
+  // Ask the backend to verify a browser-obtained Facebook user token against the configured app.
   facebookLogin: (accessToken: string) =>
     request<FacebookProfile>("/facebook/login/", {
       method: "POST",
       body: JSON.stringify({ access_token: accessToken }),
       headers: csrfHeaders(),
     }),
+  // Exchange the verified user context for the Pages that organizer can manage.
   facebookPages: (accessToken: string) =>
     request<FacebookPage[]>("/facebook/pages/", {
       method: "POST",
       body: JSON.stringify({ access_token: accessToken }),
       headers: csrfHeaders(),
     }),
+  // Build a tracked campaign URL and corresponding Facebook share-dialog URL without auto-posting to Groups.
   facebookShareLink: (slug: string, data: { group_name?: string; referral_code?: string; source?: string }) =>
     request<FacebookShareLink>(`/campaigns/${slug}/facebook/share-link/`, {
       method: "POST",
       body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
+  // Publish the tracked campaign message to one managed Page using its short-lived Page token.
   publishFacebookPage: (
     slug: string,
     data: {

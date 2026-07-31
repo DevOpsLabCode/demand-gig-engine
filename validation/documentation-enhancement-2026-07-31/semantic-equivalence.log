@@ -1,0 +1,9 @@
+Python AST equivalence: 53 files - PASS
+Terraform comment-only equivalence: 76 files - PASS
+Shell/YAML/Docker comment-only equivalence: 15 files - PASS
+OpenAPI contract equivalence excluding informational author extensions: PASS
+HTML DOM equivalence: 4 files - PASS
+CSS semantic equivalence: 1 files - PASS
+SVG XML parsing: 2 files - PASS
+JSON parsing: 7 files - PASS
+Semantic-equivalence summary: PASS

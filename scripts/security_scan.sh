@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Runs static security, dependency, secret, container, workflow, and infrastructure-as-code checks.
+# Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
+
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Run the Python validation or application command for this phase.
 python -m pip install --requirement security-requirements.txt
+# Run the Python validation or application command for this phase.
 python scripts/validate_workflows.py || workflow_status=$?
 workflow_status=${workflow_status:-0}
 
@@ -48,7 +54,9 @@ bandit_status=${bandit_status:-0}
 
 (
   cd frontend
+  # Install, validate, or build the frontend assets for this phase.
   npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+  # Install, validate, or build the frontend assets for this phase.
   npm audit --omit=dev --audit-level=high
 ) || npm_status=$?
 npm_status=${npm_status:-0}

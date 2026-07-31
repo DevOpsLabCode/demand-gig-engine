@@ -1,9 +1,15 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates the encrypted work queue, dead-letter queue, redrive policy, and queue access policy.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Create and manage the aws sqs queue resource owned by this file.
 resource "aws_sqs_queue" "dlq" {
   name = "${var.name}-dlq"
   sqs_managed_sse_enabled = true
   message_retention_seconds = 1209600
   tags = var.tags
 }
+# Creates a durable work queue or dead-letter queue for asynchronous processing.
 resource "aws_sqs_queue" "tasks" {
   name = "${var.name}-tasks"
   sqs_managed_sse_enabled = true

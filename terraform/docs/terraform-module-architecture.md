@@ -1,5 +1,10 @@
 # Terraform module architecture
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 The implementation follows the production diagram and keeps every AWS concern in an independently testable module.
 
 | Diagram component | Module | Key controls |

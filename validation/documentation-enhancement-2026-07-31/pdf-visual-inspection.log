@@ -1,0 +1,7 @@
+PDF visual inspection: PASS
+Artifact: docs/Demand_Driven_Gig_MVP_README_and_Screenshots.pdf
+Renderer: pdftoppm via the PDF skill render script
+Resolution: 200 DPI
+Pages inspected: all 30 pages in a contact sheet; full-size spot checks on pages 1, 10, and 30
+Verified: no clipped text, overlapping content, black squares, broken glyphs, or truncated screenshots.
+Comparison: the prior 26-page PDF and updated 30-page PDF were rendered and diffed at 120 DPI; all pages changed as expected because the document was rebuilt with the expanded README and author metadata.

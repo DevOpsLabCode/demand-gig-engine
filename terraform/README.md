@@ -1,5 +1,10 @@
 # Demand Gig Engine Terraform framework
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 This directory deploys the AWS production architecture documented in [`../docs/terraform-module-architecture.md`](../docs/terraform-module-architecture.md). It contains 24 reusable service modules, isolated development and production values, secure S3 remote state, Go contract/orchestration tests, GitHub OIDC, and an automated build–migrate–deploy pipeline.
 
 ## Structure
@@ -25,7 +30,7 @@ terraform/
 
 ## Prerequisites
 
-- Terraform 1.15.x.
+- Terraform 1.13.x or a compatible later 1.x release.
 - AWS CLI v2 authenticated to the target account.
 - Docker with BuildKit support.
 - `jq`, Git, and Go 1.23+ for tests.
@@ -63,23 +68,11 @@ The deployment script discovers the account ID, provisions secure S3 state with 
 External credentials can also be injected without an interactive Secrets Manager step:
 
 ```bash
-cp terraform/envs/provider-credentials.example.json /secure/provider-credentials.json
-# Fill only the providers you use, then:
-PROVIDER_CREDENTIALS_FILE=/secure/provider-credentials.json \
+PROVIDER_CREDENTIALS_FILE=/secure/path/provider-credentials.json \
   ./terraform/scripts/deploy.sh dev
 ```
 
 The JSON object may contain the documented Google, Facebook, Instagram, TikTok, Stripe, Meta, and VibesMeet keys. Never commit this file.
-
-
-## Application-online gate
-
-The deploy script treats infrastructure creation and application availability as separate gates. It provisions API/worker services at zero capacity, waits for the RDS Proxy target, runs a dedicated migration task, scales services only after a successful migration, publishes frontend assets, and then retries five public smoke tests. See [`../APPLICATION_ONLINE_VERIFICATION.md`](../APPLICATION_ONLINE_VERIFICATION.md).
-
-The health endpoints have distinct purposes:
-
-- `/api/health/live/` — process/container liveness.
-- `/api/health/ready/` — PostgreSQL and Redis readiness; used by ALB and deployment gating.
 
 ## Configure DNS
 

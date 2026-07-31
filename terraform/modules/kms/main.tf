@@ -1,8 +1,14 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates the customer-managed KMS key and policy used by application data, logs, queues, and audit services.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
+# Build the KMS key policy that preserves account administration and grants only required AWS services cryptographic access.
 data "aws_iam_policy_document" "this" {
+  # Preserve full KMS key administration for the owning AWS account root principal.
   statement {
     sid       = "EnableAccountAdministration"
     effect    = "Allow"
@@ -15,6 +21,7 @@ data "aws_iam_policy_document" "this" {
     }
   }
 
+  # Allow CloudWatch Logs to use the key only through the regional Logs service and account-scoped encryption context.
   statement {
     sid    = "AllowCloudWatchLogs"
     effect = "Allow"
@@ -41,6 +48,7 @@ data "aws_iam_policy_document" "this" {
     }
   }
 
+  # Allow CloudTrail to generate data keys and describe the key for account-scoped trail encryption.
   statement {
     sid    = "AllowCloudTrailEncryption"
     effect = "Allow"
@@ -73,6 +81,7 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
+# Creates the customer-managed encryption key shared by protected services.
 resource "aws_kms_key" "this" {
   description             = "${var.name} application encryption"
   enable_key_rotation     = true
@@ -81,6 +90,7 @@ resource "aws_kms_key" "this" {
   tags                    = var.tags
 }
 
+# Provides a stable, human-readable name for the KMS key.
 resource "aws_kms_alias" "this" {
   name          = "alias/${var.name}"
   target_key_id = aws_kms_key.this.key_id

@@ -1,14 +1,26 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Creates tracked Facebook links, connects an organizer account, lists managed Pages, and publishes campaign messages.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Facebook, Send, Users } from "lucide-react";
 import { api } from "../api";
 import { loginWithFacebook } from "../facebook";
 import type { Campaign, FacebookConfig, FacebookPage, FacebookProfile, FacebookShareLink } from "../types";
 
+/**
+ * Receive the active campaign and a callback for presenting integration status to the surrounding card.
+ */
 interface Props {
   campaign: Campaign;
   onMessage: (message: string) => void;
 }
 
+/**
+ * Coordinate manual Group sharing, tracked-link copying, Facebook Login, managed-Page discovery, and Page publication.
+ */
 export function FacebookIntegration({ campaign, onMessage }: Props) {
   const query = useMemo(() => new URLSearchParams(window.location.search), []);
   const [config, setConfig] = useState<FacebookConfig | null>(null);
@@ -21,10 +33,12 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
   const [accessToken, setAccessToken] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Load only public capability/configuration data; Meta secrets stay on the Django server.
   useEffect(() => {
     api.facebookConfig().then(setConfig).catch(() => setConfig(null));
   }, []);
 
+  /** Ask the backend to sign a tracked URL carrying community and referral attribution. */
   async function generateLink(): Promise<FacebookShareLink> {
     const link = await api.facebookShareLink(campaign.slug, {
       source: "facebook_group",
@@ -35,6 +49,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
     return link;
   }
 
+  /** Open Facebook Share in a popup using the tracked URL; Group selection remains a user-controlled Meta action. */
   async function shareToFacebook() {
     setBusy(true);
     try {
@@ -48,6 +63,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
     }
   }
 
+  /** Copy the same attributed campaign URL for Facebook Events, Groups, Messenger, WhatsApp, or other communities. */
   async function copyTrackedLink() {
     setBusy(true);
     try {
@@ -61,6 +77,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
     }
   }
 
+  /** Obtain a user token in the browser, verify it on the backend, and load Pages the organizer may manage. */
   async function connectFacebook() {
     if (!config?.enabled) {
       onMessage("Configure META_APP_ID and META_APP_SECRET to connect Facebook Pages.");
@@ -85,6 +102,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
     }
   }
 
+  /** Publish a tracked campaign message to the selected managed Page through the backend Graph API adapter. */
   async function publishToPage() {
     const page = pages.find((item) => item.id === selectedPageId);
     if (!page) {

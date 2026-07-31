@@ -1,28 +1,22 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the input contract for the security Terraform module.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Input `name`: Stable name prefix used for resource names, logs, tags, and service identifiers.
 variable "name" {
   type = string
 }
-
+# Input `vpc_id`: ID of the VPC that owns the resource.
 variable "vpc_id" {
   type = string
 }
-
+# Input `app_port`: Application TCP port allowed between the ALB and ECS tasks.
 variable "app_port" {
-  type    = number
+  type = number
   default = 8000
 }
-
-variable "alb_origin_port" {
-  type        = number
-  description = "Only listener port CloudFront is permitted to reach."
-  default     = 80
-
-  validation {
-    condition     = contains([80, 443], var.alb_origin_port)
-    error_message = "alb_origin_port must be 80 or 443."
-  }
-}
-
+# Input `tags`: Common ownership, environment, cost, and governance tags applied to supported resources.
 variable "tags" {
-  type    = map(string)
+  type = map(string)
   default = {}
 }

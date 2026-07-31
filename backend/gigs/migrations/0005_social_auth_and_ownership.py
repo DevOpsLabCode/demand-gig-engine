@@ -1,9 +1,22 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Records the database schema transition represented by migration 0005_social_auth_and_ownership.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Records the database schema transition represented by migration 0005_social_auth_and_ownership.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
+    """
+    Describe the database schema transition and its dependency on earlier migrations.
+    """
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ("gigs", "0004_vibesmeet_integration_foundation"),

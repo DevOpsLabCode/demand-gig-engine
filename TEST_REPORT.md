@@ -1,5 +1,10 @@
 # Validation and Test Report
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 **Project:** Demand-Driven Gig Creation MVP  
 **Validation date:** July 30, 2026  
 **Source tested:** `demand-gig-engine-social-auth-aws-prod.zip`, followed by the fixes documented below
@@ -89,3 +94,22 @@ The AWS framework received an additional infrastructure-specific validation pass
 Major corrections included regional separation of the CloudFront and ALB certificates, WAF association at CloudFront, CloudFront-only ALB ingress, dedicated migration tasks, ECS Exec IAM, IPv4-only origin DNS, SQS worker/scheduler wiring, production frontend API routing, secure static cache headers, and optional non-interactive Secrets Manager population.
 
 See [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md) for exact evidence and limitations.
+
+## Documentation and inline-explanation validation - July 31, 2026
+
+A repository-wide documentation pass added author attribution, file-purpose headers, inline block explanations, function/class documentation, expanded Terraform module READMEs, developer onboarding material, and a regenerated README-and-screenshots PDF. The pass was validated as documentation-only wherever a format-aware semantic comparison was possible.
+
+| Check | Result | Details |
+|---|---|---|
+| Python semantic equivalence | PASS | 53 Python files parsed and matched after documentation nodes were removed |
+| Terraform comment-only equivalence | PASS | 76 Terraform files matched their original executable content |
+| TypeScript/TSX AST equivalence | PASS | 14 source files matched after comments were removed |
+| Other structured formats | PASS | Shell, YAML, Docker, HTML, CSS, SVG, and JSON checks passed |
+| Documentation integrity | PASS | 46 Markdown files and 100 local links checked |
+| Author attribution | PASS | 232 applicable source/documentation files checked; 0 missing |
+| Repository checks | PASS | 69 checks, 0 failures; 5 GitHub workflows validated |
+| Terraform Go tests | PASS | 27 tests passed with the race detector; `go vet ./...` passed |
+| Updated PDF | PASS | 30 pages; preflight and 200-DPI visual inspection passed |
+| Flake8 | NOT RUN LOCALLY | Tool unavailable in the sandbox; blocking rules remain configured in CI |
+
+Detailed evidence is stored in [`validation/documentation-enhancement-2026-07-31/`](validation/documentation-enhancement-2026-07-31/).

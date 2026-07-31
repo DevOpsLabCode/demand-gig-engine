@@ -1,3 +1,6 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Pins the security scanning tools used by the repository security workflow.
+
 # Security tooling used by GitHub Actions and scripts/security_scan.sh.
 bandit[toml]>=1.8,<2.0
 checkov>=3.2,<4.0

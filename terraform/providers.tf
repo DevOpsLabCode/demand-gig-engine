@@ -1,3 +1,8 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Configures primary and us-east-1 AWS provider aliases required by regional services such as CloudFront certificates.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Configure the AWS provider connection used by the following resources.
 provider "aws" {
   region = var.aws_region
   default_tags {
@@ -12,7 +17,9 @@ provider "aws" {
     tags = merge(var.tags, { Project = var.project_name, Environment = var.environment, ManagedBy = "Terraform" })
   }
 }
+# Read the active AWS account ID so names, policies, and diagnostics match the credentials running Terraform.
 data "aws_caller_identity" "current" {
 }
+# Read the selected workload region for regional resource configuration and outputs.
 data "aws_region" "current" {
 }

@@ -1,84 +1,715 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Defines responsive visual layout, components, states, and accessibility details for the frontend.
+ * Reading guide: Every selector is documented before its declaration block.
+ */
+
+/* Define global typography, foreground, background, and browser rendering defaults. */
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f7f7fb;
   background: #09090d;
   font-synthesis: none;
 }
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: #09090d; }
-button, input, textarea, select { font: inherit; }
-button { cursor: pointer; }
-.hero { padding: 28px max(24px, calc((100vw - 1180px)/2)); background: radial-gradient(circle at 80% 10%, rgba(162, 89, 255, .28), transparent 35%), radial-gradient(circle at 10% 70%, rgba(42, 203, 168, .16), transparent 35%), #0c0b12; border-bottom: 1px solid #2b2933; }
-nav { display: flex; justify-content: space-between; align-items: center; color: #aaa7b3; }
-.brand { display: flex; gap: 10px; align-items: center; color: white; font-weight: 800; }
-.hero-copy { max-width: 800px; margin: 88px 0 48px; }
-.eyebrow { color: #b991ff; text-transform: uppercase; letter-spacing: .16em; font-size: 12px; font-weight: 800; }
-h1 { font-size: clamp(48px, 7vw, 88px); letter-spacing: -.06em; line-height: .96; margin: 16px 0 24px; }
-.hero-copy p { color: #b9b7c1; font-size: 20px; line-height: 1.6; max-width: 760px; }
-.flow { display: flex; align-items: center; gap: 14px; overflow-x: auto; padding-bottom: 10px; }
-.flow span { display: flex; gap: 8px; align-items: center; white-space: nowrap; padding: 12px 16px; border: 1px solid #34313e; border-radius: 999px; background: rgba(255,255,255,.03); }
-.content { max-width: 1180px; margin: 0 auto; padding: 56px 24px 100px; }
-.panel { border: 1px solid #302e37; border-radius: 22px; background: #111017; box-shadow: 0 18px 70px rgba(0,0,0,.22); }
-.form { padding: 28px; }
-.section-title { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; margin-bottom: 24px; }
-.grid { display: grid; gap: 16px; }.grid.two { grid-template-columns: repeat(2, 1fr); }.grid.three { grid-template-columns: repeat(3, 1fr); }
-label { display: grid; gap: 8px; color: #c7c5cd; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
-input, textarea, select { width: 100%; color: white; background: #191820; border: 1px solid #383640; border-radius: 12px; padding: 13px 14px; outline: none; }
-input:focus, textarea:focus, select:focus { border-color: #9f72ee; box-shadow: 0 0 0 3px rgba(159,114,238,.12); }
-.primary { border: 0; border-radius: 12px; padding: 14px 18px; color: white; background: linear-gradient(135deg, #8b5cf6, #6d28d9); font-weight: 800; }
-.primary:disabled { opacity: .55; cursor: not-allowed; }
-.section-heading { margin: 64px 0 22px; }.section-heading h2 { font-size: 34px; margin: 0 0 4px; }.section-heading p { color: #aaa7b3; margin: 0; }
-.campaign-list { display: grid; gap: 20px; }.campaign { padding: 28px; }
-.campaign-heading { display: flex; justify-content: space-between; gap: 20px; }.campaign h2 { font-size: 30px; margin: 10px 0; }.campaign p { color: #bbb8c3; line-height: 1.6; }
-.status { display: inline-block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 6px 9px; border-radius: 999px; background: #2a2634; color: #ccb9ef; }
-.status.target_reached, .status.confirmed, .status.live { background: #15352d; color: #74e2bd; }
-.meta, .metrics, .confirmation-row { display: flex; gap: 18px; flex-wrap: wrap; }.meta span, .confirmation-row span { display: flex; align-items: center; gap: 6px; color: #9f9ca7; }
-.icon-button { width: 44px; height: 44px; display: grid; place-items: center; background: #1c1a23; color: white; border: 1px solid #3a3742; border-radius: 50%; }
-.progress { height: 12px; border-radius: 999px; background: #25232b; overflow: hidden; margin: 28px 0 18px; }.progress div { height: 100%; background: linear-gradient(90deg, #8b5cf6, #35cba6); transition: width .3s ease; }
-.metrics { justify-content: space-between; }.metrics div { display: grid; gap: 5px; }.metrics strong { font-size: 26px; }.metrics span { color: #9996a1; display: flex; align-items: center; gap: 5px; }
-.confirmation-row { border-top: 1px solid #292731; border-bottom: 1px solid #292731; padding: 18px 0; margin: 24px 0; }.confirmation-row .confirmed { color: #70dfb9; }.confirmation-row .pending { color: #9c98a6; }
-.pledge-form { display: grid; grid-template-columns: 1fr 1.2fr .7fr auto; gap: 10px; margin-bottom: 12px; }
-small { color: #85818d; }.message { color: #84e0c1 !important; }.error { color: #ff9a9a; }
-@media (max-width: 800px) { .grid.two, .grid.three, .pledge-form { grid-template-columns: 1fr; } nav > span { display:none; } .hero-copy { margin-top: 64px; } }
-.secondary { margin: 8px 0 14px; padding: 11px 14px; color: #d9cdf1; background: transparent; border: 1px solid #514a60; border-radius: 11px; font-weight: 750; }
-.sponsor-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 16px; margin: 4px 0 16px; border: 1px solid #302d39; border-radius: 14px; background: #0d0c12; }
-.sponsor-form textarea { grid-column: 1 / -1; }
-.stripe-box { margin: 18px 0; padding: 20px; border: 1px solid #3c3747; border-radius: 16px; background: white; color: #17131e; }
-.stripe-box .primary { margin-top: 16px; }
-@media (max-width: 800px) { .sponsor-form { grid-template-columns: 1fr; } .sponsor-form textarea { grid-column: auto; } }
-.facebook-integration { margin: 26px 0 18px; padding: 20px; border: 1px solid #34466c; border-radius: 16px; background: linear-gradient(145deg, rgba(24,119,242,.10), rgba(17,16,23,.8)); }
-.facebook-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 850; }
-.facebook-note { margin: 8px 0 18px; font-size: 14px; }
-.facebook-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.facebook-grid label { margin: 0; }
-.facebook-actions, .page-publisher { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
-.facebook-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 11px; padding: 11px 14px; color: white; background: #1877f2; font-weight: 800; }
-.facebook-button:disabled { opacity: .55; cursor: not-allowed; }
-.facebook-actions .secondary { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
-.share-url { font-size: 12px; color: #b7c9ec; }
-.page-publisher select { width: auto; min-width: 250px; }
-@media (max-width: 800px) { .facebook-grid { grid-template-columns: 1fr; } .facebook-actions > *, .page-publisher > * { width: 100%; } .page-publisher select { min-width: 0; } }
-.facebook-hub-links { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
-.facebook-hub-links a { color: #cfe0ff; border: 1px solid #35558b; background: rgba(24,119,242,.10); border-radius: 999px; padding: 8px 12px; text-decoration: none; font-size: 13px; font-weight: 750; }
 
+/* Apply predictable border-box sizing to every element. */
+* {
+  box-sizing: border-box;
+}
 
-.auth-panel { margin-top: 24px; padding: 16px; border: 1px solid #34313e; border-radius: 16px; background: rgba(12,11,18,.82); backdrop-filter: blur(12px); display: grid; gap: 12px; max-width: 860px; }
-.auth-heading, .linked-providers, .auth-logout { display: flex; align-items: center; gap: 8px; }
-.auth-providers { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; }
-.social-login { border: 1px solid #484451; border-radius: 11px; padding: 11px 14px; color: white; background: #1b1922; font-weight: 800; }
-.social-login.google { background: #fff; color: #222; }
-.social-login.facebook { background: #1877f2; border-color: #1877f2; }
-.social-login.instagram { background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045); border: 0; }
-.social-login.tiktok { background: #050505; border-color: #3d3d3d; }
-.social-login:disabled { opacity: .38; cursor: not-allowed; filter: grayscale(1); }
-.auth-panel.authenticated { grid-template-columns: minmax(220px, 1fr) auto auto auto; align-items: center; }
-.auth-user { display: flex; align-items: center; gap: 10px; }
-.auth-user img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
-.auth-user div { display: grid; }
-.auth-user span, .linked-providers { color: #aaa7b3; font-size: 12px; }
-.auth-panel select { min-width: 170px; }
-.auth-logout { border: 1px solid #514a60; border-radius: 10px; padding: 10px 12px; background: transparent; color: white; font-weight: 750; }
-@media (max-width: 800px) { .auth-providers, .auth-panel.authenticated { grid-template-columns: 1fr; } }
+/* Set the minimum viewport width and page background. */
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #09090d;
+}
 
-.auth-connect { display: flex; flex-wrap: wrap; gap: 6px; }
-.auth-link { border: 1px solid #514a60; border-radius: 999px; padding: 6px 9px; background: #18151f; color: #ddd8e8; font-size: 11px; font-weight: 750; }
+/* Inherit the application typeface in all native controls for consistent text metrics. */
+button, input, textarea, select {
+  font: inherit;
+}
+
+/* Show a pointer cursor on interactive buttons so they are recognizable as actionable controls. */
+button {
+  cursor: pointer;
+}
+
+/* Create the high-contrast landing area with layered demand/sponsor gradients and a divider from the working content. */
+.hero {
+  padding: 28px max(24px, calc((100vw - 1180px)/2));
+  background: radial-gradient(circle at 80% 10%, rgba(162, 89, 255, .28), transparent 35%), radial-gradient(circle at 10% 70%, rgba(42, 203, 168, .16), transparent 35%), #0c0b12;
+  border-bottom: 1px solid #2b2933;
+}
+
+/* Align the brand and product descriptor at opposite ends of the hero navigation row. */
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #aaa7b3;
+}
+
+/* Keep the product icon and name together as a prominent, readable identity mark. */
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: white;
+  font-weight: 800;
+}
+
+/* Limit the headline measure and add vertical breathing room around the primary value proposition. */
+.hero-copy {
+  max-width: 800px;
+  margin: 88px 0 48px;
+}
+
+/* Present the pre-headline as a small uppercase accent that establishes the campaign philosophy. */
+.eyebrow {
+  color: #b991ff;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Scale the main headline responsively while preserving its tight display typography and line height. */
+h1 {
+  font-size: clamp(48px, 7vw, 88px);
+  letter-spacing: -.06em;
+  line-height: .96;
+  margin: 16px 0 24px;
+}
+
+/* Keep supporting copy readable with a controlled line length, larger size, and muted contrast. */
+.hero-copy p {
+  color: #b9b7c1;
+  font-size: 20px;
+  line-height: 1.6;
+  max-width: 760px;
+}
+
+/* Lay out the campaign lifecycle as a horizontally scrollable sequence on narrow screens. */
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+/* Render each lifecycle phase as a compact pill with icon/text alignment and clear separation. */
+.flow span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+  padding: 12px 16px;
+  border: 1px solid #34313e;
+  border-radius: 999px;
+  background: rgba(255,255,255,.03);
+}
+
+/* Center the application workspace and provide consistent side and bottom spacing. */
+.content {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 24px 100px;
+}
+
+/* Group forms and campaign content in an elevated, rounded surface distinct from the page background. */
+.panel {
+  border: 1px solid #302e37;
+  border-radius: 22px;
+  background: #111017;
+  box-shadow: 0 18px 70px rgba(0,0,0,.22);
+}
+
+/* Provide internal spacing for forms placed inside a shared panel surface. */
+.form {
+  padding: 28px;
+}
+
+/* Align a section icon and title with enough weight and spacing to mark a new task area. */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 24px;
+}
+
+/* Provide the reusable gap and CSS Grid foundation used by multi-column form layouts. */
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+/* Split suitable form groups into two equal columns on wider viewports. */
+.grid.two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Split suitable form groups into three equal columns on wider viewports. */
+.grid.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Stack each field label and control while preserving readable helper-text contrast and spacing. */
+label {
+  display: grid;
+  gap: 8px;
+  color: #c7c5cd;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+/* Give editable fields consistent sizing, dark surfaces, borders, padding, and text contrast. */
+input, textarea, select {
+  width: 100%;
+  color: white;
+  background: #191820;
+  border: 1px solid #383640;
+  border-radius: 12px;
+  padding: 13px 14px;
+  outline: none;
+}
+
+/* Make keyboard and pointer focus visible without changing layout. */
+input:focus, textarea:focus, select:focus {
+  border-color: #9f72ee;
+  box-shadow: 0 0 0 3px rgba(159,114,238,.12);
+}
+
+/* Emphasize the main submit/action button with a strong gradient, weight, padding, and accessible contrast. */
+.primary {
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: white;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  font-weight: 800;
+}
+
+/* Visually communicate that the control cannot currently be used. */
+.primary:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* Separate campaign-list headings from the preceding creation form. */
+.section-heading {
+  margin: 64px 0 22px;
+}
+
+/* Make section names visually dominant without introducing extra surrounding margin. */
+.section-heading h2 {
+  font-size: 34px;
+  margin: 0 0 4px;
+}
+
+/* Keep the explanatory subtitle secondary to the heading. */
+.section-heading p {
+  color: #aaa7b3;
+  margin: 0;
+}
+
+/* Stack campaign cards with consistent separation while allowing each card to size to its content. */
+.campaign-list {
+  display: grid;
+  gap: 20px;
+}
+
+/* Add the card-specific internal padding used by each campaign summary. */
+.campaign {
+  padding: 28px;
+}
+
+/* Place campaign identity/status and share actions on one flexible row with safe wrapping space. */
+.campaign-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+/* Give each campaign title clear hierarchy inside its card. */
+.campaign h2 {
+  font-size: 30px;
+  margin: 10px 0;
+}
+
+/* Keep campaign pitch text readable and visually secondary to status and metrics. */
+.campaign p {
+  color: #bbb8c3;
+  line-height: 1.6;
+}
+
+/* Render lifecycle state as a compact uppercase badge rather than unstructured text. */
+.status {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #2a2634;
+  color: #ccb9ef;
+}
+
+/* Use the success palette for campaigns that reached demand, completed confirmation, or went live. */
+.status.target_reached, .status.confirmed, .status.live {
+  background: #15352d;
+  color: #74e2bd;
+}
+
+/* Allow metadata, threshold metrics, and confirmation items to wrap without overflowing the card. */
+.meta, .metrics, .confirmation-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* Align icons and labels consistently in metadata and confirmation summaries. */
+.meta span, .confirmation-row span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9f9ca7;
+}
+
+/* Create a compact circular control for share and other icon-only actions. */
+.icon-button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #1c1a23;
+  color: white;
+  border: 1px solid #3a3742;
+  border-radius: 50%;
+}
+
+/* Provide the rounded, clipped track behind campaign threshold progress. */
+.progress {
+  height: 12px;
+  border-radius: 999px;
+  background: #25232b;
+  overflow: hidden;
+  margin: 28px 0 18px;
+}
+
+/* Render the measured progress with the product gradient and animate server-driven width changes. */
+.progress div {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #35cba6);
+  transition: width .3s ease;
+}
+
+/* Distribute key threshold values across the card while retaining responsive wrapping. */
+.metrics {
+  justify-content: space-between;
+}
+
+/* Stack each metric label beneath or above its primary number. */
+.metrics div {
+  display: grid;
+  gap: 5px;
+}
+
+/* Make the current supporter or funding value the visual focus of each metric. */
+.metrics strong {
+  font-size: 26px;
+}
+
+/* Align metric helper icons and labels using muted text. */
+.metrics span {
+  color: #9996a1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Separate artist/venue confirmation state from the pledge controls using horizontal rules. */
+.confirmation-row {
+  border-top: 1px solid #292731;
+  border-bottom: 1px solid #292731;
+  padding: 18px 0;
+  margin: 24px 0;
+}
+
+/* Use the success color for confirmations already obtained. */
+.confirmation-row .confirmed {
+  color: #70dfb9;
+}
+
+/* Use muted contrast for confirmations still outstanding. */
+.confirmation-row .pending {
+  color: #9c98a6;
+}
+
+/* Arrange supporter identity, quantity, deposit, and submit control as one efficient desktop row. */
+.pledge-form {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr .7fr auto;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Use subdued text for policy, capability, and integration limitations. */
+small {
+  color: #85818d;
+}
+
+/* Highlight successful or informational action feedback inside a campaign card. */
+.message {
+  color: #84e0c1 !important;
+}
+
+/* Present validation and connectivity failures with a clearly distinguishable warning color. */
+.error {
+  color: #ff9a9a;
+}
+
+/* Collapse multi-column forms and action groups into single-column mobile layouts at this breakpoint. */
+@media (max-width: 800px) {
+  /* Share consistent presentation across the related selectors: .grid.two, .grid.three, .pledge-form. */
+  .grid.two, .grid.three, .pledge-form {
+    grid-template-columns: 1fr;
+  }
+
+  /* Style `nav > span` while keeping presentation separate from application behavior. */
+  nav > span {
+    display: none;
+  }
+
+  /* Style `.hero-copy` while keeping presentation separate from application behavior. */
+  .hero-copy {
+    margin-top: 64px;
+  }
+
+}
+
+/* Style optional actions with an outlined treatment that does not compete with the primary button. */
+.secondary {
+  margin: 8px 0 14px;
+  padding: 11px 14px;
+  color: #d9cdf1;
+  background: transparent;
+  border: 1px solid #514a60;
+  border-radius: 11px;
+  font-weight: 750;
+}
+
+/* Group sponsor identity, amount, benefits, and submission fields in a distinct nested surface. */
+.sponsor-form {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 16px;
+  margin: 4px 0 16px;
+  border: 1px solid #302d39;
+  border-radius: 14px;
+  background: #0d0c12;
+}
+
+/* Let the sponsor benefits request span the complete form width. */
+.sponsor-form textarea {
+  grid-column: 1 / -1;
+}
+
+/* Isolate the Stripe PaymentElement on a light surface that preserves provider component readability. */
+.stripe-box {
+  margin: 18px 0;
+  padding: 20px;
+  border: 1px solid #3c3747;
+  border-radius: 16px;
+  background: white;
+  color: #17131e;
+}
+
+/* Separate the payment confirmation button from the embedded Stripe fields. */
+.stripe-box .primary {
+  margin-top: 16px;
+}
+
+/* Collapse multi-column forms and action groups into single-column mobile layouts at this breakpoint. */
+@media (max-width: 800px) {
+  /* Style `.sponsor-form` while keeping presentation separate from application behavior. */
+  .sponsor-form {
+    grid-template-columns: 1fr;
+  }
+
+  /* Style `.sponsor-form textarea` while keeping presentation separate from application behavior. */
+  .sponsor-form textarea {
+    grid-column: auto;
+  }
+
+}
+
+/* Visually identify the Meta/Facebook integration area without overwhelming the campaign card. */
+.facebook-integration {
+  margin: 26px 0 18px;
+  padding: 20px;
+  border: 1px solid #34466c;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(24,119,242,.10), rgba(17,16,23,.8));
+}
+
+/* Align the Facebook icon and integration heading as one compact title row. */
+.facebook-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 850;
+}
+
+/* Keep the discovery-versus-verification explanation concise and secondary. */
+.facebook-note {
+  margin: 8px 0 18px;
+  font-size: 14px;
+}
+
+/* Place community attribution and referral controls side by side on wider screens. */
+.facebook-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Remove outer label margin so the integration grid controls its own spacing. */
+.facebook-grid label {
+  margin: 0;
+}
+
+/* Allow share, copy, connect, Page selection, and publish controls to wrap safely. */
+.facebook-actions, .page-publisher {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 14px 0;
+}
+
+/* Apply recognizable Facebook branding to explicit share/connect/publish actions. */
+.facebook-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 11px;
+  padding: 11px 14px;
+  color: white;
+  background: #1877f2;
+  font-weight: 800;
+}
+
+/* Visually communicate that the control cannot currently be used. */
+.facebook-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* Align outlined Facebook helper actions with the primary Facebook button row. */
+.facebook-actions .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+
+/* Display the generated tracked URL in a compact, selectable field. */
+.share-url {
+  font-size: 12px;
+  color: #b7c9ec;
+}
+
+/* Keep the managed-Page selector usable without consuming the entire action row. */
+.page-publisher select {
+  width: auto;
+  min-width: 250px;
+}
+
+/* Collapse multi-column forms and action groups into single-column mobile layouts at this breakpoint. */
+@media (max-width: 800px) {
+  /* Style `.facebook-grid` while keeping presentation separate from application behavior. */
+  .facebook-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Share consistent presentation across the related selectors: .facebook-actions > *, .page-publisher > *. */
+  .facebook-actions > *, .page-publisher > * {
+    width: 100%;
+  }
+
+  /* Style `.page-publisher select` while keeping presentation separate from application behavior. */
+  .page-publisher select {
+    min-width: 0;
+  }
+
+}
+
+/* Wrap Facebook Event, Group, and Page destination links as a compact related set. */
+.facebook-hub-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+/* Present external Facebook destinations as clearly clickable pills. */
+.facebook-hub-links a {
+  color: #cfe0ff;
+  border: 1px solid #35558b;
+  background: rgba(24,119,242,.10);
+  border-radius: 999px;
+  padding: 8px 12px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+/* Create a readable authentication surface over the hero background with responsive internal layout. */
+.auth-panel {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #34313e;
+  border-radius: 16px;
+  background: rgba(12,11,18,.82);
+  backdrop-filter: blur(12px);
+  display: grid;
+  gap: 12px;
+  max-width: 860px;
+}
+
+/* Align authentication icons and labels consistently across anonymous and signed-in states. */
+.auth-heading, .linked-providers, .auth-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Display available social providers in an even four-column grid on wide screens. */
+.auth-providers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+/* Give all social-login buttons a consistent size, weight, border, and base contrast. */
+.social-login {
+  border: 1px solid #484451;
+  border-radius: 11px;
+  padding: 11px 14px;
+  color: white;
+  background: #1b1922;
+  font-weight: 800;
+}
+
+/* Use Google-compatible light styling while retaining readable dark text. */
+.social-login.google {
+  background: #fff;
+  color: #222;
+}
+
+/* Use Facebook blue for immediate provider recognition. */
+.social-login.facebook {
+  background: #1877f2;
+  border-color: #1877f2;
+}
+
+/* Use Instagram-inspired gradient branding without changing button geometry. */
+.social-login.instagram {
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+  border: 0;
+}
+
+/* Use a high-contrast dark treatment consistent with TikTok branding. */
+.social-login.tiktok {
+  background: #050505;
+  border-color: #3d3d3d;
+}
+
+/* Visually communicate that the control cannot currently be used. */
+.social-login:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+/* Arrange signed-in identity, role, linked providers, connections, and logout in one adaptive row. */
+.auth-panel.authenticated {
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  align-items: center;
+}
+
+/* Align avatar and identity text as a single profile summary. */
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Crop provider avatars to a consistent circular size without distortion. */
+.auth-user img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Stack display name and secondary email/username text. */
+.auth-user div {
+  display: grid;
+}
+
+/* Use compact muted text for secondary identity and connection details. */
+.auth-user span, .linked-providers {
+  color: #aaa7b3;
+  font-size: 12px;
+}
+
+/* Preserve a usable minimum width for the account-role selector. */
+.auth-panel select {
+  min-width: 170px;
+}
+
+/* Present sign-out as a lower-emphasis outlined action while retaining clear affordance. */
+.auth-logout {
+  border: 1px solid #514a60;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  color: white;
+  font-weight: 750;
+}
+
+/* Collapse multi-column forms and action groups into single-column mobile layouts at this breakpoint. */
+@media (max-width: 800px) {
+  /* Share consistent presentation across the related selectors: .auth-providers, .auth-panel.authenticated. */
+  .auth-providers, .auth-panel.authenticated {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+/* Wrap optional provider-link controls when several accounts remain available. */
+.auth-connect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Render account-link actions as small pills distinct from full login buttons. */
+.auth-link {
+  border: 1px solid #514a60;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #18151f;
+  color: #ddd8e8;
+  font-size: 11px;
+  font-weight: 750;
+}

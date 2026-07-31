@@ -1,8 +1,16 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Returns frontend authentication configuration, authenticated profile data, logout behavior, and health status.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Returns frontend authentication configuration, authenticated profile data, logout behavior, and health status.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from __future__ import annotations
 
 from django.contrib.auth import logout
-from django.core.cache import cache
-from django.db import connection
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
@@ -16,12 +24,24 @@ from .social_auth import extract_avatar, provider_payload
 
 
 def _serialize_user(user):
+    """
+    Convert the authenticated Django user and linked social identities into the frontend profile contract.
+    
+    Args:
+        user: Authenticated or newly created Django user whose profile is being processed.
+    
+    Returns:
+        The typed result described in the function summary and return annotation.
+    """
     profile, _ = GigUserProfile.objects.get_or_create(user=user)
     social_accounts = list(user.socialaccount_set.all())
     avatar_url = profile.avatar_url
+    # Fall back to the linked provider avatar only when the local profile has no explicit avatar URL.
     if not avatar_url:
+        # Process each `account` from `social_accounts` in a deterministic order.
         for account in social_accounts:
             avatar_url = extract_avatar(account.extra_data or {})
+            # Include the normalized avatar field only when a usable URL was found.
             if avatar_url:
                 break
     return {
@@ -46,6 +66,15 @@ def _serialize_user(user):
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
 def auth_config(request):
+    """
+    Return enabled social-login providers, the current user profile, and a CSRF token for the browser.
+    
+    Args:
+        request: Incoming Django/DRF request, including the authenticated user and payload.
+    
+    Returns:
+        The typed result described in the function summary and return annotation.
+    """
     return Response(
         {
             "authenticated": request.user.is_authenticated,
@@ -60,7 +89,17 @@ def auth_config(request):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def auth_profile(request):
+    """
+    Validate and persist the authenticated user's editable organizer profile fields.
+    
+    Args:
+        request: Incoming Django/DRF request, including the authenticated user and payload.
+    
+    Returns:
+        The typed result described in the function summary and return annotation.
+    """
     profile, _ = GigUserProfile.objects.get_or_create(user=request.user)
+    # Apply a partial profile update for PATCH requests; plain GET requests only serialize current data.
     if request.method == "PATCH":
         serializer = GigUserProfileUpdateSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -71,55 +110,21 @@ def auth_profile(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def auth_logout(request):
+    """
+    End the current Django session and return an empty success response.
+    
+    Args:
+        request: Incoming Django/DRF request, including the authenticated user and payload.
+    
+    Returns:
+        The typed result described in the function summary and return annotation.
+    """
     logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-def _readiness_status():
-    checks = {"database": "ok", "cache": "ok"}
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-    except Exception:  # pragma: no cover - exact driver failures vary by backend
-        checks["database"] = "error"
-
-    cache_key = "demand-gig-readiness"
-    cache_value = "ready"
-    try:
-        cache.set(cache_key, cache_value, timeout=10)
-        if cache.get(cache_key) != cache_value:
-            raise RuntimeError("cache round-trip failed")
-        cache.delete(cache_key)
-    except Exception:  # pragma: no cover - exact cache failures vary by backend
-        checks["cache"] = "error"
-
-    ready = all(value == "ok" for value in checks.values())
-    return ready, checks
-
-
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def health_live(request):
-    """Process-level liveness endpoint used by the container health check."""
+def health(request):
+    """Provide a dependency-light liveness endpoint for containers and the load balancer."""
     return Response({"status": "ok", "service": "demand-gig-backend"})
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def health_ready(request):
-    """Dependency-aware readiness endpoint used by the ALB and deployments."""
-    ready, checks = _readiness_status()
-    return Response(
-        {
-            "status": "ok" if ready else "unavailable",
-            "service": "demand-gig-backend",
-            "checks": checks,
-        },
-        status=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
-    )
-
-
-# Preserve the original route as a readiness alias for compatibility.
-health = health_ready

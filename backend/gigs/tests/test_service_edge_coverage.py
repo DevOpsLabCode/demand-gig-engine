@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Covers service-layer idempotency, invalid lifecycle transitions, race-resistant threshold evaluation, expiry, refunds, and integration side effects.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Covers service-layer idempotency, invalid lifecycle transitions, race-resistant threshold evaluation, expiry, refunds, and integration side effects.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -33,7 +43,19 @@ from gigs.services import (
 
 
 class ServiceEdgeCoverageTests(TestCase):
+    """
+    Exercise ServiceEdgeCoverage behavior, edge cases, and failure handling with isolated tests.
+    """
     def make_campaign(self, **overrides):
+        """
+        Create a campaign test fixture with valid defaults and optional field overrides.
+        
+        Args:
+            **overrides: Additional keyword arguments forwarded to the underlying implementation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         data = {
             "title": "Bring Band X",
             "pitch": "Demand first",
@@ -50,6 +72,16 @@ class ServiceEdgeCoverageTests(TestCase):
         return DemandCampaign.objects.create(**data)
 
     def pledge_data(self, key="key", **overrides):
+        """
+        Build a valid pledge payload and merge test-specific overrides.
+        
+        Args:
+            key: Configuration or object key currently being validated.
+            **overrides: Additional keyword arguments forwarded to the underlying implementation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         data = {
             "supporter_name": "Fan",
             "supporter_email": "fan@example.com",
@@ -61,18 +93,28 @@ class ServiceEdgeCoverageTests(TestCase):
         return data
 
     def test_meta_event_wrapper_swallows_only_meta_errors(self):
+        """
+        Verify that meta event wrapper swallows only meta errors.
+        """
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.send_conversion_event") as mocked:
             _send_meta_event_safely(event_name="Lead")
             mocked.assert_called_once_with(event_name="Lead")
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.send_conversion_event", side_effect=MetaAPIError("no")):
             _send_meta_event_safely(event_name="Lead")
 
     def test_launch_and_create_reject_invalid_states_and_expired_deadline(self):
+        """
+        Verify that launch and create reject invalid states and expired deadline.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "Only a draft"):
             launch_campaign(campaign.id)
 
         draft = self.make_campaign(title="Draft")
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "not accepting"):
             create_pledge(draft.id, self.pledge_data("draft"))
 
@@ -81,9 +123,11 @@ class ServiceEdgeCoverageTests(TestCase):
             status=CampaignStatus.COLLECTING,
             deadline=timezone.now() - timedelta(seconds=1),
         )
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "deadline has passed"):
             create_pledge(expired.id, self.pledge_data("expired"))
 
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "not accepting sponsor"):
             create_sponsorship(
                 draft.id,
@@ -96,6 +140,9 @@ class ServiceEdgeCoverageTests(TestCase):
             )
 
     def test_existing_pending_stripe_pledge_returns_client_secret(self):
+        """
+        Verify that existing pending stripe pledge returns client secret.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
         pledge = Pledge.objects.create(
             campaign=campaign,
@@ -111,12 +158,16 @@ class ServiceEdgeCoverageTests(TestCase):
         )
         provider = Mock()
         provider.get_client_secret.return_value = "secret"
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.get_payment_provider", return_value=provider):
             existing, secret = create_pledge(campaign.id, self.pledge_data("same"))
         self.assertEqual(existing.id, pledge.id)
         self.assertEqual(secret, "secret")
 
     def test_paid_pledge_can_remain_pending_and_schedule_checkout_event(self):
+        """
+        Verify that paid pledge can remain pending and schedule checkout event.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
         provider = Mock(name="provider")
         provider.name = "stripe"
@@ -126,6 +177,7 @@ class ServiceEdgeCoverageTests(TestCase):
             status="requires_action",
         )
         share = FacebookShareLink("https://example.com/campaign", "https://facebook.com/share")
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.get_payment_provider", return_value=provider), patch(
             "gigs.services.build_campaign_share_link", return_value=share
         ), patch("gigs.services.send_conversion_event") as conversion, self.captureOnCommitCallbacks(
@@ -141,7 +193,11 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertEqual(conversion.call_args.kwargs["value"], Decimal("25"))
 
     def test_commitment_schedules_lead_and_threshold_noop(self):
+        """
+        Verify that commitment schedules lead and threshold noop.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING, supporter_target=5)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch(
             "gigs.services.build_campaign_share_link",
             return_value=FacebookShareLink("https://example.com", "https://facebook.com"),
@@ -155,7 +211,11 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertEqual(evaluate_threshold_locked(campaign).status, CampaignStatus.COLLECTING)
 
     def test_artist_and_venue_confirmation_edge_paths(self):
+        """
+        Verify that artist and venue confirmation edge paths.
+        """
         blocked = self.make_campaign(status=CampaignStatus.COLLECTING)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "Venue confirmation"):
             confirm_venue(blocked.id, "too early")
 
@@ -175,17 +235,30 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertEqual(campaign.status, CampaignStatus.CONFIRMED)
 
     def test_finalize_rejects_unconfirmed_campaign(self):
+        """
+        Verify that finalize rejects unconfirmed campaign.
+        """
         campaign = self.make_campaign(status=CampaignStatus.TARGET_REACHED)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(CampaignStateError, "both be confirmed"):
             finalize_campaign(campaign.id, "event")
 
     def test_failure_flow_rejects_terminal_campaign(self):
+        """
+        Verify that failure flow rejects terminal campaign.
+        """
+        # Process each `status` from `(CampaignStatus.LIVE, CampaignStatus.COMPLETED,
+        # CampaignStatus.REFU...` in a deterministic order.
         for status in (CampaignStatus.LIVE, CampaignStatus.COMPLETED, CampaignStatus.REFUNDED):
             campaign = self.make_campaign(title=f"Terminal {status}", status=status)
+            # Enter the context manager to scope resources, transactions, or cleanup to this block.
             with self.subTest(status=status), self.assertRaisesRegex(CampaignStateError, "can no longer"):
                 fail_and_refund_campaign(campaign.id)
 
     def test_pledge_refund_failure_leaves_campaign_refunding(self):
+        """
+        Verify that pledge refund failure leaves campaign refunding.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
         pledge = Pledge.objects.create(
             campaign=campaign,
@@ -200,6 +273,7 @@ class ServiceEdgeCoverageTests(TestCase):
         )
         provider = Mock()
         provider.refund.side_effect = RuntimeError("refund unavailable")
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.get_payment_provider", return_value=provider):
             campaign = fail_and_refund_campaign(campaign.id, reason="No venue")
         pledge.refresh_from_db()
@@ -208,6 +282,9 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertTrue(campaign.events.filter(event_type="pledge.refund_failed").exists())
 
     def test_paid_sponsor_without_reference_is_canceled(self):
+        """
+        Verify that paid sponsor without reference is canceled.
+        """
         campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
         sponsor = SponsorCommitment.objects.create(
             campaign=campaign,
@@ -224,6 +301,9 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertEqual(campaign.status, CampaignStatus.REFUNDED)
 
     def test_paid_sponsor_refund_success_and_failure(self):
+        """
+        Verify that paid sponsor refund success and failure.
+        """
         success_campaign = self.make_campaign(status=CampaignStatus.COLLECTING)
         success = SponsorCommitment.objects.create(
             campaign=success_campaign,
@@ -236,6 +316,7 @@ class ServiceEdgeCoverageTests(TestCase):
         )
         provider = Mock()
         provider.refund.return_value = "re_success"
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.get_payment_provider", return_value=provider):
             campaign = fail_and_refund_campaign(success_campaign.id)
         success.refresh_from_db()
@@ -254,6 +335,7 @@ class ServiceEdgeCoverageTests(TestCase):
             payment_reference="sp_fail",
         )
         provider.refund.side_effect = RuntimeError("processor down")
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.get_payment_provider", return_value=provider):
             campaign = fail_and_refund_campaign(failure_campaign.id)
         failed.refresh_from_db()
@@ -262,10 +344,14 @@ class ServiceEdgeCoverageTests(TestCase):
         self.assertTrue(campaign.events.filter(event_type="sponsor.refund_failed").exists())
 
     def test_expire_due_campaigns_only_fails_unmet_collecting_campaigns(self):
+        """
+        Verify that expire due campaigns only fails unmet collecting campaigns.
+        """
         due = timezone.now() - timedelta(minutes=1)
         collecting = self.make_campaign(title="Collecting", status=CampaignStatus.COLLECTING, deadline=due)
         self.make_campaign(title="Reached", status=CampaignStatus.TARGET_REACHED, deadline=due)
         self.make_campaign(title="Confirming", status=CampaignStatus.CONFIRMING, deadline=due)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with patch("gigs.services.fail_and_refund_campaign") as fail:
             self.assertEqual(expire_due_campaigns(), 1)
         fail.assert_called_once_with(collecting.id)

@@ -1,5 +1,10 @@
 # Demand Gig Engine Terraform module architecture
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 This document maps the production AWS diagram to the Terraform implementation under `terraform/`. The framework uses one reusable module per AWS service or infrastructure responsibility, then composes those modules into isolated `dev` and `prod` stacks through environment-specific `.tfvars` and remote-state keys.
 
 ## Request and deployment paths

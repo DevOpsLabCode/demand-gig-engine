@@ -1,5 +1,15 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Defines shared TypeScript contracts used by React components and API functions.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
+/** Select whether success is measured by attendees, committed money, or both thresholds. */
 export type GoalType = "supporters" | "money" | "both";
 
+/**
+ * Represent the complete campaign API response, including owner identity, lifecycle state, calculated totals, and social links.
+ */
 export interface Campaign {
   id: string;
   owner: {
@@ -33,6 +43,9 @@ export interface Campaign {
   facebook_page_url: string;
 }
 
+/**
+ * Define the draft-campaign fields accepted by the creation endpoint before server-side ownership and status are assigned.
+ */
 export interface CampaignCreate {
   title: string;
   pitch: string;
@@ -53,6 +66,9 @@ export interface CampaignCreate {
   facebook_page_url?: string;
 }
 
+/**
+ * Define one supporter commitment, including the idempotency and attribution fields that make retries and marketing measurement safe.
+ */
 export interface PledgeInput {
   supporter_name: string;
   supporter_email: string;
@@ -64,11 +80,17 @@ export interface PledgeInput {
   referral_code?: string;
 }
 
+/**
+ * Return the persisted pledge identity/status and an optional Stripe client secret for completing a deposit.
+ */
 export interface PledgeResult {
   pledge: { id: string; status: string };
   client_secret: string;
 }
 
+/**
+ * Define the sponsor identity, contact, committed amount, and requested benefits sent to the campaign API.
+ */
 export interface SponsorInput {
   sponsor_name: string;
   contact_name: string;
@@ -77,6 +99,9 @@ export interface SponsorInput {
   benefits_requested?: string;
 }
 
+/**
+ * Expose only public Meta identifiers and capability flags needed by the browser; app secrets remain server-side.
+ */
 export interface FacebookConfig {
   enabled: boolean;
   app_id: string;
@@ -85,6 +110,9 @@ export interface FacebookConfig {
   groups_api_available: false;
 }
 
+/**
+ * Represent the normalized Facebook identity returned after the backend verifies the user token.
+ */
 export interface FacebookProfile {
   id: string;
   name: string;
@@ -93,6 +121,9 @@ export interface FacebookProfile {
   token_expires_at?: number;
 }
 
+/**
+ * Represent a managed Facebook Page and the scoped token used only for an explicit organizer publication request.
+ */
 export interface FacebookPage {
   id: string;
   name: string;
@@ -102,11 +133,17 @@ export interface FacebookPage {
   picture_url: string;
 }
 
+/**
+ * Carry the attributed campaign URL and the Facebook share-dialog URL built around it.
+ */
 export interface FacebookShareLink {
   campaign_url: string;
   share_dialog_url: string;
 }
 
+/**
+ * Describe optional VibesMeet bridge readiness and the integration capabilities implemented by this repository.
+ */
 export interface VibesMeetConfig {
   enabled: boolean;
   webhook_configured: boolean;
@@ -121,8 +158,14 @@ export interface VibesMeetConfig {
 }
 
 
+/**
+ * Enumerate marketplace roles supported by user profiles and future matching workflows.
+ */
 export type AccountType = "fan" | "band" | "venue" | "organizer" | "rental" | "sponsor";
 
+/**
+ * Describe one social provider, its allauth routes, and whether configuration is complete enough to enable it.
+ */
 export interface AuthProvider {
   id: "google" | "facebook" | "instagram" | "tiktok";
   label: string;
@@ -132,6 +175,9 @@ export interface AuthProvider {
   callback_path: string;
 }
 
+/**
+ * Represent the editable application profile plus linked social identities for the signed-in user.
+ */
 export interface AuthUser {
   id: number;
   username: string;
@@ -149,6 +195,9 @@ export interface AuthUser {
   linked_providers: string[];
 }
 
+/**
+ * Return session state, provider availability, CSRF protection, and account-type choices required by the authentication panel.
+ */
 export interface AuthConfig {
   authenticated: boolean;
   user: AuthUser | null;

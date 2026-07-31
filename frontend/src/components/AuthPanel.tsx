@@ -1,11 +1,24 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Displays authentication state, starts OAuth login/link flows, edits account type, and ends the current session.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import { useEffect, useState } from "react";
 import { LogIn, LogOut, ShieldCheck, UserCircle2 } from "lucide-react";
 import { api } from "../api";
 import type { AccountType, AuthConfig, AuthProvider } from "../types";
 
+/**
+ * Derive the Django origin from VITE_API_BASE so allauth form posts bypass the /api prefix.
+ */
 const BACKEND_BASE = (import.meta.env.VITE_API_BASE ?? "/api").replace(/\/api\/?$/, "");
 
+/**
+ * Submit a CSRF-protected form to django-allauth for either a new login or an additional account connection.
+ */
 function startProviderLogin(provider: AuthProvider, csrfToken: string, process: "login" | "connect" = "login") {
+  // Disabled providers have missing credentials or routes, so do not navigate to a known-broken OAuth flow.
   if (!provider.enabled) return;
   const form = document.createElement("form");
   form.method = "POST";
@@ -22,10 +35,14 @@ function startProviderLogin(provider: AuthProvider, csrfToken: string, process: 
   form.submit();
 }
 
+/**
+ * Render anonymous provider buttons or the authenticated profile, linked identities, account-type selector, and sign-out control.
+ */
 export function AuthPanel() {
   const [auth, setAuth] = useState<AuthConfig | null>(null);
   const [error, setError] = useState("");
 
+  /** Reload authentication configuration after initial render, profile changes, linking, or logout. */
   async function load() {
     try {
       setAuth(await api.authConfig());
@@ -35,10 +52,13 @@ export function AuthPanel() {
     }
   }
 
+  // Resolve the server session and enabled providers once the panel mounts.
   useEffect(() => { void load(); }, []);
 
+  // Keep the layout stable while the session/provider configuration is being fetched.
   if (!auth) return <div className="auth-panel"><span>Loading sign-in…</span></div>;
 
+  // Signed-in users see identity, role, linked providers, optional provider linking, and logout controls.
   if (auth.authenticated && auth.user) {
     return (
       <div className="auth-panel authenticated">

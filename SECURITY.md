@@ -1,5 +1,10 @@
 # Security Policy
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 ## Supported code
 
 Security fixes are applied to the `main` branch. Deployments should use a reviewed commit from `main`, not an unreviewed feature branch.

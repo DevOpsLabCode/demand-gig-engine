@@ -1,4 +1,13 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Loads the Facebook JavaScript SDK and wraps login and browser-event tracking behavior.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 declare global {
+  /**
+   * Extend Window with the minimal Facebook SDK surface used by this application.
+   */
   interface Window {
     FB?: {
       init(options: Record<string, unknown>): void;
@@ -11,6 +20,9 @@ declare global {
   }
 }
 
+/**
+ * Model the subset of Facebook Login response fields needed to extract the user access token.
+ */
 interface FacebookLoginResponse {
   authResponse?: { accessToken: string };
   status?: string;
@@ -18,8 +30,11 @@ interface FacebookLoginResponse {
 
 let loadedAppId = "";
 
+/** Load and initialize the Facebook JavaScript SDK once per app ID, reusing an existing script when present. */
 export async function loadFacebookSdk(appId: string, version: string): Promise<void> {
+  // A missing app ID is configuration failure, not a user-cancelled login.
   if (!appId) throw new Error("Facebook App ID is not configured.");
+  // Reuse an SDK already initialized for the same app to avoid duplicate global callbacks.
   if (window.FB && loadedAppId === appId) return;
 
   await new Promise<void>((resolve, reject) => {
@@ -45,6 +60,7 @@ export async function loadFacebookSdk(appId: string, version: string): Promise<v
   });
 }
 
+/** Request the Page-management scopes and resolve only with a user token approved by the organizer. */
 export async function loginWithFacebook(appId: string, version: string): Promise<string> {
   await loadFacebookSdk(appId, version);
   return new Promise<string>((resolve, reject) => {

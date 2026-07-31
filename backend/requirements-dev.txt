@@ -1,3 +1,6 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Adds test, coverage, lint, and development dependencies to the backend runtime set.
+
 -r requirements.txt
 
 # Test and lint tooling used by local development and GitHub Actions.

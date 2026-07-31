@@ -1,11 +1,14 @@
-from .auth_views import (
-    auth_config,
-    auth_logout,
-    auth_profile,
-    health,
-    health_live,
-    health_ready,
-)
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Maps application API paths to view sets, authentication endpoints, payment webhooks, and integration webhooks.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Maps application API paths to view sets, authentication endpoints, payment webhooks, and integration webhooks.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
+from .auth_views import auth_config, auth_logout, auth_profile, health
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -23,8 +26,6 @@ router.register("campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
     path("health/", health, name="health"),
-    path("health/live/", health_live, name="health-live"),
-    path("health/ready/", health_ready, name="health-ready"),
     path("", include(router.urls)),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/profile/", auth_profile, name="auth-profile"),

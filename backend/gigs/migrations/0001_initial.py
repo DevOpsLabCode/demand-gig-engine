@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Records the database schema transition represented by migration 0001_initial.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Records the database schema transition represented by migration 0001_initial.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 # Generated manually for the Demand Gig MVP.
 import uuid
 from decimal import Decimal
@@ -7,6 +17,9 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    """
+    Describe the database schema transition and its dependency on earlier migrations.
+    """
     initial = True
     dependencies = []
 

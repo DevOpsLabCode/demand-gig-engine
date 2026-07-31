@@ -1,4 +1,13 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Initializes Meta Pixel and emits browser conversion events with deduplication identifiers.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 declare global {
+  /**
+   * Extend Window with the Meta Pixel queue function installed by the external script.
+   */
   interface Window {
     fbq?: (...args: unknown[]) => void;
     _fbq?: unknown;
@@ -7,7 +16,11 @@ declare global {
 
 let initializedPixel = "";
 
+/**
+ * Initialize Meta Pixel exactly once per pixel ID, queue calls until the SDK loads, and record the initial PageView.
+ */
 export function initMetaPixel(pixelId: string): void {
+  // Skip server-side rendering, missing configuration, and duplicate initialization for the same pixel.
   if (!pixelId || initializedPixel === pixelId || typeof document === "undefined") return;
 
   const fbq = function (...args: unknown[]) {
@@ -35,11 +48,15 @@ export function initMetaPixel(pixelId: string): void {
   initializedPixel = pixelId;
 }
 
+/**
+ * Emit a browser conversion event and include eventID when server-side Conversions API deduplication is used.
+ */
 export function trackMetaEvent(
   name: string,
   parameters: Record<string, unknown> = {},
   eventId?: string,
 ): void {
+  // Tracking is optional; application behavior must continue when Pixel is unavailable or blocked.
   if (!window.fbq) return;
   if (eventId) window.fbq("track", name, parameters, { eventID: eventId });
   else window.fbq("track", name, parameters);

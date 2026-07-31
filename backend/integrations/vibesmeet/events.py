@@ -1,3 +1,7 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Defines the supported VibesMeet event names and event-category constants.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
 """Proposed VibesMeet webhook event names.
 
 These names are a contract proposal and must be aligned with VibesMeet before

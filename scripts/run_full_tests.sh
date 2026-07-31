@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Runs application-focused checks, Django tests and coverage, frontend builds, and Docker Compose validation.
+# Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
+
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -27,14 +31,18 @@ DEBUG=true DJANGO_SETTINGS_MODULE=config.settings PYTHONPATH=backend \
 
 cd "$ROOT/frontend"
 if [ -f package-lock.json ]; then
+  # Install, validate, or build the frontend assets for this phase.
   npm ci --no-audit --no-fund
 else
+  # Install, validate, or build the frontend assets for this phase.
   npm install --no-audit --no-fund
 fi
+# Install, validate, or build the frontend assets for this phase.
 npm run build
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   cd "$ROOT"
+  # Build, tag, publish, or inspect the container artifact required by this deployment phase.
   docker compose config --quiet
 else
   echo "SKIP: Docker is not installed; docker compose runtime test not executed."

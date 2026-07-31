@@ -1,5 +1,10 @@
 # Social Authentication and AWS Production Update
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 ## Implemented in the gig module
 
 - Google, Facebook, Instagram, and TikTok OAuth provider configuration through `django-allauth`.

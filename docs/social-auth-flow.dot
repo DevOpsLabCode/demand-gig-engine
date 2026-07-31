@@ -1,3 +1,7 @@
+// Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+// Purpose: Defines the source graph used to render the documented architecture or authentication-flow diagram.
+// Nodes represent services or actors; directed edges represent request, data, or trust flow.
+
 digraph SocialAuth {
   graph [rankdir=LR, bgcolor="#07111F", fontname="Arial", fontsize=22, pad=0.35, nodesep=0.5, ranksep=0.6, splines=ortho, label="Gig Engine — Social Authentication and Authorization Flow", labelloc=t, fontcolor="white", size="15,8!"];
   node [shape=box, style="rounded,filled", fontname="Arial", fontsize=11, color="#64748B", fillcolor="#172033", fontcolor="white", margin="0.15,0.1"];

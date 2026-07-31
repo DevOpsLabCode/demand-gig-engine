@@ -1,15 +1,47 @@
 # Demand-Driven Gig Creation MVP
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 A production-minded reference implementation of the missing Open Concert / VibesMeet workflow:
 
 > **Plant the seed → gather supporters → reach the target → confirm the artist and venue → produce the gig.**
 
 This is not ordinary ticketing. A campaign proves real demand before an organizer assumes the full cost and risk of booking the artist, venue, production, security, insurance, travel, and promotion.
 
+<!-- DOCUMENTATION-ENHANCEMENT-START -->
+## Start here
 
-## AWS application-online verification
+This repository is documented for three audiences:
 
-The Terraform deployment now uses a zero-capacity → dependency wait → one-off migration → service scale-up sequence, dependency-aware ALB readiness, protected CloudFront origin access, same-origin social-auth routing, and post-deploy smoke tests. The exact executed/deferred test matrix is in [`APPLICATION_ONLINE_VERIFICATION.md`](APPLICATION_ONLINE_VERIFICATION.md) and [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md).
+1. **Product and business readers** can start with the demand-driven event flow and screenshots in this README.
+2. **Application developers** should read [`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md), then follow a request from `frontend/src/api.ts` to `backend/gigs/views.py`, `serializers.py`, `services.py`, and `models.py`.
+3. **Cloud and DevSecOps engineers** should read [`terraform/README.md`](terraform/README.md) and [`docs/terraform-module-architecture.md`](docs/terraform-module-architecture.md).
+
+### Documentation map
+
+| Document | Use it for |
+|---|---|
+| [`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md) | File-by-file explanation of source, tests, workflows, and Terraform blocks |
+| [`docs/DEVELOPER_ONBOARDING.md`](docs/DEVELOPER_ONBOARDING.md) | Local setup, first change, debugging, testing, and pull-request workflow |
+| [`README_FUTURE.md`](README_FUTURE.md) | Product roadmap and future-state architecture |
+| [`docs/SOCIAL_AUTHENTICATION.md`](docs/SOCIAL_AUTHENTICATION.md) | Google, Facebook, Instagram, and TikTok authentication design |
+| [`docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md`](docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md) | VibesMeet ownership boundaries, contracts, and integration modules |
+| [`SECURITY_TESTING.md`](SECURITY_TESTING.md) | Security gates, tools, CI jobs, and local commands |
+| [`TEST_REPORT.md`](TEST_REPORT.md) | Executed application validation and environment limitations |
+| [`TERRAFORM_TEST_REPORT.md`](TERRAFORM_TEST_REPORT.md) | Infrastructure test evidence and deployment-contract validation |
+
+### Core business flow in plain English
+
+A campaign begins as a proposal rather than a confirmed event. Fans and sponsors create verified demand. The backend counts only active commitments, checks the configured supporter and/or money threshold, moves the campaign through explicit states, confirms the artist and venue, and finalizes payments only when the business preconditions are satisfied. If the deadline passes without sufficient demand, refundable deposits are returned through the selected payment provider.
+
+### Author and stewardship
+
+The architecture, implementation framework, and documentation are authored and maintained by **Stan Zvenigorodskiy**, **DevOps Lab Inc.** - [DevOpsLabInc.com](https://DevOpsLabInc.com).
+
+<!-- DOCUMENTATION-ENHANCEMENT-END -->
 
 ## Current release summary
 

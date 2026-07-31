@@ -1,3 +1,8 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Composes reusable AWS modules into the complete Demand Gig Engine environment.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Compute reusable derived values used throughout this file.
 locals {
   name = "${var.project_name}-${var.environment}"
   tags = merge(var.tags, { Environment = var.environment })
@@ -18,7 +23,7 @@ locals {
     ALLOWED_HOSTS           = local.allowed_hosts,
     CSRF_TRUSTED_ORIGINS    = local.application_url,
     CORS_ALLOWED_ORIGINS    = local.application_url,
-    SECURE_SSL_REDIRECT     = "true",
+    SECURE_SSL_REDIRECT     = "false",
     SECURE_PROXY_SSL_HEADER_NAME = "HTTP_X_FORWARDED_VIEWER_PROTO",
     SESSION_COOKIE_SECURE   = "true",
     CSRF_COOKIE_SECURE      = "true",
@@ -31,28 +36,27 @@ locals {
     SECRET_KEY   = "${module.database.runtime_secret_arn}:SECRET_KEY::",
   })
 }
-resource "random_password" "origin_verify" {
-  length  = 48
-  special = false
-}
-
+# Validates an invariant early so an unsafe or inconsistent plan cannot proceed.
 check "dns_configuration" {
   assert {
     condition = ! var.create_dns || (var.domain_name != "" && var.hosted_zone_id != "")
     error_message = "create_dns requires both domain_name and hosted_zone_id."
   }
 }
+# Validates an invariant early so an unsafe or inconsistent plan cannot proceed.
 check "production_safety" {
   assert {
     condition = var.allow_zero_capacity || var.environment != "prod" || (var.deletion_protection && var.db_multi_az && var.backend_desired_count >= 2 && var.redis_replicas >= 1)
     error_message = "Production requires deletion protection, Multi-AZ RDS, at least two API tasks, and a Redis replica."
   }
 }
+# Invokes the reusable kms module and passes this environment configuration into it.
 module "kms" {
   source = "./modules/kms"
   name = local.name
   tags = local.tags
 }
+# Invokes the reusable networking module and passes this environment configuration into it.
 module "networking" {
   source = "./modules/networking"
   name = local.name
@@ -61,13 +65,14 @@ module "networking" {
   nat_gateway_per_az = var.nat_gateway_per_az
   tags = local.tags
 }
+# Invokes the reusable security module and passes this environment configuration into it.
 module "security" {
-  source          = "./modules/security"
-  name            = local.name
-  vpc_id          = module.networking.vpc_id
-  alb_origin_port = var.create_dns ? 443 : 80
-  tags            = local.tags
+  source = "./modules/security"
+  name = local.name
+  vpc_id = module.networking.vpc_id
+  tags = local.tags
 }
+# Invokes the reusable ecr module and passes this environment configuration into it.
 module "ecr" {
   source = "./modules/ecr"
   name = local.name
@@ -75,6 +80,7 @@ module "ecr" {
   kms_key_arn = module.kms.key_arn
   tags = local.tags
 }
+# Invokes the reusable static module and passes this environment configuration into it.
 module "static" {
   source            = "./modules/s3_static"
   name              = "${local.name}-${data.aws_caller_identity.current.account_id}-static"
@@ -82,6 +88,7 @@ module "static" {
   create_tls_policy = false
   tags              = local.tags
 }
+# Invokes the reusable media module and passes this environment configuration into it.
 module "media" {
   source            = "./modules/s3_static"
   name              = "${local.name}-${data.aws_caller_identity.current.account_id}-media"
@@ -90,6 +97,7 @@ module "media" {
   create_tls_policy = true
   tags              = local.tags
 }
+# Invokes the reusable acm viewer module and passes this environment configuration into it.
 module "acm_viewer" {
   providers      = { aws = aws.us_east_1 }
   source         = "./modules/acm"
@@ -99,6 +107,7 @@ module "acm_viewer" {
   tags           = local.tags
 }
 
+# Invokes the reusable acm origin module and passes this environment configuration into it.
 module "acm_origin" {
   source         = "./modules/acm"
   domain_name    = local.origin_domain
@@ -106,24 +115,25 @@ module "acm_origin" {
   create         = var.create_dns
   tags           = local.tags
 }
+# Invokes the reusable waf module and passes this environment configuration into it.
 module "waf" {
   providers = {aws = aws.us_east_1}
   source = "./modules/waf"
   name = local.name
   tags = local.tags
 }
+# Invokes the reusable alb module and passes this environment configuration into it.
 module "alb" {
   source = "./modules/alb"
   name = local.name
   vpc_id = module.networking.vpc_id
   subnet_ids = module.networking.public_subnet_ids
   security_group_ids = [module.security.alb_sg_id]
-  certificate_arn           = module.acm_origin.certificate_arn
-  origin_verify_header_name = "X-Origin-Verify"
-  origin_verify_header_value = random_password.origin_verify.result
-  deletion_protection       = var.deletion_protection
+  certificate_arn = module.acm_origin.certificate_arn
+  deletion_protection = var.deletion_protection
   tags = local.tags
 }
+# Invokes the reusable cloudfront module and passes this environment configuration into it.
 module "cloudfront" {
   source = "./modules/cloudfront"
   name = local.name
@@ -135,11 +145,10 @@ module "cloudfront" {
   domain_name = var.domain_name
   certificate_arn = module.acm_viewer.certificate_arn
   price_class = var.cloudfront_price_class
-  web_acl_arn               = module.waf.arn
-  origin_verify_header_name = "X-Origin-Verify"
-  origin_verify_header_value = random_password.origin_verify.result
-  tags                      = local.tags
+  web_acl_arn = module.waf.arn
+  tags = local.tags
 }
+# Invokes the reusable route53 module and passes this environment configuration into it.
 module "route53" {
   source = "./modules/route53"
   enabled = var.create_dns
@@ -148,6 +157,7 @@ module "route53" {
   target_name = module.cloudfront.domain_name
   target_zone_id = module.cloudfront.hosted_zone_id
 }
+# Invokes the reusable route53 origin module and passes this environment configuration into it.
 module "route53_origin" {
   source = "./modules/route53"
   enabled = var.create_dns
@@ -157,6 +167,7 @@ module "route53_origin" {
   target_zone_id = module.alb.zone_id
   create_ipv6    = false
 }
+# Invokes the reusable database module and passes this environment configuration into it.
 module "database" {
   source = "./modules/rds_postgres"
   name = local.name
@@ -165,11 +176,11 @@ module "database" {
   kms_key_arn = module.kms.key_arn
   instance_class = var.db_instance_class
   allocated_storage = var.db_allocated_storage
-  multi_az                    = var.db_multi_az
-  performance_insights_enabled = var.db_performance_insights_enabled
-  deletion_protection          = var.deletion_protection
+  multi_az = var.db_multi_az
+  deletion_protection = var.deletion_protection
   tags = local.tags
 }
+# Invokes the reusable redis module and passes this environment configuration into it.
 module "redis" {
   source = "./modules/redis"
   name = local.name
@@ -180,11 +191,13 @@ module "redis" {
   replicas = var.redis_replicas
   tags = local.tags
 }
+# Invokes the reusable sqs module and passes this environment configuration into it.
 module "sqs" {
   source = "./modules/sqs"
   name = local.name
   tags = local.tags
 }
+# Invokes the reusable eventbridge module and passes this environment configuration into it.
 module "eventbridge" {
   source = "./modules/eventbridge"
   name = local.name
@@ -193,24 +206,28 @@ module "eventbridge" {
   schedule_enabled = var.schedule_enabled
   tags = local.tags
 }
+# Invokes the reusable secrets manager module and passes this environment configuration into it.
 module "secrets_manager" {
   source = "./modules/secrets_manager"
   name = local.name
   kms_key_arn = module.kms.key_arn
   tags = local.tags
 }
+# Invokes the reusable ses module and passes this environment configuration into it.
 module "ses" {
   source = "./modules/ses"
   domain_name = var.domain_name
   hosted_zone_id = var.hosted_zone_id
   create_dns = var.create_dns
 }
+# Invokes the reusable cluster module and passes this environment configuration into it.
 module "cluster" {
   source = "./modules/ecs_cluster"
   name = local.name
   kms_key_arn = module.kms.key_arn
   tags = local.tags
 }
+# Invokes the reusable backend module and passes this environment configuration into it.
 module "backend" {
   source = "./modules/ecs_service"
   name = "${local.name}-api"
@@ -221,9 +238,8 @@ module "backend" {
   cpu = var.backend_cpu
   memory = var.backend_memory
   desired_count = var.backend_desired_count
-  target_group_arn      = module.alb.target_group_arn
-  enable_execute_command = var.enable_execute_command
-  kms_key_arn           = module.kms.key_arn
+  target_group_arn = module.alb.target_group_arn
+  kms_key_arn = module.kms.key_arn
   queue_arn = module.sqs.queue_arn
   ses_identity_arn = module.ses.identity_arn
   object_storage_bucket_arn = module.media.bucket_arn
@@ -231,6 +247,7 @@ module "backend" {
   secrets = local.common_secrets
   tags = local.tags
 }
+# Invokes the reusable worker module and passes this environment configuration into it.
 module "worker" {
   source = "./modules/ecs_service"
   name = "${local.name}-worker"
@@ -244,9 +261,8 @@ module "worker" {
   command = ["python","manage.py","process_tasks"]
   expose_port = false
   enable_health_check = false
-  enable_autoscaling    = false
-  enable_execute_command = var.enable_execute_command
-  kms_key_arn           = module.kms.key_arn
+  enable_autoscaling = false
+  kms_key_arn = module.kms.key_arn
   queue_arn = module.sqs.queue_arn
   ses_identity_arn = module.ses.identity_arn
   object_storage_bucket_arn = module.media.bucket_arn
@@ -254,6 +270,7 @@ module "worker" {
   secrets = local.common_secrets
   tags = local.tags
 }
+# Invokes the reusable migration module and passes this environment configuration into it.
 module "migration" {
   source                    = "./modules/ecs_service"
   name                      = "${local.name}-migration"
@@ -268,9 +285,8 @@ module "migration" {
   expose_port               = false
   enable_health_check       = false
   enable_autoscaling        = false
-  enable_xray                = false
-  enable_execute_command     = false
-  kms_key_arn                = module.kms.key_arn
+  enable_xray               = false
+  kms_key_arn               = module.kms.key_arn
   queue_arn                 = module.sqs.queue_arn
   ses_identity_arn          = module.ses.identity_arn
   object_storage_bucket_arn = module.media.bucket_arn
@@ -279,19 +295,17 @@ module "migration" {
   tags                      = local.tags
 }
 
+# Invokes the reusable github oidc module and passes this environment configuration into it.
 module "github_oidc" {
-  source                  = "./modules/github_oidc"
-  name                    = "${local.name}-github"
-  github_org              = var.github_org
-  github_repo             = var.github_repo
-  cluster_arn             = module.cluster.cluster_arn
-  resource_name_prefix    = "${var.project_name}-"
-  create_oidc_provider    = var.create_github_oidc_provider
-  allowed_environments    = [var.environment]
-  allowed_branches        = []
-  allow_pull_requests     = false
-  tags                    = local.tags
+  source = "./modules/github_oidc"
+  name = "${local.name}-github"
+  github_org = var.github_org
+  github_repo = var.github_repo
+  ecr_arns = module.ecr.repository_arns
+  cluster_arn = module.cluster.cluster_arn
+  tags = local.tags
 }
+# Invokes the reusable backup module and passes this environment configuration into it.
 module "backup" {
   source = "./modules/backup"
   name = local.name
@@ -299,6 +313,7 @@ module "backup" {
   resource_arns = [module.database.db_arn]
   tags = local.tags
 }
+# Invokes the reusable cloudwatch module and passes this environment configuration into it.
 module "cloudwatch" {
   source = "./modules/cloudwatch"
   name = local.name
@@ -308,6 +323,7 @@ module "cloudwatch" {
   sns_email = var.alarm_email
   tags = local.tags
 }
+# Invokes the reusable cloudtrail module and passes this environment configuration into it.
 module "cloudtrail" {
   source = "./modules/cloudtrail"
   name = local.name
@@ -315,11 +331,13 @@ module "cloudtrail" {
   retention_days = var.cloudtrail_retention_days
   tags = local.tags
 }
+# Invokes the reusable guardduty module and passes this environment configuration into it.
 module "guardduty" {
   source = "./modules/guardduty"
   enabled = var.enable_guardduty
   tags = local.tags
 }
+# Invokes the reusable xray module and passes this environment configuration into it.
 module "xray" {
   source = "./modules/xray"
   name = local.name

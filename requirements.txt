@@ -1,3 +1,6 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Loads the backend development dependency set used by CI and repository-level commands.
+
 # Root compatibility dependency file for GitHub Actions and developer tooling.
 # The backend development requirements include Django, pytest-django, and flake8.
 -r backend/requirements-dev.txt

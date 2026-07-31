@@ -1,5 +1,10 @@
 # Coverage Policy
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 The CI quality gate requires **90.00% statement and branch coverage** for the backend's production business-logic modules:
 
 - `backend/gigs/facebook.py`

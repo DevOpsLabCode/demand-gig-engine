@@ -1,20 +1,36 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Builds the production Django/Gunicorn image with pinned Python dependencies, collected static assets, health checks, and an unprivileged runtime user.
+# Each instruction is preceded by the reason it belongs in the image.
+
 FROM python:3.12-slim
 
+# Set deterministic runtime defaults for the processes in this image.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Create a dedicated system account so the web process never needs root privileges.
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
+# Create and select the application working directory for subsequent instructions.
 WORKDIR /app
+# Copy the dependency manifest first so Docker can reuse the installation layer when application code changes.
 COPY backend/requirements.txt ./requirements.txt
+# Install only declared runtime packages and avoid retaining pip download caches in the final image.
 RUN pip install --no-cache-dir --requirement requirements.txt
 
+# Copy Django source with ownership already assigned to the unprivileged runtime account.
 COPY --chown=app:app backend/ ./
+# Collect Django static assets during the image build so every runtime replica serves the same immutable files.
 RUN python manage.py collectstatic --noinput
 
+# Drop root privileges so build or runtime processes use the dedicated unprivileged account.
 USER app
+# Document the container port consumed by the local or cloud runtime.
 EXPOSE 8000
+# Probe the application health endpoint so Docker and orchestrators can remove an unhealthy replica from service.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live/', timeout=3)" || exit 1
+# Execute the HTTP probe inside the container and fail the health check on connection or status errors.
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=3)" || exit 1
 
+# Start Gunicorn with multiple workers and threads, a bounded timeout, and shared-memory worker temporaries.
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--threads", "2", "--timeout", "60", "--worker-tmp-dir", "/dev/shm"]

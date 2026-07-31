@@ -21,5 +21,7 @@
   "devDependencies": {
     "@types/react": "latest",
     "@types/react-dom": "latest"
-  }
+  },
+  "description": "Demand-driven live-event campaign frontend for the Demand Gig Engine.",
+  "author": "Stan Zvenigorodskiy (https://DevOpsLabInc.com)"
 }

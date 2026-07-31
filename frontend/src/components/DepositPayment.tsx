@@ -1,16 +1,29 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Confirms a Stripe PaymentIntent for a refundable supporter deposit and reports completion to the campaign card.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import { FormEvent, useState } from "react";
 import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
+/**
+ * Receive the callback invoked after Stripe confirms the supporter deposit.
+ */
 interface Props {
   onSuccess: () => Promise<void>;
 }
 
+/**
+ * Render Stripe PaymentElement, prevent duplicate submission, and display provider validation or confirmation errors.
+ */
 export function DepositPayment({ onSuccess }: Props) {
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  /** Confirm the existing PaymentIntent without creating a second pledge or charge. */
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!stripe || !elements) return;

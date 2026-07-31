@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Validates VibesMeet request contracts, canonical signing, webhook verification, idempotency keys, and typed client responses.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Validates VibesMeet request contracts, canonical signing, webhook verification, idempotency keys, and typed client responses.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +22,13 @@ from integrations.vibesmeet.webhooks import parse_verified_webhook
 
 
 class VibesMeetContractTests(unittest.TestCase):
+    """
+    Exercise VibesMeetContract behavior, edge cases, and failure handling with isolated tests.
+    """
     def test_handoff_serializes_and_validates(self):
+        """
+        Verify that handoff serializes and validates.
+        """
         start = datetime.now(timezone.utc) + timedelta(days=30)
         handoff = EventHandoff(
             campaign_id="campaign-1",
@@ -58,6 +74,9 @@ class VibesMeetContractTests(unittest.TestCase):
         self.assertEqual(payload["reservation_claims"][0]["credit_amount"], "25.00")
 
     def test_signed_webhook_parses(self):
+        """
+        Verify that signed webhook parses.
+        """
         secret = "test-secret"
         timestamp = int(time.time())
         body = json.dumps(
@@ -84,5 +103,6 @@ class VibesMeetContractTests(unittest.TestCase):
         self.assertEqual(envelope.event_type, "vibesmeet.event.published")
 
 
+# Execute the command-line entry point only when this module is run directly.
 if __name__ == "__main__":
     unittest.main()

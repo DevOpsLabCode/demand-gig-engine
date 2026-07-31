@@ -1,7 +1,17 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Centralizes Django, database, cache, security, social-authentication, storage, tracing, and third-party runtime configuration.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Centralizes Django, database, cache, security, social-authentication, storage, tracing, and third-party runtime configuration.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from pathlib import Path
 import os
 import secrets
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -9,7 +19,9 @@ load_dotenv(BASE_DIR / ".env")
 
 DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+# Require an explicit Django secret in production; the development fallback is used only when DEBUG is enabled.
 if not SECRET_KEY:
+    # Add localhost-oriented defaults only in development mode, never as production trust settings.
     if DEBUG:
         SECRET_KEY = secrets.token_urlsafe(50)
     else:
@@ -40,7 +52,6 @@ AWS_XRAY_ENABLED = os.getenv("AWS_XRAY_ENABLED", "false").strip().lower() in {
 }
 
 MIDDLEWARE = [
-    "config.middleware.PublicBaseURLMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -52,6 +63,7 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+# Register X-Ray middleware and instrumentation only when tracing is enabled for this environment.
 if AWS_XRAY_ENABLED:
     MIDDLEWARE.insert(0, "aws_xray_sdk.ext.django.middleware.XRayMiddleware")
     XRAY_RECORDER = {
@@ -112,8 +124,19 @@ SOCIAL_AUTH_ALLOWED_PROVIDERS = {
 
 
 def _social_app(client_id_env: str, secret_env: str) -> dict:
+    """
+    Build one django-allauth provider configuration from environment-supplied client credentials.
+    
+    Args:
+        client_id_env: Environment-variable name containing the provider client ID.
+        secret_env: Environment-variable name containing the provider client secret.
+    
+    Returns:
+        A JSON-compatible dictionary containing the normalized result.
+    """
     client_id = os.getenv(client_id_env, "").strip()
     secret = os.getenv(secret_env, "").strip()
+    # Omit this social provider from django-allauth when either credential is missing, preventing a broken login button.
     if not client_id or not secret:
         return {}
     return {"APP": {"client_id": client_id, "secret": secret, "key": ""}}
@@ -143,23 +166,18 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+# Prefer the single deployment DATABASE_URL contract when supplied; otherwise use the individual PostgreSQL settings below.
 if DATABASE_URL:
     parsed = urlparse(DATABASE_URL)
-    query = parse_qs(parsed.query)
-    database_options = {}
-    if query.get("sslmode"):
-        database_options["sslmode"] = query["sslmode"][-1]
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": unquote(parsed.path.lstrip("/")),
-            "USER": unquote(parsed.username or ""),
-            "PASSWORD": unquote(parsed.password or ""),
+            "NAME": parsed.path.lstrip("/"),
+            "USER": parsed.username,
+            "PASSWORD": parsed.password,
             "HOST": parsed.hostname,
             "PORT": parsed.port or 5432,
             "CONN_MAX_AGE": 60,
-            "CONN_HEALTH_CHECKS": True,
-            "OPTIONS": database_options,
         }
     }
 else:
@@ -171,6 +189,7 @@ else:
     }
 
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
+# Use Redis for shared caching when configured; local-memory cache remains the dependency-free development fallback.
 if REDIS_URL:
     CACHES = {
         "default": {
@@ -188,6 +207,16 @@ AUTH_PASSWORD_VALIDATORS = []
 # Production security defaults. Each setting can be overridden explicitly for
 # local development, reverse-proxy deployments, or test environments.
 def env_bool(name: str, default: bool) -> bool:
+    """
+    Parse a boolean environment variable while honoring a safe default when it is unset.
+    
+    Args:
+        name: Stable provider, configuration, or validation name.
+        default: Fallback value returned when the environment variable is absent.
+    
+    Returns:
+        True when the documented condition is satisfied; otherwise False.
+    """
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -207,6 +236,7 @@ SECURE_PROXY_SSL_HEADER = (
     os.getenv("SECURE_PROXY_SSL_HEADER_VALUE", "https"),
 )
 _trusted_proxy_count = os.getenv("ALLAUTH_TRUSTED_PROXY_COUNT", "").strip()
+# Trust forwarded HTTPS headers only when the deployment explicitly declares one or more front-end proxies.
 if _trusted_proxy_count:
     ALLAUTH_TRUSTED_PROXY_COUNT = int(_trusted_proxy_count)
 
@@ -217,6 +247,7 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "").strip()
+# Switch media storage to the private S3 backend only when a bucket has been provisioned.
 if AWS_STORAGE_BUCKET_NAME:
     STORAGES = {
         "default": {

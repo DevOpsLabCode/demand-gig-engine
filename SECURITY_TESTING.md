@@ -1,5 +1,10 @@
 # Security Testing
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 The repository runs automated security checks in GitHub Actions in addition to the application test and coverage workflow.
 
 ## GitHub Actions workflows

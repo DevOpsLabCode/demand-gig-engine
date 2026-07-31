@@ -1,0 +1,3 @@
+Flake8 execution: NOT RUN in this sandbox.
+Reason: the flake8 package/executable is not installed and external package installation is unavailable.
+The repository still configures blocking Flake8 rules in its automated test workflow; this limitation is not reported as a project failure or a pass.

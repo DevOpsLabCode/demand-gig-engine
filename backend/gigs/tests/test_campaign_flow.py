@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Exercises the end-to-end campaign lifecycle from creation and launch through pledges, threshold evaluation, confirmation, expiry, and refunds.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Exercises the end-to-end campaign lifecycle from creation and launch through pledges, threshold evaluation, confirmation, expiry, and refunds.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from datetime import timedelta
 from decimal import Decimal
 
@@ -24,7 +34,19 @@ from gigs.services import (
 
 
 class DemandCampaignFlowTests(TestCase):
+    """
+    Exercise DemandCampaignFlow behavior, edge cases, and failure handling with isolated tests.
+    """
     def make_campaign(self, **overrides):
+        """
+        Create a campaign test fixture with valid defaults and optional field overrides.
+        
+        Args:
+            **overrides: Additional keyword arguments forwarded to the underlying implementation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         data = {
             "title": "Bring Band X to New York",
             "pitch": "Prove demand before the venue and artist are booked.",
@@ -42,6 +64,16 @@ class DemandCampaignFlowTests(TestCase):
         return DemandCampaign.objects.create(**data)
 
     def pledge_data(self, key: str, **overrides):
+        """
+        Build a valid pledge payload and merge test-specific overrides.
+        
+        Args:
+            key: Configuration or object key currently being validated.
+            **overrides: Additional keyword arguments forwarded to the underlying implementation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         data = {
             "supporter_name": "Fan",
             "supporter_email": f"{key}@example.com",
@@ -55,9 +87,13 @@ class DemandCampaignFlowTests(TestCase):
         return data
 
     def test_threshold_confirmation_and_finalization(self):
+        """
+        Verify that threshold confirmation and finalization.
+        """
         campaign = launch_campaign(self.make_campaign().id)
         self.assertEqual(campaign.status, CampaignStatus.COLLECTING)
 
+        # Process each `index` from `range(2)` in a deterministic order.
         for index in range(2):
             create_pledge(campaign.id, self.pledge_data(f"test-{index}"))
 
@@ -86,6 +122,9 @@ class DemandCampaignFlowTests(TestCase):
         self.assertEqual(sponsorship.status, SponsorStatus.FINALIZED)
 
     def test_failed_campaign_refunds_paid_and_cancels_nonfinancial_support(self):
+        """
+        Verify that failed campaign refunds paid and cancels nonfinancial support.
+        """
         campaign = launch_campaign(self.make_campaign().id)
         paid, _ = create_pledge(campaign.id, self.pledge_data("refund-test"))
         committed, _ = create_pledge(
@@ -114,6 +153,9 @@ class DemandCampaignFlowTests(TestCase):
         self.assertEqual(sponsorship.status, SponsorStatus.CANCELED)
 
     def test_idempotency_is_scoped_to_campaign(self):
+        """
+        Verify that idempotency is scoped to campaign.
+        """
         first = launch_campaign(self.make_campaign().id)
         second = launch_campaign(
             self.make_campaign(title="Bring Band X to Boston", city="Boston").id
@@ -128,6 +170,9 @@ class DemandCampaignFlowTests(TestCase):
         self.assertEqual(second.pledges.count(), 1)
 
     def test_sponsor_commitment_can_reach_money_goal(self):
+        """
+        Verify that sponsor commitment can reach money goal.
+        """
         campaign = launch_campaign(
             self.make_campaign(
                 goal_type=GoalType.MONEY,
@@ -149,16 +194,27 @@ class DemandCampaignFlowTests(TestCase):
         self.assertEqual(campaign.status, CampaignStatus.TARGET_REACHED)
 
     def test_confirmation_is_blocked_before_threshold(self):
+        """
+        Verify that confirmation is blocked before threshold.
+        """
         campaign = launch_campaign(self.make_campaign().id)
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaises(CampaignStateError):
             confirm_artist(campaign.id, "Too early")
 
     def test_launch_rejects_expired_campaign(self):
+        """
+        Verify that launch rejects expired campaign.
+        """
         campaign = self.make_campaign(deadline=timezone.now() - timedelta(minutes=1))
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaises(CampaignStateError):
             launch_campaign(campaign.id)
 
     def test_slug_is_unique(self):
+        """
+        Verify that slug is unique.
+        """
         first = self.make_campaign()
         second = self.make_campaign(title="Same artist, same city")
         self.assertEqual(first.slug, "band-x-new-york")

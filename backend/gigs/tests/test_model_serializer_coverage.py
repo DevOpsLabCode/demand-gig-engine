@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Exercises model validation, computed progress, string representations, serializer rules, and boundary conditions across campaign entities.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Exercises model validation, computed progress, string representations, serializer rules, and boundary conditions across campaign entities.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from datetime import timedelta
 from decimal import Decimal
 
@@ -17,7 +27,19 @@ from gigs.serializers import CampaignSerializer
 
 
 class ModelAndSerializerCoverageTests(TestCase):
+    """
+    Exercise ModelAndSerializerCoverage behavior, edge cases, and failure handling with isolated tests.
+    """
     def make_campaign(self, **overrides):
+        """
+        Create a campaign test fixture with valid defaults and optional field overrides.
+        
+        Args:
+            **overrides: Additional keyword arguments forwarded to the underlying implementation.
+        
+        Returns:
+            The typed result described in the function summary and return annotation.
+        """
         data = {
             "title": "Bring Band X",
             "pitch": "Demand first",
@@ -34,16 +56,21 @@ class ModelAndSerializerCoverageTests(TestCase):
         return DemandCampaign.objects.create(**data)
 
     def test_campaign_clean_validation_branches(self):
+        """
+        Verify that campaign clean validation branches.
+        """
         campaign = DemandCampaign(
             goal_type=GoalType.SUPPORTERS,
             supporter_target=0,
             amount_target=Decimal("0"),
         )
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(ValidationError, "Supporter target"):
             campaign.clean()
 
         campaign.goal_type = GoalType.MONEY
         campaign.supporter_target = 1
+        # Enter the context manager to scope resources, transactions, or cleanup to this block.
         with self.assertRaisesRegex(ValidationError, "Amount target"):
             campaign.clean()
 
@@ -51,6 +78,9 @@ class ModelAndSerializerCoverageTests(TestCase):
         campaign.clean()
 
     def test_slug_fallback_and_string_representations(self):
+        """
+        Verify that slug fallback and string representations.
+        """
         campaign = self.make_campaign(title="Untitled", artist_name="", city="")
         self.assertEqual(campaign.slug, "gig")
         self.assertEqual(str(campaign), "Untitled")
@@ -75,6 +105,9 @@ class ModelAndSerializerCoverageTests(TestCase):
         )
 
     def test_target_and_progress_for_each_goal_type(self):
+        """
+        Verify that target and progress for each goal type.
+        """
         supporters = self.make_campaign(title="Supporters")
         self.assertFalse(supporters.target_reached)
         self.assertEqual(supporters.progress_percent, 0)
@@ -154,6 +187,9 @@ class ModelAndSerializerCoverageTests(TestCase):
         self.assertEqual(zero_targets.progress_percent, 100)
 
     def test_campaign_serializer_remaining_validation_paths(self):
+        """
+        Verify that campaign serializer remaining validation paths.
+        """
         base = {
             "title": "Bring Band X",
             "pitch": "Demand first",

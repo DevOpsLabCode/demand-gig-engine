@@ -1,7 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Creates an encrypted, subnet-isolated Redis replication group with automatic failover when replicas are enabled.
+# Reading guide: Each comment explains why the following Terraform block exists.
+
+# Create and manage the aws elasticache subnet group resource owned by this file.
 resource "aws_elasticache_subnet_group" "this" {
   name = var.name
   subnet_ids = var.subnet_ids
 }
+# Creates encrypted Redis primary and replica nodes with failover support.
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = var.name
   description = var.name

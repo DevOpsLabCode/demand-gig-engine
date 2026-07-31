@@ -23,7 +23,7 @@ PASS: Required file exists: docs/AWS_PRODUCTION_ARCHITECTURE.md
 PASS: Required file exists: docs/aws-production-architecture.svg
 PASS: Required file exists: docs/social-auth-flow.svg
 PASS: Required file exists: scripts/run_all_tests.sh
-PASS: Parsed 53 Python files
+PASS: Parsed 51 Python files
 PASS: Valid JSON: frontend/package.json
 PASS: Valid JSON: frontend/tsconfig.json
 PASS: Valid JSON: docs/schemas/vibesmeet-event-handoff.schema.json

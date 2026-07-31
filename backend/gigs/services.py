@@ -1,3 +1,13 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Implements transactional campaign lifecycle rules, threshold evaluation, confirmations, payment finalization, expiration, and refunds.
+# Documentation: Inline comments explain intent; executable behavior is unchanged.
+
+"""
+Implements transactional campaign lifecycle rules, threshold evaluation, confirmations, payment finalization, expiration, and refunds.
+
+Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -19,15 +29,27 @@ from .payments import get_payment_provider
 
 
 class CampaignStateError(ValueError):
+    """
+    Signal that a requested campaign transition violates the lifecycle state machine.
+    """
     pass
 
 
 def log_event(campaign: DemandCampaign, event_type: str, **payload) -> None:
+    """
+    Append an immutable campaign audit event with structured context for troubleshooting and integrations.
+    
+    Args:
+        campaign: Campaign instance being read, audited, or updated.
+        event_type: Stable event name written to the campaign audit trail.
+        **payload: Additional keyword arguments forwarded to the underlying implementation.
+    """
     CampaignEvent.objects.create(campaign=campaign, event_type=event_type, payload=payload)
 
 
 def _send_meta_event_safely(**kwargs) -> None:
-    """Advertising attribution must never break the core campaign flow."""
+    """Send optional Meta attribution after commit without allowing advertising failures to break core business transactions."""
+    # Contain optional Meta attribution failures so the already-committed campaign transaction remains successful.
     try:
         send_conversion_event(**kwargs)
     except MetaAPIError:
@@ -36,9 +58,23 @@ def _send_meta_event_safely(**kwargs) -> None:
 
 @transaction.atomic
 def launch_campaign(campaign_id) -> DemandCampaign:
+    """
+    Move a valid draft campaign into supporter collection while holding a database row lock.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+    
+    Returns:
+        The campaign after it has been persisted in COLLECTING state.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Enforce the state machine: only a draft campaign may enter supporter collection.
     if campaign.status != CampaignStatus.DRAFT:
         raise CampaignStateError("Only a draft campaign can be launched.")
+    # Reject an expired campaign before accepting a launch, pledge, or sponsorship.
     if campaign.deadline <= timezone.now():
         raise CampaignStateError("Campaign deadline must be in the future.")
     campaign.full_clean()
@@ -50,9 +86,24 @@ def launch_campaign(campaign_id) -> DemandCampaign:
 
 @transaction.atomic
 def create_pledge(campaign_id, data: dict) -> tuple[Pledge, str]:
+    """
+    Create or resume an idempotent supporter pledge, collect an optional deposit, and re-evaluate the threshold.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        data: Validated input payload supplied by the serializer or caller.
+    
+    Returns:
+        The persisted pledge and the payment client secret, or an empty secret when no browser payment step is required.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Accept new support only in lifecycle states that are still gathering or confirming demand.
     if campaign.status not in [CampaignStatus.COLLECTING, CampaignStatus.TARGET_REACHED]:
         raise CampaignStateError("This campaign is not accepting support.")
+    # Reject an expired campaign before accepting a launch, pledge, or sponsorship.
     if campaign.deadline <= timezone.now():
         raise CampaignStateError("The campaign deadline has passed.")
 
@@ -60,8 +111,10 @@ def create_pledge(campaign_id, data: dict) -> tuple[Pledge, str]:
         campaign=campaign,
         idempotency_key=data["idempotency_key"],
     ).first()
+    # Treat the matching idempotency key as a retry and reuse the original record instead of creating a duplicate charge.
     if existing:
         client_secret = ""
+        # Resume the original pending Stripe payment so a retried browser request receives the same client secret.
         if existing.payment_provider == "stripe" and existing.payment_reference and existing.status == PledgeStatus.PENDING:
             client_secret = get_payment_provider().get_client_secret(
                 payment_reference=existing.payment_reference,
@@ -74,6 +127,7 @@ def create_pledge(campaign_id, data: dict) -> tuple[Pledge, str]:
     client_secret = ""
     status = PledgeStatus.COMMITTED
 
+    # Contact the payment provider only for monetary support; zero-dollar attendance commitments need no payment intent.
     if amount > 0:
         provider = get_payment_provider()
         result = provider.collect_refundable_deposit(
@@ -146,7 +200,21 @@ def create_pledge(campaign_id, data: dict) -> tuple[Pledge, str]:
 
 @transaction.atomic
 def create_sponsorship(campaign_id, data: dict) -> SponsorCommitment:
+    """
+    Record a sponsor commitment, audit it, and re-evaluate whether the campaign target is reached.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        data: Validated input payload supplied by the serializer or caller.
+    
+    Returns:
+        The persisted sponsor commitment after threshold re-evaluation.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Accept new support only in lifecycle states that are still gathering or confirming demand.
     if campaign.status not in [CampaignStatus.COLLECTING, CampaignStatus.TARGET_REACHED, CampaignStatus.CONFIRMING]:
         raise CampaignStateError("This campaign is not accepting sponsor commitments.")
     sponsorship = SponsorCommitment.objects.create(campaign=campaign, currency=campaign.currency, **data)
@@ -173,7 +241,8 @@ def create_sponsorship(campaign_id, data: dict) -> SponsorCommitment:
 
 
 def evaluate_threshold_locked(campaign: DemandCampaign) -> DemandCampaign:
-    """Caller must hold a SELECT FOR UPDATE lock on the campaign."""
+    """Advance a locked collecting campaign to TARGET_REACHED when its configured threshold is satisfied."""
+    # Advance the lifecycle once the configured supporter-count or funding threshold has actually been met.
     if campaign.target_reached and campaign.status == CampaignStatus.COLLECTING:
         campaign.status = CampaignStatus.TARGET_REACHED
         campaign.save(update_fields=["status", "updated_at"])
@@ -188,12 +257,27 @@ def evaluate_threshold_locked(campaign: DemandCampaign) -> DemandCampaign:
 
 @transaction.atomic
 def confirm_artist(campaign_id, details: str) -> DemandCampaign:
+    """
+    Record artist confirmation after demand reaches the threshold and advance the confirmation state.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        details: Structured diagnostic or provider details attached to the result.
+    
+    Returns:
+        The campaign after artist confirmation and any resulting state transition.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Reject an invalid lifecycle transition before any payment, confirmation, or persistence side effect occurs.
     if campaign.status not in [CampaignStatus.TARGET_REACHED, CampaignStatus.CONFIRMING]:
         raise CampaignStateError("Artist confirmation starts only after the target is reached.")
     campaign.artist_confirmed = True
     campaign.confirmed_artist_details = details
     campaign.status = CampaignStatus.CONFIRMING
+    # Move directly to CONFIRMED when the venue was already approved; otherwise wait for the remaining confirmation.
     if campaign.venue_confirmed:
         campaign.status = CampaignStatus.CONFIRMED
     campaign.save(update_fields=["artist_confirmed", "confirmed_artist_details", "status", "updated_at"])
@@ -203,12 +287,27 @@ def confirm_artist(campaign_id, details: str) -> DemandCampaign:
 
 @transaction.atomic
 def confirm_venue(campaign_id, details: str) -> DemandCampaign:
+    """
+    Record venue confirmation after demand reaches the threshold and advance the confirmation state.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        details: Structured diagnostic or provider details attached to the result.
+    
+    Returns:
+        The campaign after venue confirmation and any resulting state transition.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Reject an invalid lifecycle transition before any payment, confirmation, or persistence side effect occurs.
     if campaign.status not in [CampaignStatus.TARGET_REACHED, CampaignStatus.CONFIRMING]:
         raise CampaignStateError("Venue confirmation starts only after the target is reached.")
     campaign.venue_confirmed = True
     campaign.confirmed_venue_details = details
     campaign.status = CampaignStatus.CONFIRMING
+    # Move directly to CONFIRMED when the artist was already approved; otherwise wait for the remaining confirmation.
     if campaign.artist_confirmed:
         campaign.status = CampaignStatus.CONFIRMED
     campaign.save(update_fields=["venue_confirmed", "confirmed_venue_details", "status", "updated_at"])
@@ -218,11 +317,28 @@ def confirm_venue(campaign_id, details: str) -> DemandCampaign:
 
 @transaction.atomic
 def finalize_campaign(campaign_id, event_id: str) -> DemandCampaign:
+    """
+    Finalize all eligible payments and mark a fully confirmed campaign ready for production.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        event_id: Provider event identifier used for deduplication and audit correlation.
+    
+    Returns:
+        The campaign after eligible payments are finalized and the event is marked live.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Reject an invalid lifecycle transition before any payment, confirmation, or persistence side effect occurs.
     if campaign.status != CampaignStatus.CONFIRMED:
         raise CampaignStateError("Artist and venue must both be confirmed first.")
 
     provider = get_payment_provider()
+    # Process each `pledge` from
+    # `campaign.pledges.select_for_update().filter(status=PledgeStatus.PAID)` in a deterministic
+    # order.
     for pledge in campaign.pledges.select_for_update().filter(status=PledgeStatus.PAID):
         provider.finalize(payment_reference=pledge.payment_reference)
         pledge.status = PledgeStatus.CAPTURED
@@ -265,7 +381,21 @@ def finalize_campaign(campaign_id, event_id: str) -> DemandCampaign:
 
 @transaction.atomic
 def fail_and_refund_campaign(campaign_id, reason: str = "Target not reached") -> DemandCampaign:
+    """
+    Move an unsuccessful campaign through refunding, reverse eligible payments, and record any failures.
+    
+    Args:
+        campaign_id: Database identifier of the campaign to lock and load.
+        reason: Human-readable explanation recorded for a failure, refund, or quarantine decision.
+    
+    Returns:
+        The campaign after refund attempts and final failure-state persistence.
+    
+    Raises:
+        CampaignStateError: When the documented validation or integration precondition fails.
+    """
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    # Reject an invalid lifecycle transition before any payment, confirmation, or persistence side effect occurs.
     if campaign.status in [CampaignStatus.LIVE, CampaignStatus.COMPLETED, CampaignStatus.REFUNDED]:
         raise CampaignStateError("This campaign can no longer be refunded through the failure flow.")
 
@@ -278,9 +408,11 @@ def fail_and_refund_campaign(campaign_id, reason: str = "Target not reached") ->
     ).update(status=PledgeStatus.CANCELED, updated_at=timezone.now())
 
     refundable = campaign.pledges.select_for_update().filter(status=PledgeStatus.PAID).exclude(payment_reference="")
+    # Process each `pledge` from `refundable` in a deterministic order.
     for pledge in refundable:
         pledge.status = PledgeStatus.REFUND_PENDING
         pledge.save(update_fields=["status", "updated_at"])
+        # Attempt each refund independently; record provider failures without skipping the remaining supporters or sponsors.
         try:
             refund_reference = provider.refund(payment_reference=pledge.payment_reference)
             pledge.status = PledgeStatus.REFUNDED
@@ -296,13 +428,16 @@ def fail_and_refund_campaign(campaign_id, reason: str = "Target not reached") ->
     paid_sponsors = campaign.sponsorships.select_for_update().filter(
         status__in=[SponsorStatus.PAID, SponsorStatus.FINALIZED]
     )
+    # Process each `sponsorship` from `paid_sponsors` in a deterministic order.
     for sponsorship in paid_sponsors:
+        # Cancel a paid-looking sponsor record that lacks the provider reference required to issue a real refund.
         if not sponsorship.payment_reference:
             sponsorship.status = SponsorStatus.CANCELED
             sponsorship.save(update_fields=["status", "updated_at"])
             continue
         sponsorship.status = SponsorStatus.REFUND_PENDING
         sponsorship.save(update_fields=["status", "updated_at"])
+        # Attempt each refund independently; record provider failures without skipping the remaining supporters or sponsors.
         try:
             refund_reference = provider.refund(payment_reference=sponsorship.payment_reference)
             sponsorship.status = SponsorStatus.REFUNDED
@@ -332,13 +467,21 @@ def fail_and_refund_campaign(campaign_id, reason: str = "Target not reached") ->
 
 
 def expire_due_campaigns() -> int:
+    """
+    Find collecting campaigns past their deadline and fail/refund only those that missed the target.
+    
+    Returns:
+        The number of overdue campaigns that were failed and processed for refunds.
+    """
     ids = DemandCampaign.objects.filter(
         deadline__lte=timezone.now(),
         status__in=[CampaignStatus.COLLECTING, CampaignStatus.TARGET_REACHED, CampaignStatus.CONFIRMING],
     ).values_list("id", flat=True)
     count = 0
+    # Process each `campaign_id` from `list(ids)` in a deterministic order.
     for campaign_id in list(ids):
         campaign = DemandCampaign.objects.get(pk=campaign_id)
+        # Block confirmation until verified supporter or sponsor demand reaches the campaign threshold.
         if campaign.status == CampaignStatus.COLLECTING and not campaign.target_reached:
             fail_and_refund_campaign(campaign_id)
             count += 1

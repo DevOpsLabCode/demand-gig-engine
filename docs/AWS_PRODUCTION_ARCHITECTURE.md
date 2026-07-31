@@ -1,5 +1,10 @@
 # AWS Production Architecture — Demand Gig Engine
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 ## Architecture decision
 
 The production customer-login path stays inside the Django gig service using `django-allauth`. This provides one implementation for Google, Facebook, Instagram, and TikTok. Amazon Cognito has first-class social federation for providers such as Google and Facebook, but it does not provide first-class TikTok or Instagram social providers; splitting customer identities between Cognito and a custom broker would complicate account linking and token handling. Cognito remains an option for internal operator/admin SSO.

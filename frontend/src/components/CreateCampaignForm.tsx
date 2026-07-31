@@ -1,17 +1,32 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Collects a proposed gig seed, goal, deadline, organizer details, and optional Facebook community links.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+
 import { FormEvent, useState } from "react";
 import { Sprout } from "lucide-react";
 import type { CampaignCreate, GoalType } from "../types";
 
+/**
+ * Accept the async creation callback owned by the application shell.
+ */
 interface Props {
   onCreate: (campaign: CampaignCreate) => Promise<void>;
 }
 
+/**
+ * Return a local datetime value thirty days ahead for the form deadline default.
+ */
 function inThirtyDays(): string {
   const value = new Date();
   value.setDate(value.getDate() + 30);
   return value.toISOString().slice(0, 16);
 }
 
+/**
+ * Render controlled campaign fields, normalize date/currency values, and submit one validated draft to the API.
+ */
 export function CreateCampaignForm({ onCreate }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +53,7 @@ export function CreateCampaignForm({ onCreate }: Props) {
   const set = <K extends keyof CampaignCreate>(key: K, value: CampaignCreate[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  /** Prevent native navigation, convert the local deadline to ISO format, and preserve errors for organizer correction. */
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);

@@ -1,5 +1,10 @@
 # Gig Engine Social Authentication
 
+> **Author:** Stan Zvenigorodskiy  
+> **Organization:** DevOps Lab Inc.  
+> **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
+
+
 The gig engine uses Django sessions plus `django-allauth` as a provider-neutral OAuth broker. This keeps one local user identity while supporting Google, Facebook, Instagram, and TikTok accounts.
 
 ## User account types

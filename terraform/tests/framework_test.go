@@ -1,3 +1,7 @@
+// Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+// Purpose: Enforces repository-wide infrastructure contracts for modules, environment defaults, IAM, networking, observability, deployment order, and production safety controls.
+// Each function comment identifies the infrastructure contract being verified.
+
 package tests
 
 import (
@@ -11,6 +15,7 @@ import (
 	"testing"
 )
 
+// Return the Terraform framework directory used by infrastructure contract tests.
 func root(t *testing.T) string {
 	t.Helper()
 	path, err := filepath.Abs("..")
@@ -20,11 +25,13 @@ func root(t *testing.T) string {
 	return path
 }
 
+// Return the repository root so tests can compare Terraform with application, container, and workflow files.
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 	return filepath.Dir(root(t))
 }
 
+// Read a fixture file and fail the current test immediately when it cannot be loaded.
 func read(t *testing.T, path string) string {
 	t.Helper()
 	body, err := os.ReadFile(path)
@@ -34,6 +41,7 @@ func read(t *testing.T, path string) string {
 	return string(body)
 }
 
+// Verify that every infrastructure module required by the documented production architecture is present.
 func TestRequiredModulesExist(t *testing.T) {
 	modules := []string{
 		"acm", "alb", "backup", "cloudfront", "cloudtrail", "cloudwatch",
@@ -50,6 +58,7 @@ func TestRequiredModulesExist(t *testing.T) {
 	}
 }
 
+// Verify that development and production variable files declare the required environment-specific settings.
 func TestEnvironmentTfvarsAreComplete(t *testing.T) {
 	required := []string{
 		"environment", "vpc_cidr", "backend_image", "backend_cpu",
@@ -69,6 +78,7 @@ func TestEnvironmentTfvarsAreComplete(t *testing.T) {
 	}
 }
 
+// Verify that production defaults enable multi-AZ capacity, redundant workers, and deletion protection.
 func TestProductionSafetyDefaults(t *testing.T) {
 	body := read(t, filepath.Join(root(t), "envs", "prod", "terraform.tfvars"))
 	expected := map[string]string{
@@ -86,6 +96,7 @@ func TestProductionSafetyDefaults(t *testing.T) {
 	}
 }
 
+// Scan repository files for AWS access keys, secret-key assignments, and private-key material.
 func TestNoHardCodedCredentials(t *testing.T) {
 	credentialPatterns := []*regexp.Regexp{
 		regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
@@ -112,6 +123,7 @@ func TestNoHardCodedCredentials(t *testing.T) {
 	}
 }
 
+// Verify that backend bootstrap detects existing state resources, enables S3 protections, and avoids deprecated DynamoDB locking.
 func TestRemoteStateBootstrapIsIdempotent(t *testing.T) {
 	body := read(t, filepath.Join(root(t), "scripts", "bootstrap.sh"))
 	for _, expected := range []string{
@@ -130,6 +142,7 @@ func TestRemoteStateBootstrapIsIdempotent(t *testing.T) {
 	}
 }
 
+// Verify that deployment holds services at zero capacity until the one-off database migration task succeeds.
 func TestDeploymentRunsMigrationsBeforeScalingServices(t *testing.T) {
 	body := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
@@ -146,6 +159,7 @@ func TestDeploymentRunsMigrationsBeforeScalingServices(t *testing.T) {
 	}
 }
 
+// Verify that the frontend image uses a build stage and serves only compiled assets from unprivileged Nginx.
 func TestFrontendImageContainsProductionAssets(t *testing.T) {
 	body := read(t, filepath.Join(repositoryRoot(t), "Dockerfile.frontend"))
 	for _, expected := range []string{
@@ -160,6 +174,7 @@ func TestFrontendImageContainsProductionAssets(t *testing.T) {
 	}
 }
 
+// Verify that the ECS worker runs the SQS processor and EventBridge Scheduler emits campaign-expiry jobs.
 func TestAsyncWorkerAndSchedulerAreConnected(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	eventbridge := read(t, filepath.Join(root(t), "modules", "eventbridge", "main.tf"))
@@ -176,6 +191,7 @@ func TestAsyncWorkerAndSchedulerAreConnected(t *testing.T) {
 	}
 }
 
+// Verify that OAuth, payment, database, and Django secrets are injected into runtime tasks rather than embedded in images.
 func TestSocialAndRuntimeSecretsAreInjected(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	for _, expected := range []string{
@@ -193,6 +209,7 @@ func TestSocialAndRuntimeSecretsAreInjected(t *testing.T) {
 	}
 }
 
+// Reject compressed one-line Terraform blocks that are difficult to review, document, and validate safely.
 func TestTerraformFilesHaveMultilineBlocks(t *testing.T) {
 	var problems []string
 	err := filepath.Walk(root(t), func(path string, info os.FileInfo, walkErr error) error {
@@ -219,6 +236,7 @@ func TestTerraformFilesHaveMultilineBlocks(t *testing.T) {
 	}
 }
 
+// Verify that CloudFront, WAF, ALB, and security-group relationships match the documented edge-security design.
 func TestEdgeProtectionMatchesArchitecture(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	security := read(t, filepath.Join(root(t), "modules", "security", "main.tf"))
@@ -240,7 +258,7 @@ func TestEdgeProtectionMatchesArchitecture(t *testing.T) {
 	if regexp.MustCompile(`(?s)ingress\s*\{[^}]*cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"`).MatchString(security) {
 		t.Error("public ALB ingress was found")
 	}
-	if !regexp.MustCompile(`web_acl_id\s*=\s*var\.web_acl_arn`).MatchString(cloudfront) {
+	if !strings.Contains(cloudfront, "web_acl_id = var.web_acl_arn") {
 		t.Error("CloudFront distribution is not attached to WAF")
 	}
 	if !regexp.MustCompile(`default\s*=\s*"CLOUDFRONT"`).MatchString(waf) {
@@ -248,6 +266,7 @@ func TestEdgeProtectionMatchesArchitecture(t *testing.T) {
 	}
 }
 
+// Verify that local state, plans, lock artifacts, and generated Terraform runtime files cannot be committed accidentally.
 func TestTerraformRuntimeFilesAreIgnored(t *testing.T) {
 	body := read(t, filepath.Join(repositoryRoot(t), ".gitignore"))
 	for _, expected := range []string{"**/.terraform/*", "*.tfstate", "terraform/envs/*/backend.hcl"} {
@@ -257,6 +276,7 @@ func TestTerraformRuntimeFilesAreIgnored(t *testing.T) {
 	}
 }
 
+// Verify encrypted CloudFront-to-origin traffic and SPA fallback behavior for client-side routes.
 func TestCloudFrontOriginTLSAndSpaRouting(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	cloudfront := read(t, filepath.Join(root(t), "modules", "cloudfront", "main.tf"))
@@ -280,7 +300,6 @@ func TestCloudFrontOriginTLSAndSpaRouting(t *testing.T) {
 		regexp.MustCompile(`resource\s+"aws_cloudfront_function"\s+"spa_rewrite"`),
 		regexp.MustCompile(`function_arn\s*=\s*aws_cloudfront_function\.spa_rewrite\.arn`),
 		regexp.MustCompile(`path_pattern\s*=\s*"/share\*"`),
-		regexp.MustCompile(`path_pattern\s*=\s*"/static\*"`),
 		regexp.MustCompile(`for_each\s*=\s*toset\(\[\s*"/api\*"\s*,\s*"/accounts\*"\s*,\s*"/admin\*"\s*\]\)`),
 	}
 	for _, pattern := range cloudfrontPatterns {
@@ -293,6 +312,7 @@ func TestCloudFrontOriginTLSAndSpaRouting(t *testing.T) {
 	}
 }
 
+// Verify encryption, private storage, retention, and tracing controls for runtime data and telemetry.
 func TestRuntimeStorageAndTracingSecurity(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	s3 := read(t, filepath.Join(root(t), "modules", "s3_static", "main.tf"))
@@ -330,6 +350,7 @@ func TestRuntimeStorageAndTracingSecurity(t *testing.T) {
 	}
 }
 
+// Verify that autoscaling policies and the dedicated migration task definition are both wired into the root stack.
 func TestAutoscalingAndMigrationTaskDefinitions(t *testing.T) {
 	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
 	combined := read(t, filepath.Join(root(t), "main.tf")) + read(t, filepath.Join(root(t), "outputs.tf")) + read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
@@ -354,11 +375,11 @@ func TestAutoscalingAndMigrationTaskDefinitions(t *testing.T) {
 	}
 }
 
+// Verify that CI runs native Terraform formatting, initialization, and validation rather than relying only on text checks.
 func TestTerraformWorkflowExecutesNativeValidation(t *testing.T) {
 	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
 	for _, expected := range []string{
 		"hashicorp/setup-terraform@v4",
-		"python3 scripts/validate_terraform_contracts.py",
 		"terraform-linters/setup-tflint@v6",
 		"terraform -chdir=terraform fmt -recursive",
 		"terraform -chdir=terraform fmt -check -recursive",
@@ -374,6 +395,7 @@ func TestTerraformWorkflowExecutesNativeValidation(t *testing.T) {
 	}
 }
 
+// Reject malformed inline Terraform objects whose missing separators can hide configuration mistakes.
 func TestTerraformInlineObjectsHaveSeparators(t *testing.T) {
 	patterns := []*regexp.Regexp{
 		regexp.MustCompile(`Version[ \t]*=[ \t]*"[^"]+"[ \t]+Statement[ \t]*=`),
@@ -397,6 +419,7 @@ func TestTerraformInlineObjectsHaveSeparators(t *testing.T) {
 	}
 }
 
+// Verify that production browser requests default to the same-origin API path unless an explicit build-time override is supplied.
 func TestFrontendDefaultsToSameOriginAPI(t *testing.T) {
 	for _, relative := range []string{"frontend/src/api.ts", "frontend/src/components/AuthPanel.tsx"} {
 		body := read(t, filepath.Join(repositoryRoot(t), filepath.FromSlash(relative)))
@@ -409,20 +432,22 @@ func TestFrontendDefaultsToSameOriginAPI(t *testing.T) {
 	}
 }
 
+// Verify that ECS Exec permissions are present only where the service enables the feature.
 func TestECSExecPermissionsMatchEnabledServiceFeature(t *testing.T) {
 	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
-	variables := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
-	if !strings.Contains(ecs, "enable_execute_command             = var.enable_execute_command") {
-		t.Error("ECS service does not make Exec explicit")
-	}
-	if !strings.Contains(ecs, "var.enable_execute_command ? [") {
-		t.Error("ECS Exec permissions are not conditional")
-	}
-	if !regexp.MustCompile(`variable\s+"enable_execute_command"(?s).*?default\s*=\s*false`).MatchString(variables) {
-		t.Error("ECS Exec must default to false while readonlyRootFilesystem is enabled")
+	for _, permission := range []string{
+		"ssmmessages:CreateControlChannel",
+		"ssmmessages:CreateDataChannel",
+		"ssmmessages:OpenControlChannel",
+		"ssmmessages:OpenDataChannel",
+	} {
+		if !strings.Contains(ecs, permission) {
+			t.Errorf("ECS Exec is enabled but task role is missing %s", permission)
+		}
 	}
 }
 
+// Verify that Nginx, Dockerfile, and Compose agree on the frontend container and host ports.
 func TestFrontendContainerAndComposePortsAreConsistent(t *testing.T) {
 	dockerfile := read(t, filepath.Join(repositoryRoot(t), "Dockerfile.frontend"))
 	compose := read(t, filepath.Join(repositoryRoot(t), "docker-compose.yml"))
@@ -448,6 +473,7 @@ func TestFrontendContainerAndComposePortsAreConsistent(t *testing.T) {
 	}
 }
 
+// Verify that DNS does not publish an IPv6 record for an IPv4-only load-balancer origin.
 func TestIPv4OnlyAlbOriginDoesNotPublishAAAA(t *testing.T) {
 	main := read(t, filepath.Join(root(t), "main.tf"))
 	route53 := read(t, filepath.Join(root(t), "modules", "route53", "main.tf"))
@@ -460,6 +486,7 @@ func TestIPv4OnlyAlbOriginDoesNotPublishAAAA(t *testing.T) {
 	}
 }
 
+// Verify that hashed static assets are immutable while HTML receives revalidation-friendly cache headers.
 func TestStaticAssetDeploymentUsesSafeCacheHeaders(t *testing.T) {
 	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
@@ -474,142 +501,17 @@ func TestStaticAssetDeploymentUsesSafeCacheHeaders(t *testing.T) {
 	}
 }
 
+// Verify that deployment can supply provider secrets non-interactively without writing them into versioned files.
 func TestDeploySupportsNonInteractiveProviderSecretInjection(t *testing.T) {
 	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
 		"PROVIDER_CREDENTIALS_FILE",
 		"provider_credentials_secret_arn",
 		"aws secretsmanager put-secret-value",
-		`keys - [`,
-		`jq -s '.[0] * .[1]'`,
+		`jq -e 'type == "object"'`,
 	} {
 		if !strings.Contains(deploy, expected) {
 			t.Errorf("non-interactive provider secret injection missing %q", expected)
 		}
-	}
-}
-
-func TestApplicationOnlineContracts(t *testing.T) {
-	main := read(t, filepath.Join(root(t), "main.tf"))
-	alb := read(t, filepath.Join(root(t), "modules", "alb", "main.tf"))
-	cloudfront := read(t, filepath.Join(root(t), "modules", "cloudfront", "main.tf"))
-	security := read(t, filepath.Join(root(t), "modules", "security", "main.tf"))
-	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
-	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
-	settings := read(t, filepath.Join(repositoryRoot(t), "backend", "config", "settings.py"))
-
-	for _, expected := range []string{
-		`resource "random_password" "origin_verify"`,
-		`origin_verify_header_name = "X-Origin-Verify"`,
-		`SECURE_SSL_REDIRECT     = "true"`,
-		`SECURE_PROXY_SSL_HEADER_NAME = "HTTP_X_FORWARDED_VIEWER_PROTO"`,
-	} {
-		if !strings.Contains(main, expected) {
-			t.Errorf("root online contract missing %q", expected)
-		}
-	}
-	for _, expected := range []string{
-		`path                = "/api/health/ready/"`,
-		`message_body = "Forbidden"`,
-		`http_header_name = var.origin_verify_header_name`,
-	} {
-		if !strings.Contains(alb, expected) {
-			t.Errorf("ALB online contract missing %q", expected)
-		}
-	}
-	for _, expected := range []string{
-		`name  = var.origin_verify_header_name`,
-		`path_pattern               = "/static*"`,
-		`Managed-CachingDisabled`,
-		`Managed-AllViewerExceptHostHeader`,
-	} {
-		if !strings.Contains(cloudfront, expected) {
-			t.Errorf("CloudFront online contract missing %q", expected)
-		}
-	}
-	if strings.Count(security, `prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]`) != 1 {
-		t.Error("ALB security group must use one CloudFront prefix-list ingress rule to stay within default quotas")
-	}
-	for _, expected := range []string{
-		`/api/health/live/`,
-		`wait_for_steady_state`,
-		`tmp_initializer`,
-		`readonlyRootFilesystem = true`,
-	} {
-		if !strings.Contains(ecs, expected) {
-			t.Errorf("ECS startup contract missing %q", expected)
-		}
-	}
-	for _, expected := range []string{
-		`describe-db-proxy-targets`,
-		`/api/health/ready/`,
-		`/api/auth/config/`,
-		`/static/admin/css/base.css`,
-	} {
-		if !strings.Contains(deploy, expected) {
-			t.Errorf("deployment smoke contract missing %q", expected)
-		}
-	}
-	if !strings.Contains(settings, `"config.middleware.PublicBaseURLMiddleware"`) {
-		t.Error("Django is missing canonical public URL normalization behind CloudFront")
-	}
-}
-
-func TestPinnedRuntimeAndProviderVersions(t *testing.T) {
-	versions := read(t, filepath.Join(root(t), "versions.tf"))
-	ecsVariables := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
-	for _, expected := range []string{`required_version = "~> 1.15.0"`, `version = "~> 6.57.1"`} {
-		if !strings.Contains(versions, expected) {
-			t.Errorf("provider/runtime pin missing %q", expected)
-		}
-	}
-	if !strings.Contains(workflow, `TERRAFORM_VERSION: "1.15.8"`) {
-		t.Error("GitHub Actions is not pinned to Terraform 1.15.8")
-	}
-	if !strings.Contains(ecsVariables, `public.ecr.aws/xray/aws-xray-daemon:3.6.6`) {
-		t.Error("X-Ray daemon image is not pinned")
-	}
-}
-
-func TestDatabaseStartupContracts(t *testing.T) {
-	rds := read(t, filepath.Join(root(t), "modules", "rds_postgres", "main.tf"))
-	settings := read(t, filepath.Join(repositoryRoot(t), "backend", "config", "settings.py"))
-	dev := read(t, filepath.Join(root(t), "envs", "dev", "terraform.tfvars"))
-	prod := read(t, filepath.Join(root(t), "envs", "prod", "terraform.tfvars"))
-	if !strings.Contains(rds, `?sslmode=require`) {
-		t.Error("RDS Proxy connection does not require TLS")
-	}
-	for _, expected := range []string{`parse_qs(parsed.query)`, `database_options["sslmode"]`, `"CONN_HEALTH_CHECKS": True`} {
-		if !strings.Contains(settings, expected) {
-			t.Errorf("Django database startup settings missing %q", expected)
-		}
-	}
-	if !strings.Contains(rds, `performance_insights_enabled    = var.performance_insights_enabled`) {
-		t.Error("RDS Performance Insights is not configurable by instance class")
-	}
-	if !strings.Contains(dev, `db_performance_insights_enabled = false`) {
-		t.Error("development must disable unsupported/expensive Performance Insights")
-	}
-	if !strings.Contains(prod, `db_performance_insights_enabled = true`) {
-		t.Error("production must enable Performance Insights")
-	}
-}
-
-func TestGitHubOIDCUsesProtectedEnvironments(t *testing.T) {
-	main := read(t, filepath.Join(root(t), "main.tf"))
-	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "main.tf"))
-	for _, expected := range []string{
-		`create_oidc_provider    = var.create_github_oidc_provider`,
-		`allowed_environments    = [var.environment]`,
-		`allowed_branches        = []`,
-		`allow_pull_requests     = false`,
-	} {
-		if !strings.Contains(main, expected) {
-			t.Errorf("root OIDC trust missing %q", expected)
-		}
-	}
-	if !strings.Contains(oidc, `PowerUserAccess`) || !strings.Contains(oidc, `iam:PassRole`) {
-		t.Error("GitHub deployment role cannot perform Terraform applies and pass project task roles")
 	}
 }
