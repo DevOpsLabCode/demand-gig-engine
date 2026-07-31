@@ -1,0 +1,217 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Validates infrastructure with Terraform formatting and native validation, TFLint, Checkov, Go contract tests, and shell-script checks.
+# Comments identify triggers, permission boundaries, jobs, services, and major execution steps.
+
+name: Terraform
+
+# Define which repository events or manual requests start this automation.
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "Dockerfile.backend"
+      - "Dockerfile.frontend"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "Dockerfile.backend"
+      - "Dockerfile.frontend"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+
+# Grant only the token permissions required by the following jobs.
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+# Declare values shared by multiple jobs or steps.
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TERRAFORM_VERSION: "1.15.8"
+
+# Group independent or dependent execution units for this workflow.
+jobs:
+  validate:
+    name: Terraform validation and policy tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
+    steps:
+      # Run the “Check out repository” phase and stop the job if its required checks fail.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      # Run the “Set up Go” phase and stop the job if its required checks fail.
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+          cache-dependency-path: terraform/tests/go.mod
+
+      # Run the “Set up TFLint” phase and stop the job if its required checks fail.
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v6
+
+      # Run the “Normalize and validate Terraform” phase and stop the job if its required checks fail.
+      - name: Normalize and validate Terraform
+        run: |
+          terraform -chdir=terraform fmt -check -recursive -diff
+
+          # Validate each independent Terraform root. Nested roots are not validated by the workload root.
+          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform validate
+          terraform -chdir=terraform/global/bootstrap init -backend=false -input=false
+          terraform -chdir=terraform/global/bootstrap validate
+          terraform -chdir=terraform/global/account init -backend=false -input=false
+          terraform -chdir=terraform/global/account validate
+
+      - name: Validate Terraform helper scripts
+        run: |
+          bash -n terraform/scripts/bootstrap.sh
+          bash -n terraform/scripts/bootstrap-account.sh
+          bash -n terraform/scripts/deploy.sh
+
+      # Run the “Run TFLint” phase and stop the job if its required checks fail.
+      - name: Run TFLint
+        run: tflint --chdir=terraform --recursive
+
+      # Run the “Run Go contract tests” phase and stop the job if its required checks fail.
+      - name: Validate Terraform module contracts
+        run: python scripts/validate_terraform_module_contracts.py
+
+      - name: Run Go contract tests
+        run: cd terraform/tests && go test -race -count=1 -v ./...
+
+      # Run the “Run Checkov” phase and stop the job if its required checks fail.
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          quiet: true
+          soft_fail: false
+
+  plan:
+    name: Development plan
+    # Remote state can contain sensitive values, so AWS-backed plans run only
+    # after trusted code reaches main; pull requests receive offline validation only.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+
+    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
+    steps:
+      # Run the “Check out repository” phase and stop the job if its required checks fail.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      # Run the “Configure AWS credentials” phase and stop the job if its required checks fail.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Run the “Resolve existing remote backend” phase and stop the job if its required checks fail.
+      - name: Resolve existing remote backend
+        # Declare values shared by multiple jobs or steps.
+        env:
+          CREATE_BACKEND: "false"
+        run: ./terraform/scripts/bootstrap.sh dev
+
+      # Run the “Initialize remote state” phase and stop the job if its required checks fail.
+      - name: Initialize remote state
+        run: terraform -chdir=terraform init -input=false -backend-config=envs/dev/backend.hcl
+
+      # Run the “Create Terraform plan” phase and stop the job if its required checks fail.
+      - name: Create Terraform plan
+        run: |
+          terraform -chdir=terraform plan \
+            -input=false \
+            -lock-timeout=5m \
+            -out=dev.tfplan \
+            -var-file=envs/dev/terraform.tfvars \
+            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
+
+      # Run the “Render plan summary” phase and stop the job if its required checks fail.
+      - name: Render plan summary
+        run: terraform -chdir=terraform show -no-color dev.tfplan > terraform/dev-plan.txt
+
+      # Run the “Upload plan summary” phase and stop the job if its required checks fail.
+      - name: Upload plan summary
+        uses: actions/upload-artifact@v6
+        with:
+          name: terraform-dev-plan
+          path: terraform/dev-plan.txt
+          retention-days: 14
+
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+
+    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
+    steps:
+      # Run the “Check out repository” phase and stop the job if its required checks fail.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      # Run the “Configure AWS credentials” phase and stop the job if its required checks fail.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Run the “Build, migrate, and deploy” phase and stop the job if its required checks fail.
+      - name: Build, migrate, and deploy
+        run: ./terraform/scripts/deploy.sh "${{ inputs.environment }}"
