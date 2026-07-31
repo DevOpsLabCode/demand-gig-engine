@@ -1,5 +1,13 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Enforces security gates for workflows, infrastructure-as-code, secrets,
+# Python dependencies and source, Django deployment settings, and npm dependencies.
+#
+# This workflow complements:
+# - codeql.yml: Python and JavaScript/TypeScript CodeQL analysis
+# - dependency-review.yml: pull-request dependency and license review
+# - python-package.yml: tests, 90% coverage, linting, type-checking, and frontend build
+# - terraform.yml: Terraform fmt/validate, TFLint, Go contract tests, plan, and deployment
+
 name: Security tests
 
 on:
@@ -8,9 +16,12 @@ on:
   pull_request:
     branches: [main]
   schedule:
+    # Tuesdays at 06:41 UTC.
     - cron: "41 6 * * 2"
   workflow_dispatch:
 
+# Default every job to read-only repository access. The Checkov job receives
+# security-events: write only because it uploads SARIF findings.
 permissions:
   contents: read
 
@@ -20,6 +31,7 @@ concurrency:
 
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_INPUT: "1"
   PYTHONUNBUFFERED: "1"
 
 jobs:
@@ -47,10 +59,13 @@ jobs:
       - name: Validate workflows and approved action versions
         run: python scripts/validate_workflows.py
 
-      - name: Validate security shell scripts
+      - name: Validate Python and shell security automation
         run: |
+          python -m compileall -q scripts
           bash -n scripts/run_full_tests.sh
           bash -n scripts/security_scan.sh
+          find terraform/scripts -type f -name '*.sh' -print0 \
+            | xargs -0 -r -n1 bash -n
 
   checkov:
     name: Checkov policy scan
@@ -79,27 +94,15 @@ jobs:
           python -m pip install --requirement security-requirements.txt
           checkov --version
 
-      - name: Run full Checkov scan and create SARIF
+      # Capture the exit code so reports are uploaded before the policy gate is
+      # enforced. Unlike --soft-fail, a failed scan cannot pass the final gate.
+      - name: Run complete Checkov scan and create SARIF
+        id: checkov
+        shell: bash
         run: |
+          set +e
           checkov --directory . \
             --framework terraform cloudformation kubernetes helm bicep arm serverless dockerfile github_actions openapi secrets \
-            --skip-path '(^|/)docs/' \
-            --skip-path '(^|/)screenshots/' \
-            --skip-path '(^|/)validation/' \
-            --skip-path '(^|/)node_modules/' \
-            --skip-path '(^|/)__pycache__/' \
-            --skip-path '(^|/)\.env\.example$' \
-            --skip-check CKV_GHA_5,CKV_GHA_6 \
-            --compact \
-            --soft-fail \
-            --output cli \
-            --output sarif \
-            --output-file-path console,checkov.sarif
-
-      - name: Enforce Checkov Docker, workflow, and secret policies
-        run: |
-          checkov --directory . \
-            --framework dockerfile github_actions secrets \
             --enable-secret-scan-all-files \
             --skip-path '(^|/)docs/' \
             --skip-path '(^|/)screenshots/' \
@@ -108,7 +111,13 @@ jobs:
             --skip-path '(^|/)__pycache__/' \
             --skip-path '(^|/)\.env\.example$' \
             --skip-check CKV_GHA_5,CKV_GHA_6 \
-            --compact
+            --compact \
+            --output cli \
+            --output sarif \
+            --output-file-path console,checkov.sarif
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Upload Checkov report
         if: always()
@@ -123,12 +132,19 @@ jobs:
         if: >-
           always() &&
           hashFiles('checkov.sarif') != '' &&
-          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: checkov.sarif
           category: checkov
+
+      - name: Enforce complete Checkov policy gate
+        if: steps.checkov.outputs.status != '0'
+        run: |
+          echo "Checkov found a policy violation or could not complete."
+          exit 1
 
   python-dependency-audit:
     name: Python dependency audit
@@ -147,23 +163,27 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
+            requirements.txt
             backend/requirements.txt
+            backend/requirements-dev.txt
             security-requirements.txt
 
       - name: Install application and audit tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --requirement backend/requirements.txt
+          python -m pip install --requirement requirements.txt
           python -m pip install --requirement security-requirements.txt
           python -m pip check
 
+      # requirements.txt includes the backend runtime and development/test
+      # dependency sets, so the audit covers both application and CI packages.
       - name: Audit Python dependencies
         id: pip-audit
         shell: bash
         run: |
           set +e
           pip-audit \
-            --requirement backend/requirements.txt \
+            --requirement requirements.txt \
             --strict \
             --desc \
             --format json \
@@ -211,12 +231,12 @@ jobs:
           python -m pip install --requirement security-requirements.txt
           bandit --version
 
-      - name: Scan Python source
+      - name: Scan Python application and automation source
         id: bandit
         shell: bash
         run: |
           set +e
-          bandit --recursive backend \
+          bandit --recursive backend scripts \
             --exclude backend/gigs/tests,backend/integrations/vibesmeet/tests,backend/gigs/migrations \
             --severity-level high \
             --confidence-level medium \
@@ -300,13 +320,25 @@ jobs:
         with:
           persist-credentials: false
 
+      # A committed lockfile is required so CI audits the exact dependency tree
+      # used for builds instead of silently resolving new "latest" packages.
+      - name: Require committed npm lockfile
+        run: |
+          test -f package-lock.json || {
+            echo "frontend/package-lock.json is required."
+            echo "Run 'npm install' in frontend and commit the generated lockfile."
+            exit 1
+          }
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Resolve dependency metadata without lifecycle scripts
-        run: npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+      - name: Install locked frontend dependencies
+        run: npm ci --ignore-scripts --no-fund --no-audit
 
       - name: Audit production dependencies
         id: npm-audit
