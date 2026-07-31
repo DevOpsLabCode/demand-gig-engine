@@ -15,9 +15,9 @@ data "aws_iam_policy_document" "scheduler_assume" {
 
 resource "aws_iam_role" "scheduler" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-scheduler"
-  assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
-  tags               = var.tags
+  name                 = "${var.name}-scheduler"
+  assume_role_policy   = data.aws_iam_policy_document.scheduler_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy" "scheduler" {

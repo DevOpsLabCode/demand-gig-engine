@@ -9,15 +9,15 @@ locals {
 
 resource "aws_secretsmanager_secret" "social" {
   #checkov:skip=CKV2_AWS_57:Third-party credentials must first be rotated with Google, Meta, Stripe, TikTok, and VibesMeet, then atomically promoted by the provider-credential runbook.
-  name = "${var.name}/provider-credentials"
-  description = "OAuth, payment, Meta, and VibesMeet credentials"
-  kms_key_id = var.kms_key_arn
+  name                    = "${var.name}/provider-credentials"
+  description             = "OAuth, payment, Meta, and VibesMeet credentials"
+  kms_key_id              = var.kms_key_arn
   recovery_window_in_days = var.recovery_window_in_days
-  tags = var.tags
+  tags                    = var.tags
 }
 # Initializes or updates the JSON value stored in Secrets Manager.
 resource "aws_secretsmanager_secret_version" "initial" {
-  secret_id = aws_secretsmanager_secret.social.id
+  secret_id     = aws_secretsmanager_secret.social.id
   secret_string = jsonencode(local.initial_values)
   # Controls replacement, deletion protection, and drift behavior for this resource.
   lifecycle {

@@ -8,13 +8,13 @@ output "vpc_id" {
 }
 # Output `public_subnet_ids`: Public subnet IDs used by internet-facing load-balancing or NAT resources.
 output "public_subnet_ids" {
-  value = [for s in aws_subnet.public :s.id]
+  value = [for s in aws_subnet.public : s.id]
 }
 # Output `app_subnet_ids`: Private application subnet IDs used by ECS workloads.
 output "app_subnet_ids" {
-  value = [for s in aws_subnet.app :s.id]
+  value = [for s in aws_subnet.app : s.id]
 }
 # Output `db_subnet_ids`: Private database subnet IDs used by PostgreSQL or Redis.
 output "db_subnet_ids" {
-  value = [for s in aws_subnet.db :s.id]
+  value = [for s in aws_subnet.db : s.id]
 }

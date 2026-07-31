@@ -123,7 +123,7 @@ Update the JSON keys for Google, Facebook, Instagram, TikTok, Stripe, Meta, and 
 
 ## GitHub Actions
 
-`.github/workflows/python-package.yml` runs Terraform formatting/normalization, provider initialization without the remote backend, native validation, TFLint, Go race tests, and Checkov. It uses Node-24-compatible `hashicorp/setup-terraform@v4` and `terraform-linters/setup-tflint@v6` actions.
+`.github/workflows/terraform.yml` runs Terraform formatting/normalization, provider initialization without the remote backend, native validation, TFLint, Go race tests, and Checkov. It uses Node-24-compatible `hashicorp/setup-terraform@v4` and `terraform-linters/setup-tflint@v6` actions.
 
 Pull requests receive offline Terraform formatting, native validation, TFLint, Checkov, module-contract, and Go tests without AWS credentials or remote-state access. After trusted code reaches `main`, the protected `dev` environment can assume `AWS_TERRAFORM_PLAN_ROLE_ARN` for a real development plan. Manual workflow runs use `AWS_TERRAFORM_APPLY_ROLE_ARN`; neither path uses permanent AWS access keys or a broader fallback role.
 

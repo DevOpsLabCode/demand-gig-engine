@@ -39,7 +39,15 @@ Reviews dependency changes in pull requests and blocks newly introduced packages
 
 ### `.github/workflows/python-package.yml`
 
-Consolidates Django and React tests, coverage enforcement, dependency and source audits, Checkov, Terraform formatting/native validation, TFLint, Go contract tests, protected plans, and manual deployments. Both governed workflow-path variables point to this file so CI does not depend on separate hidden workflow files.
+Validates the Django backend and React frontend with dependency installation, linting, tests, coverage enforcement, and a production build.
+
+### `.github/workflows/security.yml`
+
+Runs scheduled and pull-request security gates across Python, npm, source code, secrets, containers, and infrastructure configuration.
+
+### `.github/workflows/terraform.yml`
+
+Validates infrastructure with Terraform formatting and native validation, TFLint, Checkov, Go contract tests, and shell-script checks.
 
 ## Backend and Python tooling
 

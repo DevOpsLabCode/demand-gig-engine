@@ -1,0 +1,9 @@
+{
+  "security_remediation": "156 passed",
+  "workflows": "5 validated",
+  "terraform_contracts": "25 modules, 31 root instances",
+  "static_checks": "69 passed",
+  "terraform_go_tests": "passed with race detector",
+  "terraform_go_vet": "passed",
+  "formatter_hunks": "all applied"
+}

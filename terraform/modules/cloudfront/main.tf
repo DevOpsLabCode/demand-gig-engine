@@ -181,7 +181,7 @@ resource "aws_cloudfront_distribution" "this" {
   http_version        = "http2and3"
   price_class         = var.price_class
   aliases             = var.domain_name == "" ? [] : [var.domain_name]
-  web_acl_id = var.web_acl_arn
+  web_acl_id          = var.web_acl_arn
 
   logging_config {
     bucket          = var.access_log_bucket_domain_name

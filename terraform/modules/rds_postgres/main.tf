@@ -15,9 +15,9 @@ data "aws_iam_policy_document" "monitoring_assume" {
 
 resource "aws_iam_role" "monitoring" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-rds-monitoring"
-  assume_role_policy = data.aws_iam_policy_document.monitoring_assume.json
-  tags               = var.tags
+  name                 = "${var.name}-rds-monitoring"
+  assume_role_policy   = data.aws_iam_policy_document.monitoring_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "monitoring" {
@@ -94,41 +94,41 @@ resource "aws_cloudwatch_log_group" "upgrade" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier                          = var.name
-  engine                              = "postgres"
-  engine_version                      = var.engine_version
-  instance_class                      = var.instance_class
-  allocated_storage                   = var.allocated_storage
-  max_allocated_storage               = coalesce(var.max_allocated_storage, var.allocated_storage * 5)
-  storage_type                        = "gp3"
-  storage_encrypted                   = true
-  kms_key_id                          = var.kms_key_arn
-  db_name                             = "gigengine"
-  username                            = "gigadmin"
-  password                            = random_password.db.result
-  multi_az                            = var.multi_az
-  db_subnet_group_name                = aws_db_subnet_group.this.name
-  parameter_group_name                = aws_db_parameter_group.this.name
-  vpc_security_group_ids              = var.security_group_ids
-  backup_retention_period             = var.backup_retention_days
-  backup_window                       = "03:00-04:00"
-  maintenance_window                  = "sun:04:30-sun:05:30"
-  deletion_protection                 = var.deletion_protection
-  skip_final_snapshot                 = !var.deletion_protection
-  final_snapshot_identifier           = var.deletion_protection ? "${var.name}-final-${random_id.final_snapshot.hex}" : null
-  delete_automated_backups            = false
-  publicly_accessible                 = false
-  auto_minor_version_upgrade          = true
-  iam_database_authentication_enabled = true
-  copy_tags_to_snapshot               = true
-  performance_insights_enabled        = true
-  performance_insights_kms_key_id     = var.kms_key_arn
+  identifier                            = var.name
+  engine                                = "postgres"
+  engine_version                        = var.engine_version
+  instance_class                        = var.instance_class
+  allocated_storage                     = var.allocated_storage
+  max_allocated_storage                 = coalesce(var.max_allocated_storage, var.allocated_storage * 5)
+  storage_type                          = "gp3"
+  storage_encrypted                     = true
+  kms_key_id                            = var.kms_key_arn
+  db_name                               = "gigengine"
+  username                              = "gigadmin"
+  password                              = random_password.db.result
+  multi_az                              = var.multi_az
+  db_subnet_group_name                  = aws_db_subnet_group.this.name
+  parameter_group_name                  = aws_db_parameter_group.this.name
+  vpc_security_group_ids                = var.security_group_ids
+  backup_retention_period               = var.backup_retention_days
+  backup_window                         = "03:00-04:00"
+  maintenance_window                    = "sun:04:30-sun:05:30"
+  deletion_protection                   = var.deletion_protection
+  skip_final_snapshot                   = !var.deletion_protection
+  final_snapshot_identifier             = var.deletion_protection ? "${var.name}-final-${random_id.final_snapshot.hex}" : null
+  delete_automated_backups              = false
+  publicly_accessible                   = false
+  auto_minor_version_upgrade            = true
+  iam_database_authentication_enabled   = true
+  copy_tags_to_snapshot                 = true
+  performance_insights_enabled          = true
+  performance_insights_kms_key_id       = var.kms_key_arn
   performance_insights_retention_period = var.performance_insights_retention_days
-  monitoring_interval                 = var.monitoring_interval_seconds
-  monitoring_role_arn                 = aws_iam_role.monitoring.arn
-  enabled_cloudwatch_logs_exports     = ["postgresql", "upgrade"]
-  apply_immediately                   = var.apply_immediately
-  tags                                = var.tags
+  monitoring_interval                   = var.monitoring_interval_seconds
+  monitoring_role_arn                   = aws_iam_role.monitoring.arn
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
+  apply_immediately                     = var.apply_immediately
+  tags                                  = var.tags
 
   depends_on = [
     aws_iam_role_policy_attachment.monitoring,
@@ -150,9 +150,9 @@ data "aws_iam_policy_document" "proxy_assume" {
 
 resource "aws_iam_role" "proxy" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-proxy"
-  assume_role_policy = data.aws_iam_policy_document.proxy_assume.json
-  tags               = var.tags
+  name                 = "${var.name}-proxy"
+  assume_role_policy   = data.aws_iam_policy_document.proxy_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy" "proxy" {
@@ -205,8 +205,8 @@ resource "aws_db_proxy_default_target_group" "this" {
 
 resource "aws_db_proxy_target" "this" {
   db_instance_identifier = aws_db_instance.this.identifier
-  db_proxy_name           = aws_db_proxy.this.name
-  target_group_name       = aws_db_proxy_default_target_group.this.name
+  db_proxy_name          = aws_db_proxy.this.name
+  target_group_name      = aws_db_proxy_default_target_group.this.name
 }
 
 resource "aws_secretsmanager_secret" "runtime" {

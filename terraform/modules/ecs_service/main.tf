@@ -196,9 +196,9 @@ data "aws_iam_policy_document" "assume" {
 # Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "execution" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-exec"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  name                 = "${var.name}-exec"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 # Keep execution permissions project-scoped rather than attaching the AWS-managed
@@ -256,9 +256,9 @@ resource "aws_iam_role_policy" "execution" {
 # Creates an IAM role with a narrowly defined trust relationship.
 resource "aws_iam_role" "task" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-task"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  name                 = "${var.name}-task"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy" "task" {
@@ -310,8 +310,8 @@ resource "aws_ecs_service" "this" {
   desired_count                      = var.desired_count
   launch_type                        = "FARGATE"
   enable_execute_command             = true
-  enable_ecs_managed_tags             = true
-  propagate_tags                      = "SERVICE"
+  enable_ecs_managed_tags            = true
+  propagate_tags                     = "SERVICE"
   deployment_minimum_healthy_percent = var.desired_count == 0 ? 0 : 100
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = var.target_group_arn == null ? null : 60

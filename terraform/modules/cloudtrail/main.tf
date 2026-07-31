@@ -231,9 +231,9 @@ data "aws_iam_policy_document" "cloudtrail_logs_assume" {
 
 resource "aws_iam_role" "cloudtrail_logs" {
   permissions_boundary = var.permissions_boundary_arn
-  name               = "${var.name}-cloudtrail-logs"
-  assume_role_policy = data.aws_iam_policy_document.cloudtrail_logs_assume.json
-  tags               = var.tags
+  name                 = "${var.name}-cloudtrail-logs"
+  assume_role_policy   = data.aws_iam_policy_document.cloudtrail_logs_assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "cloudtrail_logs" {

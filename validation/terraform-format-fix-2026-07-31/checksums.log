@@ -5,6 +5,8 @@
 ./.github/workflows/codeql.yml: OK
 ./.github/workflows/dependency-review.yml: OK
 ./.github/workflows/python-package.yml: OK
+./.github/workflows/security.yml: OK
+./.github/workflows/terraform.yml: OK
 ./.gitignore: OK
 ./AUTHORS.md: OK
 ./COVERAGE_POLICY.md: OK
@@ -276,8 +278,6 @@
 ./validation/checkov-policy-fix-2026-07-31/README.md: OK
 ./validation/checkov-policy-fix-2026-07-31/validation.log: OK
 ./validation/checksums_final.log: OK
-./validation/consolidated-workflow-fix-2026-07-31/README.md: OK
-./validation/consolidated-workflow-fix-2026-07-31/validation.log: OK
 ./validation/django_runtime_attempt.log: OK
 ./validation/docker_runtime_attempt.log: OK
 ./validation/documentation-enhancement-2026-07-31/README.md: OK
@@ -357,6 +357,17 @@
 ./validation/terraform-deep-test-2026-07-30/vibesmeet-pytest.log: OK
 ./validation/terraform-deep-test-2026-07-30/vibesmeet-unittest.log: OK
 ./validation/terraform-deep-test-2026-07-30/workflow-validation.log: OK
+./validation/terraform-format-fix-2026-07-31/documentation-links.log: OK
+./validation/terraform-format-fix-2026-07-31/go-test-race.log: OK
+./validation/terraform-format-fix-2026-07-31/go-vet.log: OK
+./validation/terraform-format-fix-2026-07-31/python-compile.log: OK
+./validation/terraform-format-fix-2026-07-31/security-remediation.log: OK
+./validation/terraform-format-fix-2026-07-31/shell-syntax.log: OK
+./validation/terraform-format-fix-2026-07-31/static-checks.log: OK
+./validation/terraform-format-fix-2026-07-31/summary.json: OK
+./validation/terraform-format-fix-2026-07-31/terraform-contracts.log: OK
+./validation/terraform-format-fix-2026-07-31/terraform-format-hunks.log: OK
+./validation/terraform-format-fix-2026-07-31/workflow-validation.log: OK
 ./validation/terraform-module-deep-audit-2026-07-31/README.md: OK
 ./validation/terraform-module-deep-audit-2026-07-31/documentation-links.log: OK
 ./validation/terraform-module-deep-audit-2026-07-31/go-test-race.log: OK

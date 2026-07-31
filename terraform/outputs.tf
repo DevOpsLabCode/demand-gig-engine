@@ -21,7 +21,7 @@ output "github_actions_role_arn" {
 }
 # Output `database_secret_arn`: ARN of the database secret resource consumed by this module.
 output "database_secret_arn" {
-  value = module.database.secret_arn
+  value     = module.database.secret_arn
   sensitive = true
 }
 # Output `provider_credentials_secret_arn`: ARN of the provider credentials secret resource consumed by this module.

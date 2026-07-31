@@ -22,6 +22,33 @@ ERRORS: list[str] = []
 PASSES: list[str] = []
 
 
+def compact_hcl_whitespace(text: str) -> str:
+    """Remove formatting-only whitespace outside quoted HCL strings.
+
+    Terraform ``fmt`` is free to realign assignments and add spaces around
+    collection delimiters. Security checks must validate the HCL expression,
+    not the exact column alignment produced by a particular formatter version.
+    """
+    output: list[str] = []
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+            output.append(char)
+        elif not char.isspace():
+            output.append(char)
+    return "".join(output)
+
+
 def require(path: str, *needles: str) -> None:
     """Require every security-critical text fragment in one repository file."""
     target = ROOT / path
@@ -29,7 +56,14 @@ def require(path: str, *needles: str) -> None:
         ERRORS.append(f"Missing required file: {path}")
         return
     text = target.read_text(encoding="utf-8")
-    missing = [needle for needle in needles if needle not in text]
+    hcl_file = target.suffix in {".tf", ".tfvars"}
+    compact_text = compact_hcl_whitespace(text) if hcl_file else ""
+    missing = [
+        needle
+        for needle in needles
+        if needle not in text
+        and (not hcl_file or compact_hcl_whitespace(needle) not in compact_text)
+    ]
     if missing:
         for needle in missing:
             ERRORS.append(f"{path}: missing security invariant {needle!r}")

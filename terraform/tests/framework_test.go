@@ -41,41 +41,41 @@ func read(t *testing.T, path string) string {
 	return string(body)
 }
 
-// Locate a governed workflow by security-critical content instead of a filename.
-// This supports both split workflows and the consolidated python-package workflow.
-func workflowWithMarkers(t *testing.T, markers ...string) string {
-	t.Helper()
-	directory := filepath.Join(repositoryRoot(t), ".github", "workflows")
-	entries, err := os.ReadDir(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	paths := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
+// Remove formatter-controlled whitespace outside quoted HCL strings so tests
+// validate expressions rather than column alignment from a Terraform release.
+func compactHCLWhitespace(text string) string {
+	var output strings.Builder
+	output.Grow(len(text))
+	inString := false
+	escaped := false
+	for _, char := range text {
+		if inString {
+			output.WriteRune(char)
+			if escaped {
+				escaped = false
+			} else if char == '\\' {
+				escaped = true
+			} else if char == '"' {
+				inString = false
+			}
 			continue
 		}
-		extension := filepath.Ext(entry.Name())
-		if extension == ".yml" || extension == ".yaml" {
-			paths = append(paths, filepath.Join(directory, entry.Name()))
+		if char == '"' {
+			inString = true
+			output.WriteRune(char)
+		} else if char != ' ' && char != '\t' && char != '\r' && char != '\n' {
+			output.WriteRune(char)
 		}
 	}
-	sort.Strings(paths)
-	for _, path := range paths {
-		body := read(t, path)
-		matches := true
-		for _, marker := range markers {
-			if !strings.Contains(body, marker) {
-				matches = false
-				break
-			}
-		}
-		if matches {
-			return body
-		}
-	}
-	t.Fatalf("no workflow contains required markers: %s", strings.Join(markers, ", "))
-	return ""
+	return output.String()
+}
+
+func hclContains(body, fragment string) bool {
+	return strings.Contains(compactHCLWhitespace(body), compactHCLWhitespace(fragment))
+}
+
+func hclCount(body, fragment string) int {
+	return strings.Count(compactHCLWhitespace(body), compactHCLWhitespace(fragment))
 }
 
 // Verify that every infrastructure module required by the documented production architecture is present.
@@ -297,8 +297,7 @@ func TestEdgeProtectionMatchesArchitecture(t *testing.T) {
 		`providers = {aws = aws.us_east_1}`,
 		`web_acl_arn = module.waf.arn`,
 	} {
-		compact := regexp.MustCompile(`\s+`).ReplaceAllString(main, " ")
-		if !strings.Contains(compact, expected) {
+		if !hclContains(main, expected) {
 			t.Errorf("root edge configuration missing %q", expected)
 		}
 	}
@@ -308,7 +307,7 @@ func TestEdgeProtectionMatchesArchitecture(t *testing.T) {
 	if regexp.MustCompile(`(?s)ingress\s*\{[^}]*cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"`).MatchString(security) {
 		t.Error("public ALB ingress was found")
 	}
-	if !strings.Contains(cloudfront, "web_acl_id = var.web_acl_arn") {
+	if !hclContains(cloudfront, "web_acl_id = var.web_acl_arn") {
 		t.Error("CloudFront distribution is not attached to WAF")
 	}
 	if !regexp.MustCompile(`default\s*=\s*"CLOUDFRONT"`).MatchString(waf) {
@@ -427,7 +426,7 @@ func TestAutoscalingAndMigrationTaskDefinitions(t *testing.T) {
 
 // Verify that CI runs native Terraform formatting, initialization, and validation rather than relying only on text checks.
 func TestTerraformWorkflowExecutesNativeValidation(t *testing.T) {
-	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
 	for _, expected := range []string{
 		"hashicorp/setup-terraform@v4",
 		"terraform-linters/setup-tflint@v6",
@@ -578,7 +577,7 @@ func TestEnvironmentAwareDataProtection(t *testing.T) {
 		"automatic_failover_enabled = true",
 		"multi_az_enabled           = true",
 	} {
-		if !strings.Contains(redisMain, fragment) {
+		if !hclContains(redisMain, fragment) {
 			t.Errorf("Redis mandatory availability control missing %q", fragment)
 		}
 	}
@@ -589,11 +588,11 @@ func TestEnvironmentAwareDataProtection(t *testing.T) {
 		"count = var.enable_vault_lock ? 1 : 0",
 		"cold_storage_after = var.cold_storage_after_days",
 	} {
-		if !strings.Contains(backupMain, fragment) {
+		if !hclContains(backupMain, fragment) {
 			t.Errorf("Backup environment-aware lifecycle missing %q", fragment)
 		}
 	}
-	if !strings.Contains(rootMain, "enable_vault_lock           = var.enable_backup_vault_lock") {
+	if !hclContains(rootMain, "enable_vault_lock = var.enable_backup_vault_lock") {
 		t.Error("Root module does not wire environment-specific Vault Lock")
 	}
 	if !regexp.MustCompile(`(?m)^redis_replicas\s*=\s*1\s*$`).MatchString(dev) {
@@ -654,7 +653,7 @@ func TestRecoveryAndObservabilityCoverage(t *testing.T) {
 func TestSupplyChainAndFederationDefaults(t *testing.T) {
 	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "variables.tf"))
 	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
-	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
 	versions := read(t, filepath.Join(root(t), "versions.tf"))
 
 	if !regexp.MustCompile(`(?s)variable "allow_pull_requests".*?default\s*=\s*false`).MatchString(oidc) {
@@ -727,13 +726,13 @@ func TestCheckovRemediationControls(t *testing.T) {
 	for relative, required := range checks {
 		body := read(t, filepath.Join(root(t), relative))
 		for _, fragment := range required {
-			if !strings.Contains(body, fragment) {
+			if !hclContains(body, fragment) {
 				t.Errorf("%s is missing remediation control %q", relative, fragment)
 			}
 		}
 	}
 
-	workflow := workflowWithMarkers(t, "validate_security_remediation.py", "Enforce complete Checkov policy gate", "DEPENDENCY_RESOLUTION_FAILED")
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "security.yml"))
 	for _, line := range strings.Split(workflow, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "--soft-fail") {
@@ -756,7 +755,7 @@ func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
 	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
 	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "main.tf"))
 	guardduty := read(t, filepath.Join(root(t), "modules", "guardduty", "main.tf"))
-	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
 
 	for _, fragment := range []string{
 		`resource "aws_iam_openid_connect_provider" "github"`,
@@ -795,7 +794,7 @@ func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
 func TestTerraformControlPlaneTrustAndLeastPrivilege(t *testing.T) {
 	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
 	variables := read(t, filepath.Join(root(t), "global", "account", "variables.tf"))
-	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
+	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
 
 	for _, fragment := range []string{
 		`resource "aws_iam_role" "terraform_plan"`,
@@ -909,8 +908,8 @@ func TestIdentityAndAuditBoundaryControls(t *testing.T) {
 			t.Errorf("CloudTrail investigation control missing %q", fragment)
 		}
 	}
-	if !strings.Contains(rootMain, `s3_data_event_bucket_arns = var.environment == "prod"`) ||
-		!strings.Contains(rootMain, `enable_insights          = var.environment == "prod"`) {
+	if !hclContains(rootMain, `s3_data_event_bucket_arns = var.environment == "prod"`) ||
+		!hclContains(rootMain, `enable_insights = var.environment == "prod"`) {
 		t.Error("production-only CloudTrail data events and Insights are not wired at the root")
 	}
 }
@@ -922,7 +921,7 @@ func TestEnvironmentAwareSecretRecovery(t *testing.T) {
 		`secret_recovery_window_days  = var.environment == "prod" ? 30 : 7`,
 		`recovery_window_in_days = var.environment == "prod" ? 30 : 7`,
 	} {
-		if !strings.Contains(main, fragment) {
+		if !hclContains(main, fragment) {
 			t.Errorf("environment-aware secret recovery missing %q", fragment)
 		}
 	}
@@ -1049,7 +1048,7 @@ func TestECSExecutionRoleIsRepositoryAndLogScoped(t *testing.T) {
 			t.Errorf("ECS execution policy missing %s", expected)
 		}
 	}
-	if strings.Count(rootMain, "ecr_repository_arns = module.ecr.repository_arns") != 3 {
+	if hclCount(rootMain, "ecr_repository_arns = module.ecr.repository_arns") != 3 {
 		t.Error("API, worker, and migration task roles must receive project ECR repository ARNs")
 	}
 	if strings.Contains(accountMain, "AmazonECSTaskExecutionRolePolicy") {
@@ -1157,7 +1156,7 @@ func TestStatefulLogsAndWorkloadSpecificPermissions(t *testing.T) {
 		`retention_in_days = var.log_retention_days`,
 		`kms_key_id        = var.kms_key_arn`,
 	} {
-		if !strings.Contains(rdsMain, expected) {
+		if !hclContains(rdsMain, expected) {
 			t.Errorf("RDS exported-log control missing %s", expected)
 		}
 	}
@@ -1167,7 +1166,7 @@ func TestStatefulLogsAndWorkloadSpecificPermissions(t *testing.T) {
 		`log_type         = "engine-log"`,
 		`log_type         = "slow-log"`,
 	} {
-		if !strings.Contains(redisMain, expected) {
+		if !hclContains(redisMain, expected) {
 			t.Errorf("Redis log-delivery control missing %s", expected)
 		}
 	}
@@ -1177,7 +1176,7 @@ func TestStatefulLogsAndWorkloadSpecificPermissions(t *testing.T) {
 		`propagate_tags                      = "SERVICE"`,
 		`resource "aws_appautoscaling_policy" "memory"`,
 	} {
-		if !strings.Contains(ecsMain, expected) {
+		if !hclContains(ecsMain, expected) {
 			t.Errorf("ECS control missing %s", expected)
 		}
 	}
@@ -1186,7 +1185,7 @@ func TestStatefulLogsAndWorkloadSpecificPermissions(t *testing.T) {
 		`queue_actions = ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ReceiveMessage"]`,
 		`queue_actions             = []`,
 	} {
-		if !strings.Contains(rootMain, expected) {
+		if !hclContains(rootMain, expected) {
 			t.Errorf("root workload permission wiring missing %s", expected)
 		}
 	}
