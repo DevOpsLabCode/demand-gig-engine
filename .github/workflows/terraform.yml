@@ -19,21 +19,18 @@ on:
       - "Dockerfile.backend"
       - "Dockerfile.frontend"
       - ".github/workflows/**"
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Environment
-        required: true
-        default: dev
-        type: choice
-        options: [dev, prod]
+  # Manual runs deploy only to development. Production deployment is tied
+  # to an immutable published GitHub Release rather than user-supplied input.
+  workflow_dispatch: {}
+  release:
+    types: [published]
 
 # Grant only the token permissions required by the following jobs.
 permissions:
   contents: read
 
 concurrency:
-  group: terraform-${{ github.ref }}-${{ inputs.environment || 'dev' }}
+  group: terraform-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 # Declare values shared by multiple jobs or steps.
@@ -180,38 +177,64 @@ jobs:
           path: terraform/dev-plan.txt
           retention-days: 14
 
-  deploy:
-    name: Deploy ${{ inputs.environment }}
+  deploy-dev:
+    name: Deploy development
     if: github.event_name == 'workflow_dispatch'
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    environment: ${{ inputs.environment }}
+    environment: dev
     permissions:
       contents: read
       id-token: write
 
-    # Execute the job as an ordered sequence of checkout, setup, validation, test, and artifact steps.
     steps:
-      # Run the “Check out repository” phase and stop the job if its required checks fail.
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # Run the “Set up Terraform” phase and stop the job if its required checks fail.
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      # Run the “Configure AWS credentials” phase and stop the job if its required checks fail.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: us-east-1
 
-      # Run the “Build, migrate, and deploy” phase and stop the job if its required checks fail.
-      - name: Build, migrate, and deploy
-        run: ./terraform/scripts/deploy.sh "${{ inputs.environment }}"
+      - name: Build, migrate, and deploy development
+        run: ./terraform/scripts/deploy.sh dev
+
+  deploy-prod:
+    name: Deploy production
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Build, migrate, and deploy production
+        run: ./terraform/scripts/deploy.sh prod
