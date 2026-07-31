@@ -1,0 +1,299 @@
+== Workflow validation ==
+Validated 3 GitHub Actions workflow files.
+
+== Workflow discovery regression ==
+Workflow discovery regression tests passed: 6 scenarios.
+
+== Security remediation ==
+Terraform workflow: .github/workflows/python-package.yml
+Security workflow: .github/workflows/python-package.yml
+Security remediation validation passed: 156 checks.
+
+== Terraform module contracts ==
+Terraform module contracts passed: 25 modules, 31 root instances.
+
+== Repository static checks ==
+PASS: Required file exists: README.md
+PASS: Required file exists: TEST_REPORT.md
+PASS: Required file exists: docker-compose.yml
+PASS: Required file exists: Dockerfile.backend
+PASS: Required file exists: Dockerfile.frontend
+PASS: Required file exists: backend/manage.py
+PASS: Required file exists: backend/requirements.txt
+PASS: Required file exists: frontend/package.json
+PASS: Required file exists: docs/VIBESMEET_INTEGRATION_AND_MODULE_BLUEPRINT.md
+PASS: Required file exists: docs/openapi/vibesmeet-bridge.openapi.yaml
+PASS: Required file exists: docs/schemas/vibesmeet-event-handoff.schema.json
+PASS: Required file exists: docs/schemas/vibesmeet-webhook-envelope.schema.json
+PASS: Required file exists: docs/examples/vibesmeet-event-handoff.example.json
+PASS: Required file exists: docs/examples/vibesmeet-webhook.example.json
+PASS: Required file exists: backend/integrations/vibesmeet/client.py
+PASS: Required file exists: backend/integrations/vibesmeet/webhooks.py
+PASS: Required file exists: backend/gigs/auth_views.py
+PASS: Required file exists: backend/gigs/social_auth.py
+PASS: Required file exists: backend/gigs/permissions.py
+PASS: Required file exists: backend/gigs/tests/test_auth.py
+PASS: Required file exists: docs/SOCIAL_AUTHENTICATION.md
+PASS: Required file exists: docs/AWS_PRODUCTION_ARCHITECTURE.md
+PASS: Required file exists: docs/aws-production-architecture.svg
+PASS: Required file exists: docs/social-auth-flow.svg
+PASS: Required file exists: scripts/run_all_tests.sh
+PASS: Parsed 51 Python files
+PASS: Valid JSON: frontend/package.json
+PASS: Valid JSON: frontend/tsconfig.json
+PASS: Valid JSON: docs/schemas/vibesmeet-event-handoff.schema.json
+PASS: Valid JSON: docs/schemas/vibesmeet-webhook-envelope.schema.json
+PASS: Valid JSON: docs/examples/vibesmeet-event-handoff.example.json
+PASS: Valid JSON: docs/examples/vibesmeet-webhook.example.json
+PASS: Compose defines db/backend/frontend services
+PASS: Backend waits for healthy database
+PASS: Migration chain is sequential: 0001, 0002, 0003, 0004, 0005
+PASS: Campaign-scoped pledge idempotency exists in model and migration
+PASS: Frontend API contains /campaigns/
+PASS: Frontend API contains /auth/config/
+PASS: Frontend API contains /auth/profile/
+PASS: Frontend API contains /auth/logout/
+PASS: Frontend API contains /facebook/config/
+PASS: Frontend API contains /facebook/login/
+PASS: Frontend API contains /facebook/pages/
+PASS: Frontend API contains /vibesmeet/config/
+PASS: Backend exposes CampaignViewSet
+PASS: Backend exposes facebook_config
+PASS: Backend exposes facebook_login
+PASS: Backend exposes facebook_pages
+PASS: Backend exposes stripe_webhook
+PASS: Backend exposes vibesmeet_config
+PASS: Backend exposes vibesmeet_webhook
+PASS: Campaign API uses slug lookup expected by frontend
+PASS: Backend exposes an ALB/container health endpoint
+PASS: Social auth lists Google/Facebook/Instagram/TikTok
+PASS: Django allauth dependency is declared
+PASS: All social providers are registered in Django settings
+PASS: Campaign lifecycle actions enforce owner/staff authorization
+PASS: Proposed VibesMeet OpenAPI document parses
+PASS: VibesMeet blueprint documents ownership and missing modules
+PASS: VibesMeet client sends idempotency and correlation headers
+PASS: VibesMeet webhook parser verifies signatures
+PASS: Proposed VibesMeet OpenAPI contract is present
+PASS: PNG valid: 01-landing-and-seed.png (1440x2400)
+PASS: PNG valid: 02-campaign-detail.png (1440x1800)
+PASS: PNG valid: 03-mobile-campaign.png (390x2700)
+PASS: Combined README/screenshots PDF exists
+PASS: PDF header is valid
+PASS: PDF EOF marker is present
+PASS: pdfinfo opens the combined PDF
+
+Summary: 69 passed, 0 failed
+
+== Documentation links ==
+Validated 169 local links across 57 Markdown files.
+
+== Python compilation ==
+Python compilation passed.
+
+== Shell syntax ==
+Shell syntax passed.
+
+== Terraform Go tests ==
+=== RUN   TestRequiredModulesExist
+--- PASS: TestRequiredModulesExist (0.00s)
+=== RUN   TestEnvironmentTfvarsAreComplete
+--- PASS: TestEnvironmentTfvarsAreComplete (0.00s)
+=== RUN   TestProductionSafetyDefaults
+--- PASS: TestProductionSafetyDefaults (0.00s)
+=== RUN   TestNoHardCodedCredentials
+--- PASS: TestNoHardCodedCredentials (3.12s)
+=== RUN   TestRemoteStateBootstrapIsIdempotent
+--- PASS: TestRemoteStateBootstrapIsIdempotent (0.00s)
+=== RUN   TestDeploymentRunsMigrationsBeforeUpdatingServices
+--- PASS: TestDeploymentRunsMigrationsBeforeUpdatingServices (0.00s)
+=== RUN   TestFrontendImageContainsProductionAssets
+--- PASS: TestFrontendImageContainsProductionAssets (0.00s)
+=== RUN   TestAsyncWorkerAndSchedulerAreConnected
+--- PASS: TestAsyncWorkerAndSchedulerAreConnected (0.00s)
+=== RUN   TestSocialAndRuntimeSecretsAreInjected
+--- PASS: TestSocialAndRuntimeSecretsAreInjected (0.00s)
+=== RUN   TestTerraformFilesHaveMultilineBlocks
+--- PASS: TestTerraformFilesHaveMultilineBlocks (0.00s)
+=== RUN   TestEdgeProtectionMatchesArchitecture
+--- PASS: TestEdgeProtectionMatchesArchitecture (0.03s)
+=== RUN   TestTerraformRuntimeFilesAreIgnored
+--- PASS: TestTerraformRuntimeFilesAreIgnored (0.00s)
+=== RUN   TestCloudFrontOriginTLSAndSpaRouting
+--- PASS: TestCloudFrontOriginTLSAndSpaRouting (0.00s)
+=== RUN   TestRuntimeStorageAndTracingSecurity
+--- PASS: TestRuntimeStorageAndTracingSecurity (0.00s)
+=== RUN   TestAutoscalingAndMigrationTaskDefinitions
+--- PASS: TestAutoscalingAndMigrationTaskDefinitions (0.00s)
+=== RUN   TestTerraformWorkflowExecutesNativeValidation
+--- PASS: TestTerraformWorkflowExecutesNativeValidation (0.00s)
+=== RUN   TestTerraformInlineObjectsHaveSeparators
+--- PASS: TestTerraformInlineObjectsHaveSeparators (0.00s)
+=== RUN   TestFrontendDefaultsToSameOriginAPI
+--- PASS: TestFrontendDefaultsToSameOriginAPI (0.00s)
+=== RUN   TestECSExecPermissionsMatchEnabledServiceFeature
+--- PASS: TestECSExecPermissionsMatchEnabledServiceFeature (0.00s)
+=== RUN   TestFrontendContainerAndComposePortsAreConsistent
+--- PASS: TestFrontendContainerAndComposePortsAreConsistent (0.00s)
+=== RUN   TestIPv4OnlyAlbOriginDoesNotPublishAAAA
+--- PASS: TestIPv4OnlyAlbOriginDoesNotPublishAAAA (0.00s)
+=== RUN   TestStaticAssetDeploymentUsesSafeCacheHeaders
+--- PASS: TestStaticAssetDeploymentUsesSafeCacheHeaders (0.00s)
+=== RUN   TestDeploySupportsNonInteractiveProviderSecretInjection
+--- PASS: TestDeploySupportsNonInteractiveProviderSecretInjection (0.00s)
+=== RUN   TestEnvironmentAwareDataProtection
+--- PASS: TestEnvironmentAwareDataProtection (0.00s)
+=== RUN   TestProductionReadinessGate
+--- PASS: TestProductionReadinessGate (0.00s)
+=== RUN   TestRecoveryAndObservabilityCoverage
+--- PASS: TestRecoveryAndObservabilityCoverage (0.00s)
+=== RUN   TestSupplyChainAndFederationDefaults
+--- PASS: TestSupplyChainAndFederationDefaults (0.00s)
+=== RUN   TestCheckovRemediationControls
+--- PASS: TestCheckovRemediationControls (0.00s)
+=== RUN   TestAccountFoundationOwnsSingletonControls
+--- PASS: TestAccountFoundationOwnsSingletonControls (0.00s)
+=== RUN   TestTerraformControlPlaneTrustAndLeastPrivilege
+--- PASS: TestTerraformControlPlaneTrustAndLeastPrivilege (0.00s)
+=== RUN   TestWorkloadRolePermissionsBoundaries
+--- PASS: TestWorkloadRolePermissionsBoundaries (0.00s)
+=== RUN   TestIdentityAndAuditBoundaryControls
+--- PASS: TestIdentityAndAuditBoundaryControls (0.00s)
+=== RUN   TestEnvironmentAwareSecretRecovery
+--- PASS: TestEnvironmentAwareSecretRecovery (0.00s)
+=== RUN   TestCloudFrontOriginBypassProtection
+--- PASS: TestCloudFrontOriginBypassProtection (0.00s)
+=== RUN   TestWAFManagedRuleCoverageAndViewerRateLimit
+--- PASS: TestWAFManagedRuleCoverageAndViewerRateLimit (0.00s)
+=== RUN   TestTerraformPlanRoleCanUseOnlyStateKMSKeys
+--- PASS: TestTerraformPlanRoleCanUseOnlyStateKMSKeys (0.00s)
+=== RUN   TestECSExecutionRoleIsRepositoryAndLogScoped
+--- PASS: TestECSExecutionRoleIsRepositoryAndLogScoped (0.00s)
+=== RUN   TestSESExistingIdentityAndProductionReadiness
+--- PASS: TestSESExistingIdentityAndProductionReadiness (0.00s)
+=== RUN   TestCloudFrontAuthenticatedViewerIPHeader
+--- PASS: TestCloudFrontAuthenticatedViewerIPHeader (0.00s)
+=== RUN   TestStatefulLogsAndWorkloadSpecificPermissions
+--- PASS: TestStatefulLogsAndWorkloadSpecificPermissions (0.00s)
+=== RUN   TestBootstrapScriptCreatesSecureBackend
+--- PASS: TestBootstrapScriptCreatesSecureBackend (0.02s)
+=== RUN   TestBootstrapCheckModeRejectsMissingState
+--- PASS: TestBootstrapCheckModeRejectsMissingState (0.01s)
+=== RUN   TestDeployScriptOrchestratesMigrationBeforeScaleUp
+--- PASS: TestDeployScriptOrchestratesMigrationBeforeScaleUp (0.09s)
+=== RUN   TestScriptFixtureContainsExpectedProjectLayout
+--- PASS: TestScriptFixtureContainsExpectedProjectLayout (0.00s)
+PASS
+ok  	github.com/DevOpsLabCode/demand-gig-engine/terraform/tests	4.297s
+== Backend pytest ==
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting backend/gigs/tests/test_auth.py _______________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_auth.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_auth.py:14: in <module>
+    from allauth.socialaccount.models import SocialAccount
+E   ModuleNotFoundError: No module named 'allauth'
+__________ ERROR collecting backend/gigs/tests/test_campaign_flow.py ___________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_campaign_flow.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_campaign_flow.py:14: in <module>
+    from django.test import TestCase
+E   ModuleNotFoundError: No module named 'django'
+_____________ ERROR collecting backend/gigs/tests/test_facebook.py _____________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_facebook.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_facebook.py:11: in <module>
+    from django.test import SimpleTestCase, override_settings
+E   ModuleNotFoundError: No module named 'django'
+________ ERROR collecting backend/gigs/tests/test_facebook_coverage.py _________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_facebook_coverage.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_facebook_coverage.py:18: in <module>
+    from django.test import SimpleTestCase, override_settings
+E   ModuleNotFoundError: No module named 'django'
+____ ERROR collecting backend/gigs/tests/test_model_serializer_coverage.py _____
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_model_serializer_coverage.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_model_serializer_coverage.py:14: in <module>
+    from django.core.exceptions import ValidationError
+E   ModuleNotFoundError: No module named 'django'
+_____________ ERROR collecting backend/gigs/tests/test_payments.py _____________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_payments.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_payments.py:16: in <module>
+    from django.test import SimpleTestCase, override_settings
+E   ModuleNotFoundError: No module named 'django'
+__________ ERROR collecting backend/gigs/tests/test_process_tasks.py ___________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_process_tasks.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_process_tasks.py:13: in <module>
+    from django.core.management.base import CommandError
+E   ModuleNotFoundError: No module named 'django'
+___________ ERROR collecting backend/gigs/tests/test_serializers.py ____________
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_serializers.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_serializers.py:13: in <module>
+    from django.test import SimpleTestCase
+E   ModuleNotFoundError: No module named 'django'
+______ ERROR collecting backend/gigs/tests/test_service_edge_coverage.py _______
+ImportError while importing test module '/mnt/data/consolidated_fix/demand-gig-engine/backend/gigs/tests/test_service_edge_coverage.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/gigs/tests/test_service_edge_coverage.py:16: in <module>
+    from django.test import TestCase
+E   ModuleNotFoundError: No module named 'django'
+=============================== warnings summary ===============================
+../../../../opt/pyvenv/lib/python3.13/site-packages/_pytest/config/__init__.py:1428
+  /opt/pyvenv/lib/python3.13/site-packages/_pytest/config/__init__.py:1428: PytestConfigWarning: Unknown config option: DJANGO_SETTINGS_MODULE
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR backend/gigs/tests/test_auth.py
+ERROR backend/gigs/tests/test_campaign_flow.py
+ERROR backend/gigs/tests/test_facebook.py
+ERROR backend/gigs/tests/test_facebook_coverage.py
+ERROR backend/gigs/tests/test_model_serializer_coverage.py
+ERROR backend/gigs/tests/test_payments.py
+ERROR backend/gigs/tests/test_process_tasks.py
+ERROR backend/gigs/tests/test_serializers.py
+ERROR backend/gigs/tests/test_service_edge_coverage.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 9 errors during collection !!!!!!!!!!!!!!!!!!!!
+1 warning, 9 errors in 0.26s

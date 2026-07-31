@@ -98,7 +98,7 @@ Dependency resolution is captured rather than allowed to terminate the job befor
 
 The later workflow run exposed two implementation defects in the first remediation package:
 
-1. The validator hard-coded `.github/workflows/security.yml`, although the repository had consolidated or renamed the security workflow. The validator now performs deterministic discovery and supports the `SECURITY_WORKFLOW_PATH` override.
+1. The validator hard-coded `.github/workflows/python-package.yml`, although the repository had consolidated or renamed the security workflow. The validator now performs deterministic discovery and supports the `SECURITY_WORKFLOW_PATH` override.
 2. Checkov exception comments were outside Terraform definition scopes. They have been moved inside the exact resource or data block they govern, matching Checkov's supported syntax.
 
 The follow-up also adds real controls for the remaining graph findings: CloudTrail delivery to an encrypted 365-day CloudWatch log group, an explicit bootstrap KMS key policy, mandatory Redis replicas with Multi-AZ automatic failover, and a dedicated REGIONAL WAF association on the ALB. Architecture-specific findings retain narrowly documented in-scope exceptions only where the control is owned by another account/layer or conflicts with an AWS service requirement.

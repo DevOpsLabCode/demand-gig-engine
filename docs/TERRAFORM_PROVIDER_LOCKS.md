@@ -14,7 +14,7 @@ Dependency lock files record the exact provider versions and signed package chec
 
 ## Generate or refresh all lock files
 
-Run this from an internet-connected, trusted workstation or CI runner using the Terraform version pinned by `.github/workflows/terraform.yml`:
+Run this from an internet-connected, trusted workstation or CI runner using the Terraform version pinned by `.github/workflows/python-package.yml`:
 
 ```bash
 ./terraform/scripts/update-provider-locks.sh

@@ -4,11 +4,11 @@
 > **Organization:** DevOps Lab Inc.  
 > **Website:** [DevOpsLabInc.com](https://DevOpsLabInc.com)
 
-The repository uses separate application, infrastructure, dependency, static-analysis, and aggregate security gates. The jobs are intentionally independent so each failure has a specific owner and artifact.
+The repository uses one consolidated GitHub Actions workflow with separate application, infrastructure, dependency, static-analysis, and aggregate security jobs. The jobs are intentionally independent so each failure has a specific owner and artifact.
 
 ## Security workflow
 
-The supplied workflow is `.github/workflows/security.yml` and runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch. `scripts/validate_security_remediation.py` also discovers renamed or consolidated security workflow files, or accepts `SECURITY_WORKFLOW_PATH`, so validation does not depend on one filename.
+The consolidated workflow is `.github/workflows/python-package.yml` and runs on pushes and pull requests to `main`, every Tuesday, and by manual dispatch. `scripts/validate_security_remediation.py` also discovers renamed or consolidated security workflow files, or accepts `SECURITY_WORKFLOW_PATH`, so validation does not depend on one filename.
 
 | Job | Scope | Blocking behavior | Artifact |
 |---|---|---|---|
@@ -45,17 +45,16 @@ When npm cannot resolve dependencies, the job writes a valid `npm-audit.json` do
 
 - `.github/workflows/codeql.yml` analyzes Python and JavaScript/TypeScript.
 - `.github/workflows/dependency-review.yml` blocks high/critical vulnerabilities newly introduced by pull requests.
-- `.github/workflows/python-package.yml` runs application tests, linting, type checking, frontend build, and the 90% coverage gate.
-- `.github/workflows/terraform.yml` runs native Terraform formatting/validation, TFLint, Go race tests, Checkov, plans, and protected deployments.
+- `.github/workflows/python-package.yml` runs application tests, linting, type checking, the frontend build, the 90% coverage gate, native Terraform formatting/validation, TFLint, Go race tests, Checkov, plans, and protected deployments.
 - `.github/dependabot.yml` checks Python, npm, Docker, Terraform, and GitHub Actions dependencies on its configured cadence.
 
 ## Recommended repository rules
 
 Enable the dependency graph, Dependabot alerts/security updates, secret scanning, and push protection. Require these statuses on `main`:
 
-- `Application tests / Backend / Python 3.12`
-- `Application tests / Frontend type-check and build`
-- `Security tests / Security gate`
+- `Application, security, and Terraform tests / Backend / Python 3.12`
+- `Application, security, and Terraform tests / Frontend type-check and build`
+- `Application, security, and Terraform tests / Security gate`
 - Terraform validation and test gate
 - Both CodeQL language analyses
 - Dependency review on pull requests

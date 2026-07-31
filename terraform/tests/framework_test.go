@@ -41,6 +41,43 @@ func read(t *testing.T, path string) string {
 	return string(body)
 }
 
+// Locate a governed workflow by security-critical content instead of a filename.
+// This supports both split workflows and the consolidated python-package workflow.
+func workflowWithMarkers(t *testing.T, markers ...string) string {
+	t.Helper()
+	directory := filepath.Join(repositoryRoot(t), ".github", "workflows")
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		extension := filepath.Ext(entry.Name())
+		if extension == ".yml" || extension == ".yaml" {
+			paths = append(paths, filepath.Join(directory, entry.Name()))
+		}
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		body := read(t, path)
+		matches := true
+		for _, marker := range markers {
+			if !strings.Contains(body, marker) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return body
+		}
+	}
+	t.Fatalf("no workflow contains required markers: %s", strings.Join(markers, ", "))
+	return ""
+}
+
 // Verify that every infrastructure module required by the documented production architecture is present.
 func TestRequiredModulesExist(t *testing.T) {
 	modules := []string{
@@ -390,7 +427,7 @@ func TestAutoscalingAndMigrationTaskDefinitions(t *testing.T) {
 
 // Verify that CI runs native Terraform formatting, initialization, and validation rather than relying only on text checks.
 func TestTerraformWorkflowExecutesNativeValidation(t *testing.T) {
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
 	for _, expected := range []string{
 		"hashicorp/setup-terraform@v4",
 		"terraform-linters/setup-tflint@v6",
@@ -617,7 +654,7 @@ func TestRecoveryAndObservabilityCoverage(t *testing.T) {
 func TestSupplyChainAndFederationDefaults(t *testing.T) {
 	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "variables.tf"))
 	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
 	versions := read(t, filepath.Join(root(t), "versions.tf"))
 
 	if !regexp.MustCompile(`(?s)variable "allow_pull_requests".*?default\s*=\s*false`).MatchString(oidc) {
@@ -696,7 +733,7 @@ func TestCheckovRemediationControls(t *testing.T) {
 		}
 	}
 
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "security.yml"))
+	workflow := workflowWithMarkers(t, "validate_security_remediation.py", "Enforce complete Checkov policy gate", "DEPENDENCY_RESOLUTION_FAILED")
 	for _, line := range strings.Split(workflow, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "--soft-fail") {
@@ -719,7 +756,7 @@ func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
 	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
 	oidc := read(t, filepath.Join(root(t), "modules", "github_oidc", "main.tf"))
 	guardduty := read(t, filepath.Join(root(t), "modules", "guardduty", "main.tf"))
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
 
 	for _, fragment := range []string{
 		`resource "aws_iam_openid_connect_provider" "github"`,
@@ -758,7 +795,7 @@ func TestAccountFoundationOwnsSingletonControls(t *testing.T) {
 func TestTerraformControlPlaneTrustAndLeastPrivilege(t *testing.T) {
 	account := read(t, filepath.Join(root(t), "global", "account", "main.tf"))
 	variables := read(t, filepath.Join(root(t), "global", "account", "variables.tf"))
-	workflow := read(t, filepath.Join(repositoryRoot(t), ".github", "workflows", "terraform.yml"))
+	workflow := workflowWithMarkers(t, "terraform -chdir=terraform/global/bootstrap validate", "AWS_TERRAFORM_PLAN_ROLE_ARN", "AWS_TERRAFORM_APPLY_ROLE_ARN")
 
 	for _, fragment := range []string{
 		`resource "aws_iam_role" "terraform_plan"`,

@@ -13,7 +13,7 @@
 
 The framework passed every executable offline test available in this environment after a deep source, security, orchestration, and deployment-contract review. The final package contains **25 reusable AWS modules**, **87 Terraform files**, **31 root module instances**, and **44 Go tests**. All Go tests passed with the race detector, including a mocked end-to-end deployment that exercises remote-state bootstrap, image publication, online migration-task provisioning, one-off backward-compatible migrations, rolling service update, static publication, and CloudFront invalidation.
 
-Native Terraform provider initialization, provider-schema validation, TFLint, Checkov, Docker builds, and an AWS plan/apply could not be executed locally because this sandbox does not provide those binaries, blocks external package downloads, and has no AWS credentials. These checks are wired into `.github/workflows/terraform.yml` and remain required before a real environment deployment.
+Native Terraform provider initialization, provider-schema validation, TFLint, Checkov, Docker builds, and an AWS plan/apply could not be executed locally because this sandbox does not provide those binaries, blocks external package downloads, and has no AWS credentials. These checks are wired into `.github/workflows/python-package.yml` and remain required before a real environment deployment.
 
 ## Executed checks
 
