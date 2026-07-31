@@ -110,12 +110,12 @@ jobs:
           checkov --directory . \
             --framework terraform cloudformation kubernetes helm bicep arm serverless dockerfile github_actions openapi secrets \
             --enable-secret-scan-all-files \
-            --skip-path '(^|/)docs/' \
-            --skip-path '(^|/)screenshots/' \
-            --skip-path '(^|/)validation/' \
-            --skip-path '(^|/)node_modules/' \
-            --skip-path '(^|/)__pycache__/' \
-            --skip-path '(^|/)\.env\.example$' \
+            --skip-path 'docs/' \
+            --skip-path 'screenshots/' \
+            --skip-path 'validation/' \
+            --skip-path 'node_modules/' \
+            --skip-path '__pycache__/' \
+            --skip-path '\.env\.example$' \
             --skip-check CKV_GHA_5,CKV_GHA_6 \
             --compact \
             --output cli \
