@@ -6,3 +6,15 @@ __pycache__/
 node_modules/
 dist/
 .DS_Store
+
+# Terraform runtime files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+*.tfvars.json
+crash.log
+crash.*.log
+terraform/envs/*/backend.hcl
+.terraform.lock.hcl.backup
