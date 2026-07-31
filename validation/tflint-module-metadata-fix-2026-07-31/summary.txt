@@ -1,0 +1,23 @@
+TFLint module metadata remediation
+Date: 2026-07-31
+
+Changes:
+- Added required_version to all 25 reusable Terraform modules.
+- Added version-constrained hashicorp/aws provider declarations to all 25 modules.
+- Added version-constrained hashicorp/random declarations only to rds_postgres and redis.
+- Removed unused aws_partition and aws_caller_identity data sources from networking.
+- Removed unused root aws_region data source.
+
+Validation:
+- TFLint-equivalent targeted check: passed; all 55 reported findings addressed.
+- Security remediation validator: passed.
+- Workflow discovery regression tests: passed.
+- Workflow YAML validator: passed.
+- Terraform module contracts: passed.
+- Static repository checks: passed.
+- Documentation-link validation: passed.
+- Go race tests and Go vet: passed.
+- Python compilation and shell syntax: passed.
+
+Limitations:
+- Native TFLint and Terraform binaries were unavailable in this sandbox, so GitHub Actions remains the final native TFLint/Terraform execution environment.

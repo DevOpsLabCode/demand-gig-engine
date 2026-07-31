@@ -1,0 +1,3 @@
+PASS: 25 modules have required_version and complete versioned required_providers declarations.
+PASS: all three TFLint-reported unused data declarations were removed.
+Expected original TFLint issue count resolved: 55.

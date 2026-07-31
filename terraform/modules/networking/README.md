@@ -31,8 +31,6 @@ This module is consumed by the production composition in `terraform/main.tf`. Th
 - **`aws_flow_log.this`:** Records accepted and rejected VPC traffic for security analysis.
 - **Data `data.aws_availability_zones.available`:** Discovers available zones for deterministic multi-AZ placement.
 - **Data `data.aws_region.current`:** Reads the provider region for service principals and encryption contexts.
-- **Data `data.aws_partition.current`:** Keeps generated ARNs compatible with the active AWS partition.
-- **Data `data.aws_caller_identity.current`:** Reads the active AWS account for account-scoped ARNs and policies.
 - **Data `data.aws_iam_policy_document.flow_assume`:** Builds a structured IAM, resource, trust, or key policy.
 
 ## Inputs
