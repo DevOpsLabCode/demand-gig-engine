@@ -172,13 +172,13 @@ data "aws_iam_policy_document" "logging_kms" {
 
     principals {
       type        = "Service"
-      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+      identifiers = ["logs.${data.aws_region.current.region}.amazonaws.com"]
     }
 
     condition {
       test     = "ArnLike"
       variable = "kms:EncryptionContext:aws:logs:arn"
-      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:aws-waf-logs-*"]
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:aws-waf-logs-*"]
     }
   }
 }

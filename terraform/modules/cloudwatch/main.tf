@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "alerts" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${var.name}-*"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alarm:${var.name}-*"]
     }
   }
 
@@ -381,7 +381,7 @@ resource "aws_cloudwatch_dashboard" "service" {
         height = 6
         properties = {
           title  = "Edge and API health"
-          region = data.aws_region.current.name
+          region = data.aws_region.current.region
           metrics = [
             ["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", var.alb_arn_suffix],
             [".", "HTTPCode_Target_5XX_Count", ".", ".", "TargetGroup", var.target_group_arn_suffix],
@@ -399,7 +399,7 @@ resource "aws_cloudwatch_dashboard" "service" {
         height = 6
         properties = {
           title  = "ECS service utilization"
-          region = data.aws_region.current.name
+          region = data.aws_region.current.region
           metrics = flatten([
             for service in sort(tolist(var.service_names)) : [
               ["AWS/ECS", "CPUUtilization", "ClusterName", var.cluster_name, "ServiceName", service],
@@ -418,7 +418,7 @@ resource "aws_cloudwatch_dashboard" "service" {
         height = 6
         properties = {
           title  = "Async queue health"
-          region = data.aws_region.current.name
+          region = data.aws_region.current.region
           metrics = [
             ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", var.queue_name],
             [".", "ApproximateAgeOfOldestMessage", ".", "."],
@@ -436,7 +436,7 @@ resource "aws_cloudwatch_dashboard" "service" {
         height = 6
         properties = {
           title  = "Database and cache health"
-          region = data.aws_region.current.name
+          region = data.aws_region.current.region
           metrics = [
             ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.db_identifier],
             [".", "FreeStorageSpace", ".", "."],

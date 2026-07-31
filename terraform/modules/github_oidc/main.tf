@@ -19,7 +19,7 @@ locals {
     var.allow_pull_requests ? ["repo:${var.github_org}/${var.github_repo}:pull_request"] : [],
     [for environment in var.allowed_environments : "repo:${var.github_org}/${var.github_repo}:environment:${environment}"],
   )
-  service_arn = "arn:${data.aws_partition.current.partition}:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${local.cluster_name}/*"
+  service_arn = "arn:${data.aws_partition.current.partition}:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${local.cluster_name}/*"
 }
 
 # Build the web-identity trust policy that limits role assumption to the approved GitHub repository subjects.

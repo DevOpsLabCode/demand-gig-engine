@@ -1,0 +1,15 @@
+{
+  "date": "2026-07-31",
+  "security_remediation_checks": 158,
+  "workflow_files_validated": 5,
+  "terraform_modules_validated": 25,
+  "terraform_root_instances_validated": 31,
+  "static_checks_passed": 69,
+  "workflow_discovery_scenarios": 6,
+  "documentation_links_validated": 169,
+  "go_test_race": "passed",
+  "go_vet": "passed",
+  "python_compile": "passed",
+  "shell_syntax": "passed",
+  "native_terraform_cli": "not available in sandbox"
+}

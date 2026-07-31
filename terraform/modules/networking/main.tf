@@ -124,7 +124,7 @@ resource "aws_route_table_association" "db" {
 
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  service_name      = "com.amazonaws.${data.aws_region.current.region}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = concat([for table in aws_route_table.app : table.id], [aws_route_table.db.id])
   tags              = var.tags

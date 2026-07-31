@@ -36,13 +36,13 @@ data "aws_iam_policy_document" "this" {
 
     principals {
       type        = "Service"
-      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+      identifiers = ["logs.${data.aws_region.current.region}.amazonaws.com"]
     }
 
     condition {
       test     = "ArnLike"
       variable = "kms:EncryptionContext:aws:logs:arn"
-      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:*"]
+      values   = ["arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:*"]
     }
   }
 
@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "this" {
     condition {
       test     = "StringEquals"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:trail/${var.name}"]
     }
 
     condition {

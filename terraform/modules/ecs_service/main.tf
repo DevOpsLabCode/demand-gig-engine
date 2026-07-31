@@ -128,7 +128,7 @@ locals {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.this.name
-        "awslogs-region"        = data.aws_region.current.name
+        "awslogs-region"        = data.aws_region.current.region
         "awslogs-stream-prefix" = "ecs"
       }
     }
@@ -164,7 +164,7 @@ locals {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.this.name
-        "awslogs-region"        = data.aws_region.current.name
+        "awslogs-region"        = data.aws_region.current.region
         "awslogs-stream-prefix" = "xray"
       }
     }
@@ -175,10 +175,10 @@ locals {
     var.enable_health_check ? local.health_check : {},
   )
 
-  container_definitions = var.enable_xray ? [
-    local.application_with_health,
-    local.xray_container,
-  ] : [local.application_with_health]
+  container_definitions = concat(
+    [local.application_with_health],
+    [for enabled in [var.enable_xray] : local.xray_container if enabled],
+  )
 }
 
 # Build the shared ECS task trust policy used by both execution and application task roles.
@@ -235,7 +235,7 @@ resource "aws_iam_role_policy" "execution" {
           "logs:CreateLogStream",
           "logs:PutLogEvents",
         ]
-        Resource = "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.this.name}:log-stream:*"
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.this.name}:log-stream:*"
       },
       {
         Sid      = "ReadDeclaredSecrets"

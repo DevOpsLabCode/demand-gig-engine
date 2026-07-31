@@ -1,0 +1,41 @@
+ECS container-definition construction:
+
+  application_with_health = merge(
+    local.application_container,
+    var.enable_health_check ? local.health_check : {},
+  )
+
+  container_definitions = concat(
+    [local.application_with_health],
+    [for enabled in [var.enable_xray] : local.xray_container if enabled],
+  )
+}
+
+# Build the shared ECS task trust policy used by both execution and application task roles.
+
+Required provider declarations:
+--- terraform/modules/acm/versions.tf
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the AWS provider source required by this reusable child module.
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+--- terraform/modules/waf/versions.tf
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Declares the AWS provider source required by this reusable child module.
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+Remaining deprecated aws_region.current.name references:
+none

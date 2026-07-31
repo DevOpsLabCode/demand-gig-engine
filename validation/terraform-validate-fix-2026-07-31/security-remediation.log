@@ -1,0 +1,3 @@
+Terraform workflow: .github/workflows/terraform.yml
+Security workflow: .github/workflows/security.yml
+Security remediation validation passed: 158 checks.

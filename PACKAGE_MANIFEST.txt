@@ -17,13 +17,10 @@ COVERAGE_POLICY.md
 DOCUMENTATION_CHANGELOG.md
 Dockerfile.backend
 Dockerfile.frontend
-PACKAGE_MANIFEST.txt
-PACKAGE_MANIFEST.txt.tmp
 README.md
 README_FUTURE.md
 SECURITY.md
 SECURITY_TESTING.md
-SHA256SUMS.txt
 SOCIAL_AUTH_AWS_CHANGELOG.md
 TERRAFORM_TEST_REPORT.md
 TEST_REPORT.md
@@ -172,6 +169,7 @@ terraform/modules/acm/README.md
 terraform/modules/acm/main.tf
 terraform/modules/acm/outputs.tf
 terraform/modules/acm/variables.tf
+terraform/modules/acm/versions.tf
 terraform/modules/alb/README.md
 terraform/modules/alb/main.tf
 terraform/modules/alb/outputs.tf
@@ -262,6 +260,7 @@ terraform/modules/waf/README.md
 terraform/modules/waf/main.tf
 terraform/modules/waf/outputs.tf
 terraform/modules/waf/variables.tf
+terraform/modules/waf/versions.tf
 terraform/modules/xray/README.md
 terraform/modules/xray/main.tf
 terraform/modules/xray/outputs.tf
@@ -363,6 +362,7 @@ validation/terraform-deep-test-2026-07-30/typescript-parse.log
 validation/terraform-deep-test-2026-07-30/vibesmeet-pytest.log
 validation/terraform-deep-test-2026-07-30/vibesmeet-unittest.log
 validation/terraform-deep-test-2026-07-30/workflow-validation.log
+validation/terraform-format-fix-2026-07-31/checksums.log
 validation/terraform-format-fix-2026-07-31/documentation-links.log
 validation/terraform-format-fix-2026-07-31/go-test-race.log
 validation/terraform-format-fix-2026-07-31/go-vet.log
@@ -386,6 +386,19 @@ validation/terraform-module-deep-audit-2026-07-31/static-checks.log
 validation/terraform-module-deep-audit-2026-07-31/summary.json
 validation/terraform-module-deep-audit-2026-07-31/terraform-contracts.log
 validation/terraform-module-deep-audit-2026-07-31/workflow-validation.log
+validation/terraform-validate-fix-2026-07-31/README.md
+validation/terraform-validate-fix-2026-07-31/documentation-links.log
+validation/terraform-validate-fix-2026-07-31/go-test-race.log
+validation/terraform-validate-fix-2026-07-31/go-vet.log
+validation/terraform-validate-fix-2026-07-31/python-compile.log
+validation/terraform-validate-fix-2026-07-31/security-remediation.log
+validation/terraform-validate-fix-2026-07-31/shell-syntax.log
+validation/terraform-validate-fix-2026-07-31/static-checks.log
+validation/terraform-validate-fix-2026-07-31/summary.json
+validation/terraform-validate-fix-2026-07-31/targeted-terraform-checks.log
+validation/terraform-validate-fix-2026-07-31/terraform-contracts.log
+validation/terraform-validate-fix-2026-07-31/workflow-discovery.log
+validation/terraform-validate-fix-2026-07-31/workflow-validation.log
 validation/terraform_go_tests_deep_audit.log
 validation/terraform_module_contracts.log
 validation/typescript_check.log
