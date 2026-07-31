@@ -17,10 +17,12 @@ COVERAGE_POLICY.md
 DOCUMENTATION_CHANGELOG.md
 Dockerfile.backend
 Dockerfile.frontend
+PACKAGE_MANIFEST.txt
 README.md
 README_FUTURE.md
 SECURITY.md
 SECURITY_TESTING.md
+SHA256SUMS.txt
 SOCIAL_AUTH_AWS_CHANGELOG.md
 TERRAFORM_TEST_REPORT.md
 TEST_REPORT.md
@@ -373,5 +375,6 @@ validation/typescript_check.log
 validation/typescript_syntax_final.log
 validation/vibesmeet_contract_tests.log
 validation/vibesmeet_contract_tests_final.log
-PACKAGE_MANIFEST.txt
-SHA256SUMS.txt
+validation/workflow-discovery-fix-2026-07-31/README.md
+validation/workflow-discovery-fix-2026-07-31/go-tests.log
+validation/workflow-discovery-fix-2026-07-31/validator.log

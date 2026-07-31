@@ -1,0 +1,19 @@
+# Terraform workflow discovery regression validation
+# Date: 2026-07-31
+
+## Conventional filename
+Terraform workflow: .github/workflows/terraform.yml
+Security workflow: .github/workflows/security.yml
+Security remediation validation passed: 156 checks.
+
+## Renamed filename simulation
+Terraform workflow: .github/workflows/infrastructure.yml
+Security workflow: .github/workflows/security.yml
+Security remediation validation passed: 156 checks.
+
+## Supporting checks
+Validated 5 GitHub Actions workflow files.
+Terraform module contracts passed: 25 modules, 31 root instances.
+Summary: 69 passed, 0 failed
+Validated 169 local links across 54 Markdown files.
+Go vet and race tests: see go-tests.log

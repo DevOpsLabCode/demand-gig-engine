@@ -80,6 +80,50 @@ def find_security_workflow() -> Path | None:
     return candidates[0][1]
 
 
+def find_terraform_workflow() -> Path | None:
+    """Locate the Terraform workflow without depending on its filename.
+
+    Resolution order: TERRAFORM_WORKFLOW_PATH environment override, conventional
+    terraform.yml/terraform.yaml names, then the workflow containing the account
+    and bootstrap validation commands plus the dedicated Terraform plan/apply roles.
+    This allows repositories to rename or consolidate the workflow without breaking
+    the security-remediation validator.
+    """
+    workflows = ROOT / ".github" / "workflows"
+    override = os.environ.get("TERRAFORM_WORKFLOW_PATH", "").strip()
+    if override:
+        candidate = Path(override)
+        if not candidate.is_absolute():
+            candidate = ROOT / candidate
+        return candidate if candidate.is_file() else None
+
+    for name in ("terraform.yml", "terraform.yaml"):
+        candidate = workflows / name
+        if candidate.is_file():
+            return candidate
+
+    markers = (
+        "terraform -chdir=terraform/global/bootstrap validate",
+        "terraform -chdir=terraform/global/account validate",
+        "AWS_TERRAFORM_PLAN_ROLE_ARN",
+        "AWS_TERRAFORM_APPLY_ROLE_ARN",
+        "terraform/scripts/bootstrap-account.sh",
+        "terraform/scripts/deploy.sh",
+    )
+    candidates: list[tuple[int, Path]] = []
+    for pattern in ("*.yml", "*.yaml"):
+        for candidate in workflows.glob(pattern):
+            candidate_text = candidate.read_text(encoding="utf-8")
+            score = sum(marker in candidate_text for marker in markers)
+            if score >= 3:
+                candidates.append((score, candidate))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], str(item[1])))
+    return candidates[0][1]
+
+
 def require_text(path: Path, text: str, *needles: str) -> None:
     """Require security-critical fragments in a previously discovered file."""
     relative = path.relative_to(ROOT)
@@ -560,19 +604,30 @@ def main() -> int:
         'type   = "AWS::S3::Object"',
         'dynamic "insight_selector"',
     )
-    require(
-        ".github/workflows/terraform.yml",
-        "terraform -chdir=terraform/global/bootstrap validate",
-        "terraform -chdir=terraform/global/account validate",
-        "bash -n terraform/scripts/bootstrap-account.sh",
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
-        "role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}",
-        "role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}",
-    )
-    terraform_workflow = (ROOT / ".github/workflows/terraform.yml").read_text(encoding="utf-8")
+    terraform_workflow_path = find_terraform_workflow()
+    if terraform_workflow_path is None:
+        ERRORS.append(
+            "No Terraform workflow found. Set TERRAFORM_WORKFLOW_PATH or add a workflow "
+            "containing bootstrap/account validation and the dedicated plan/apply roles."
+        )
+        terraform_workflow = ""
+    else:
+        terraform_workflow = terraform_workflow_path.read_text(encoding="utf-8")
+        print(f"Terraform workflow: {terraform_workflow_path.relative_to(ROOT)}")
+        require_text(
+            terraform_workflow_path,
+            terraform_workflow,
+            "terraform -chdir=terraform/global/bootstrap validate",
+            "terraform -chdir=terraform/global/account validate",
+            "bash -n terraform/scripts/bootstrap-account.sh",
+            "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+            "role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}",
+            "role-to-assume: ${{ secrets.AWS_TERRAFORM_APPLY_ROLE_ARN }}",
+        )
+
     if "AWS_TERRAFORM_ROLE_ARN" in terraform_workflow:
         ERRORS.append("Terraform workflow must not fall back to a legacy broad role")
-    else:
+    elif terraform_workflow:
         PASSES.append("Terraform uses dedicated fail-closed plan/apply roles")
     if 'default     = false' not in (ROOT / "terraform/global/account/variables.tf").read_text(encoding="utf-8"):
         ERRORS.append("Account foundation must disable direct pull-request plan trust by default")
