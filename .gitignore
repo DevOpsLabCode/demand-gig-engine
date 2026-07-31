@@ -18,3 +18,7 @@ crash.log
 crash.*.log
 terraform/envs/*/backend.hcl
 .terraform.lock.hcl.backup
+**/.terraform/*
+*.tfstate
+terraform/envs/*/backend.hcl
+terraform/*.tfstate
