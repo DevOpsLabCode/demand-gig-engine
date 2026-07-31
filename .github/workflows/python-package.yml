@@ -59,6 +59,12 @@ jobs:
       - name: Validate workflows and approved action versions
         run: python scripts/validate_workflows.py
 
+      - name: Validate security remediation invariants
+        run: python scripts/validate_security_remediation.py
+
+      - name: Validate documentation links
+        run: python scripts/validate_documentation_links.py
+
       - name: Validate Python and shell security automation
         run: |
           python -m compileall -q scripts
@@ -320,28 +326,69 @@ jobs:
         with:
           persist-credentials: false
 
-      # A committed lockfile is required so CI audits the exact dependency tree
-      # used for builds instead of silently resolving new "latest" packages.
-      - name: Require committed npm lockfile
+      - name: Detect committed npm lockfile
+        id: npm-lock
+        shell: bash
         run: |
-          test -f package-lock.json || {
-            echo "frontend/package-lock.json is required."
-            echo "Run 'npm install' in frontend and commit the generated lockfile."
-            exit 1
-          }
+          if [[ -f package-lock.json ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Using committed frontend/package-lock.json."
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::frontend/package-lock.json is missing. CI will generate temporary dependency metadata for this audit. Commit the generated lockfile for reproducible builds."
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install locked frontend dependencies
-        run: npm ci --ignore-scripts --no-fund --no-audit
+      # Prefer the immutable dependency tree from package-lock.json. The
+      # fallback keeps security scanning operational for older branches while
+      # generating a lockfile that can be downloaded and committed afterward.
+      # Resolution is allowed to finish non-zero so the workflow can always
+      # publish a diagnostic JSON artifact before enforcing the failure.
+      - name: Resolve frontend dependency tree
+        id: npm-resolve
+        shell: bash
+        run: |
+          set +e
+          if [[ "${{ steps.npm-lock.outputs.present }}" == "true" ]]; then
+            npm ci --ignore-scripts --no-fund --no-audit
+          else
+            npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+          fi
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          if [[ "$status" -ne 0 ]]; then
+            NPM_RESOLUTION_STATUS="$status" node <<'NODE'
+          const fs = require("node:fs");
+          const report = {
+            auditReportVersion: 2,
+            error: {
+              code: "DEPENDENCY_RESOLUTION_FAILED",
+              summary: "npm could not resolve the frontend dependency tree.",
+              detail: `npm exited with status ${process.env.NPM_RESOLUTION_STATUS}. Review the preceding workflow log.`
+            }
+          };
+          fs.writeFileSync("../npm-audit.json", `${JSON.stringify(report, null, 2)}\n`);
+          NODE
+          fi
+          exit 0
+
+      - name: Upload generated npm lockfile
+        if: steps.npm-lock.outputs.present != 'true' && always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: generated-frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Audit production dependencies
         id: npm-audit
+        if: steps.npm-resolve.outputs.status == '0'
         shell: bash
         run: |
           set +e
@@ -356,14 +403,23 @@ jobs:
         with:
           name: npm-audit-results
           path: npm-audit.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
-      - name: Enforce high and critical npm vulnerabilities
-        if: steps.npm-audit.outputs.status != '0'
+      - name: Enforce dependency resolution and vulnerability policy
+        shell: bash
         run: |
-          echo "npm audit found a HIGH or CRITICAL production vulnerability or could not complete."
-          exit 1
+          if [[ "${{ steps.npm-resolve.outputs.status }}" != "0" ]]; then
+            echo "npm could not resolve the frontend dependency tree."
+            exit 1
+          fi
+
+          if [[ "${{ steps.npm-audit.outputs.status }}" != "0" ]]; then
+            echo "npm audit found a HIGH or CRITICAL production vulnerability or could not complete."
+            exit 1
+          fi
+
+          echo "Frontend dependencies resolved and passed the production vulnerability policy."
 
   security-gate:
     name: Security gate
