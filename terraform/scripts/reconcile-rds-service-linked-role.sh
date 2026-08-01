@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Reconciles the account-wide Amazon RDS service-linked role with the
-# Terraform account-foundation state and verifies the AWS-owned trust/policy.
+# Purpose: Reconciles the account-wide Amazon ElastiCache service-linked role
+# with Terraform state and verifies the AWS-owned trust and managed policy.
 
 set -Eeuo pipefail
 
 MODE="${1:-reconcile}"
 ACCOUNT_TERRAFORM_DIR="${2:-terraform/global/account}"
 
-RESOURCE_ADDRESS="aws_iam_service_linked_role.rds"
-ROLE_NAME="AWSServiceRoleForRDS"
-SERVICE_NAME="rds.amazonaws.com"
+RESOURCE_ADDRESS="aws_iam_service_linked_role.elasticache"
+ROLE_NAME="AWSServiceRoleForElastiCache"
+SERVICE_NAME="elasticache.amazonaws.com"
+POLICY_NAME="ElastiCacheServiceRolePolicy"
 
 require_command() {
   local command_name="$1"
@@ -88,7 +89,7 @@ verify_role() {
 
   existing_role_arn="$(role_arn)"
   partition="$(cut -d: -f2 <<<"${existing_role_arn}")"
-  expected_policy_arn="arn:${partition}:iam::aws:policy/aws-service-role/AmazonRDSServiceRolePolicy"
+  expected_policy_arn="arn:${partition}:iam::aws:policy/aws-service-role/${POLICY_NAME}"
 
   trusted_services="$(
     aws iam get-role \
@@ -119,10 +120,10 @@ verify_role() {
   echo "- Trusted service: ${SERVICE_NAME}"
   echo "- Managed policy: ${expected_policy_arn}"
 
-  # IAM changes are eventually consistent. The account-foundation apply runs
-  # before the workload deployment, so wait before Terraform creates RDS Proxy.
-  echo "Waiting 30 seconds for IAM propagation."
-  sleep 30
+  # IAM changes are eventually consistent. Wait before the workload stack asks
+  # ElastiCache to create the encrypted Redis/Valkey replication group.
+  echo "Waiting 45 seconds for IAM propagation."
+  sleep 45
 }
 
 case "${MODE}" in
