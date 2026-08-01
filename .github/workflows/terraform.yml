@@ -138,9 +138,12 @@ jobs:
   plan:
     name: Development plan
 
-    # Pushes to main produce a plan automatically. A manual run can also
-    # produce a plan by selecting operation=plan.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.operation == 'plan'
+    # Pushes to main produce a plan automatically. Manual plan and deploy
+    # operations also run the plan before any infrastructure is changed.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.operation == 'plan' || inputs.operation == 'deploy'))
 
     needs:
       - validate
@@ -367,10 +370,18 @@ jobs:
   deploy-dev:
     name: Deploy development
 
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy'
+    # Main-branch pushes deploy automatically unless DEV_AUTO_DEPLOY is set to
+    # false. Manual operation=deploy always deploys after a successful plan.
+    if: >-
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       vars.DEV_AUTO_DEPLOY != 'false') ||
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.operation == 'deploy')
 
     needs:
       - validate
+      - plan
 
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -463,21 +474,45 @@ jobs:
 
       - name: Record development deployment settings
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_AUTO_DESTROY: ${{ inputs.auto_destroy }}
+          MANUAL_DESTROY_AFTER_MINUTES: ${{ inputs.destroy_after_minutes }}
+          CONFIGURED_AUTO_DESTROY: ${{ vars.DEV_AUTO_DESTROY }}
+          CONFIGURED_DESTROY_AFTER_MINUTES: ${{ vars.DEV_DESTROY_AFTER_MINUTES }}
         run: |
           set -euo pipefail
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            AUTO_DESTROY="${MANUAL_AUTO_DESTROY:-true}"
+            DESTROY_AFTER_MINUTES="${MANUAL_DESTROY_AFTER_MINUTES:-30}"
+          else
+            AUTO_DESTROY="${CONFIGURED_AUTO_DESTROY:-true}"
+            DESTROY_AFTER_MINUTES="${CONFIGURED_DESTROY_AFTER_MINUTES:-30}"
+          fi
 
           {
             echo "## Development deployment"
             echo
             echo "- Operation: deploy"
-            echo "- Automatic destroy: ${{ inputs.auto_destroy }}"
-            echo "- Destroy delay: ${{ inputs.destroy_after_minutes }} minutes"
+            echo "- Trigger: ${EVENT_NAME}"
+            echo "- Automatic destroy: ${AUTO_DESTROY}"
+            echo "- Destroy delay: ${DESTROY_AFTER_MINUTES} minutes"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   auto-destroy-dev:
     name: Auto-destroy development
 
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy' && inputs.auto_destroy == true && needs.deploy-dev.result == 'success'
+    if: >-
+      needs.deploy-dev.result == 'success' &&
+      (
+        (github.event_name == 'push' &&
+         github.ref == 'refs/heads/main' &&
+         vars.DEV_AUTO_DESTROY != 'false') ||
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.operation == 'deploy' &&
+         inputs.auto_destroy == true)
+      )
 
     needs:
       - deploy-dev
@@ -494,9 +529,17 @@ jobs:
         id: delay
         shell: bash
         env:
-          DESTROY_AFTER_MINUTES: ${{ inputs.destroy_after_minutes }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_DESTROY_AFTER_MINUTES: ${{ inputs.destroy_after_minutes }}
+          CONFIGURED_DESTROY_AFTER_MINUTES: ${{ vars.DEV_DESTROY_AFTER_MINUTES }}
         run: |
           set -euo pipefail
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            DESTROY_AFTER_MINUTES="${MANUAL_DESTROY_AFTER_MINUTES:-30}"
+          else
+            DESTROY_AFTER_MINUTES="${CONFIGURED_DESTROY_AFTER_MINUTES:-30}"
+          fi
 
           if [[ ! "${DESTROY_AFTER_MINUTES}" =~ ^[0-9]+$ ]]; then
             echo "::error::destroy_after_minutes must be a whole number."
