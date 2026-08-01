@@ -37,12 +37,12 @@ variable "cluster_name" {
 }
 
 variable "service_names" {
-  type        = set(string)
-  description = "ECS service names monitored for CPU and memory pressure."
+  type        = map(string)
+  description = "Stable alarm keys mapped to ECS service names monitored for CPU and memory pressure."
 
   validation {
-    condition     = length(var.service_names) > 0 && alltrue([for name in var.service_names : trimspace(name) != ""])
-    error_message = "service_names must contain at least one non-empty ECS service name."
+    condition     = length(var.service_names) > 0 && alltrue([for name in values(var.service_names) : trimspace(name) != ""])
+    error_message = "service_names must contain at least one statically keyed, non-empty ECS service name."
   }
 }
 

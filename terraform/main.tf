@@ -430,7 +430,10 @@ module "cloudwatch" {
   alb_arn_suffix             = split("loadbalancer/", module.alb.arn)[1]
   target_group_arn_suffix    = module.alb.target_group_arn_suffix
   cluster_name               = module.cluster.cluster_name
-  service_names              = [module.backend.service_name, module.worker.service_name]
+  service_names = {
+    api    = module.backend.service_name
+    worker = module.worker.service_name
+  }
   db_identifier              = module.database.db_identifier
   redis_replication_group_id = module.redis.replication_group_id
   queue_name                 = module.sqs.queue_name

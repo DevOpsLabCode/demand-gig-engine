@@ -392,7 +392,7 @@ resource "aws_appautoscaling_target" "this" {
 
 # Adjusts ECS task count in response to measured utilization.
 resource "aws_appautoscaling_policy" "cpu" {
-  count              = length(aws_appautoscaling_target.this)
+  count              = var.enable_autoscaling && var.desired_count > 0 ? 1 : 0
   name               = "${var.name}-cpu"
   policy_type        = "TargetTrackingScaling"
   resource_id        = aws_appautoscaling_target.this[0].resource_id
@@ -411,7 +411,7 @@ resource "aws_appautoscaling_policy" "cpu" {
 # Memory target tracking complements CPU scaling for Python workloads that can
 # exhaust memory before CPU reaches the configured threshold.
 resource "aws_appautoscaling_policy" "memory" {
-  count              = length(aws_appautoscaling_target.this)
+  count              = var.enable_autoscaling && var.desired_count > 0 ? 1 : 0
   name               = "${var.name}-memory"
   policy_type        = "TargetTrackingScaling"
   resource_id        = aws_appautoscaling_target.this[0].resource_id

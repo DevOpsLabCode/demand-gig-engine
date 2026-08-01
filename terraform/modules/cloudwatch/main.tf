@@ -183,7 +183,7 @@ resource "aws_cloudwatch_metric_alarm" "target_latency" {
 resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
   for_each            = var.service_names
   alarm_name          = "${var.name}-${each.key}-ecs-cpu"
-  alarm_description   = "ECS service ${each.key} CPU utilization is persistently high."
+  alarm_description   = "ECS service ${each.value} CPU utilization is persistently high."
   namespace           = "AWS/ECS"
   metric_name         = "CPUUtilization"
   statistic           = "Average"
@@ -192,7 +192,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
   datapoints_to_alarm = 2
   threshold           = var.thresholds.ecs_cpu_percent
   comparison_operator = "GreaterThanThreshold"
-  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.key }
+  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.value }
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
   treat_missing_data  = "notBreaching"
@@ -202,7 +202,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
 resource "aws_cloudwatch_metric_alarm" "ecs_memory" {
   for_each            = var.service_names
   alarm_name          = "${var.name}-${each.key}-ecs-memory"
-  alarm_description   = "ECS service ${each.key} memory utilization is persistently high."
+  alarm_description   = "ECS service ${each.value} memory utilization is persistently high."
   namespace           = "AWS/ECS"
   metric_name         = "MemoryUtilization"
   statistic           = "Average"
@@ -211,7 +211,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory" {
   datapoints_to_alarm = 2
   threshold           = var.thresholds.ecs_memory_percent
   comparison_operator = "GreaterThanThreshold"
-  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.key }
+  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.value }
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
   treat_missing_data  = "notBreaching"
@@ -419,7 +419,7 @@ resource "aws_cloudwatch_dashboard" "service" {
           # requires metrics to remain an array of string arrays.
           metrics = [
             for service_metric in setproduct(
-              sort(tolist(var.service_names)),
+              sort(keys(var.service_names)),
               ["CPUUtilization", "MemoryUtilization"],
               ) : [
               "AWS/ECS",
@@ -427,7 +427,7 @@ resource "aws_cloudwatch_dashboard" "service" {
               "ClusterName",
               var.cluster_name,
               "ServiceName",
-              service_metric[0],
+              var.service_names[service_metric[0]],
             ]
           ]
           period = 300
