@@ -121,6 +121,7 @@ ecr_image_exists() {
   local repository_uri="$1"
   local repository_name="${repository_uri#*/}"
   local output
+  local digest
   local status
 
   set +e
@@ -129,13 +130,23 @@ ecr_image_exists() {
       --region "$REGION" \
       --repository-name "$repository_name" \
       --image-ids "imageTag=$TAG" \
+      --query 'imageDetails[0].imageDigest' \
+      --output text \
       2>&1
   )"
   status="$?"
   set -e
 
   if [[ "$status" -eq 0 ]]; then
-    return 0
+    digest="$(printf '%s' "$output" | tr -d '[:space:]')"
+
+    if [[ -n "$digest" && "$digest" != "None" ]]; then
+      return 0
+    fi
+
+    # A successful command with no digest is not proof that the immutable tag
+    # exists. Treat it as absent. This also keeps the shell-test AWS stub honest.
+    return 1
   fi
 
   if grep -q "ImageNotFoundException" <<<"$output"; then
@@ -269,14 +280,7 @@ SUBNETS="$(
 OVERRIDES="$(
   jq -cn \
     --arg name "$SERVICE_NAME" \
-    '{
-      containerOverrides: [
-        {
-          name: $name,
-          command: ["python", "manage.py", "migrate", "--noinput"]
-        }
-      ]
-    }'
+    '{containerOverrides:[{name:$name,command:["python","manage.py","migrate","--noinput"]}]}'
 )"
 
 MIGRATION_TASK="$(
