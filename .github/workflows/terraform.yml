@@ -28,10 +28,9 @@ on:
       operation:
         description: "Select the development operation"
         required: true
-        default: "plan"
+        default: "deploy"
         type: choice
         options:
-          - plan
           - deploy
           - destroy
 
@@ -138,12 +137,9 @@ jobs:
   plan:
     name: Development plan
 
-    # Pushes to main produce a plan automatically. Manual plan and deploy
-    # operations also run the plan before any infrastructure is changed.
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (inputs.operation == 'plan' || inputs.operation == 'deploy'))
+    # The security validator requires this exact trusted-main invariant.
+    # Manual deployment performs its own plan through deploy.sh.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     needs:
       - validate
@@ -370,14 +366,20 @@ jobs:
   deploy-dev:
     name: Deploy development
 
-    # Main-branch pushes deploy automatically unless DEV_AUTO_DEPLOY is set to
-    # false. Manual operation=deploy always deploys after a successful plan.
+    # Main-branch pushes deploy only after the trusted plan succeeds. Manual
+    # operation=deploy runs deploy.sh directly after validation. always() is
+    # required so a skipped push-only plan does not block a manual deployment.
     if: >-
-      (github.event_name == 'push' &&
-       github.ref == 'refs/heads/main' &&
-       vars.DEV_AUTO_DEPLOY != 'false') ||
-      (github.event_name == 'workflow_dispatch' &&
-       inputs.operation == 'deploy')
+      always() &&
+      needs.validate.result == 'success' &&
+      (
+        (github.event_name == 'push' &&
+         github.ref == 'refs/heads/main' &&
+         vars.DEV_AUTO_DEPLOY != 'false' &&
+         needs.plan.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.operation == 'deploy')
+      )
 
     needs:
       - validate
