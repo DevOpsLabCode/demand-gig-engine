@@ -229,6 +229,7 @@ terraform -chdir="$TF" apply \
   "${COMMON_ARGS[@]}" \
   -target=module.database.aws_secretsmanager_secret_version.db \
   -target=module.database.aws_secretsmanager_secret_version.runtime \
+  -target=module.database.aws_db_proxy_target.this \
   -target=module.redis.aws_secretsmanager_secret_version.runtime \
   -target=module.secrets_manager.aws_secretsmanager_secret_version.initial \
   -target=module.migration
