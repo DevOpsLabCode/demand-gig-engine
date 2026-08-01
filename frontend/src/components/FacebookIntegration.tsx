@@ -1,11 +1,15 @@
+Library
+/
+FacebookIntegration.tsx
+
+
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
  * Purpose: Creates tracked Facebook links, connects an organizer account, lists managed Pages, and publishes campaign messages.
  * Reading guide: JSDoc comments describe each exported contract and executable block.
  */
-
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Facebook, Send, Users } from "lucide-react";
+import { Copy, Send, Share2, Users } from "lucide-react";
 import { api } from "../api";
 import { loginWithFacebook } from "../facebook";
 import type { Campaign, FacebookConfig, FacebookPage, FacebookProfile, FacebookShareLink } from "../types";
@@ -83,6 +87,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
       onMessage("Configure META_APP_ID and META_APP_SECRET to connect Facebook Pages.");
       return;
     }
+
     setBusy(true);
     try {
       const token = await loginWithFacebook(config.app_id, config.graph_api_version);
@@ -90,6 +95,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
         api.facebookLogin(token),
         api.facebookPages(token),
       ]);
+
       setAccessToken(token);
       setProfile(connectedProfile);
       setPages(managedPages);
@@ -105,10 +111,12 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
   /** Publish a tracked campaign message to the selected managed Page through the backend Graph API adapter. */
   async function publishToPage() {
     const page = pages.find((item) => item.id === selectedPageId);
+
     if (!page) {
       onMessage("Choose a Facebook Page first.");
       return;
     }
+
     setBusy(true);
     try {
       const result = await api.publishFacebookPage(campaign.slug, {
@@ -118,6 +126,7 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
         referral_code: referralCode || `page-${page.id}`,
         message: `${campaign.title}\n\n${campaign.pitch}\n\nSupport the seed. The artist and venue are confirmed only after enough fans commit.`,
       });
+
       onMessage(`Published to ${page.name}. Facebook post ID: ${result.post_id}`);
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not publish to the Facebook Page.");
@@ -128,34 +137,114 @@ export function FacebookIntegration({ campaign, onMessage }: Props) {
 
   return (
     <section className="facebook-integration">
-      <div className="facebook-title"><Facebook size={19} /> Facebook organizer integration</div>
+      <div className="facebook-title">
+        <Share2 size={19} aria-hidden="true" />
+        Facebook organizer integration
+      </div>
+
       <p className="facebook-note">
-        Use Facebook Events and Groups for discovery, then route supporters to a tracked gig seed where demand, deposits, sponsors, and conversion are verified.
+        Use Facebook Events and Groups for discovery, then route supporters to a tracked gig seed where demand,
+        deposits, sponsors, and conversion are verified.
       </p>
+
       <div className="facebook-grid">
-        <label>Facebook Group or community name
-          <input value={groupName} onChange={(event) => { setGroupName(event.target.value); setShareLink(null); }} placeholder="Band X NYC Fans" />
+        <label>
+          Facebook Group or community name
+          <input
+            value={groupName}
+            onChange={(event) => {
+              setGroupName(event.target.value);
+              setShareLink(null);
+            }}
+            placeholder="Band X NYC Fans"
+          />
         </label>
-        <label>Organizer/referral code
-          <input value={referralCode} onChange={(event) => { setReferralCode(event.target.value); setShareLink(null); }} placeholder="admin-jane" />
+
+        <label>
+          Organizer/referral code
+          <input
+            value={referralCode}
+            onChange={(event) => {
+              setReferralCode(event.target.value);
+              setShareLink(null);
+            }}
+            placeholder="admin-jane"
+          />
         </label>
       </div>
+
       <div className="facebook-actions">
-        <button type="button" className="facebook-button" disabled={busy} onClick={shareToFacebook}><Facebook size={17} /> Share on Facebook</button>
-        <button type="button" className="secondary" disabled={busy} onClick={copyTrackedLink}><Copy size={17} /> Copy tracked link</button>
-        <button type="button" className="secondary" disabled={busy} onClick={connectFacebook}><Users size={17} /> {profile ? `Connected: ${profile.name}` : "Connect Facebook Pages"}</button>
+        <button
+          type="button"
+          className="facebook-button"
+          disabled={busy}
+          onClick={shareToFacebook}
+        >
+          <Share2 size={17} aria-hidden="true" />
+          Share on Facebook
+        </button>
+
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={copyTrackedLink}
+        >
+          <Copy size={17} aria-hidden="true" />
+          Copy tracked link
+        </button>
+
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={connectFacebook}
+        >
+          <Users size={17} aria-hidden="true" />
+          {profile ? `Connected: ${profile.name}` : "Connect Facebook Pages"}
+        </button>
       </div>
-      {shareLink && <input className="share-url" value={shareLink.campaign_url} readOnly aria-label="Tracked Facebook campaign URL" />}
+
+      {shareLink && (
+        <input
+          className="share-url"
+          value={shareLink.campaign_url}
+          readOnly
+          aria-label="Tracked Facebook campaign URL"
+        />
+      )}
+
       {pages.length > 0 && (
         <div className="page-publisher">
-          <select value={selectedPageId} onChange={(event) => setSelectedPageId(event.target.value)}>
-            {pages.map((page) => <option key={page.id} value={page.id}>{page.name}{page.category ? ` — ${page.category}` : ""}</option>)}
+          <select
+            value={selectedPageId}
+            onChange={(event) => setSelectedPageId(event.target.value)}
+            aria-label="Facebook Page"
+          >
+            {pages.map((page) => (
+              <option key={page.id} value={page.id}>
+                {page.name}
+                {page.category ? ` — ${page.category}` : ""}
+              </option>
+            ))}
           </select>
-          <button type="button" className="facebook-button" disabled={busy || !accessToken} onClick={publishToPage}><Send size={17} /> Publish campaign to Page</button>
+
+          <button
+            type="button"
+            className="facebook-button"
+            disabled={busy || !accessToken}
+            onClick={publishToPage}
+          >
+            <Send size={17} aria-hidden="true" />
+            Publish campaign to Page
+          </button>
         </div>
       )}
+
       <small>
-        Facebook Group member import and automatic Group posting are intentionally unavailable because Meta retired the Groups API. Group administrators share the tracked link manually; VibesMeet measures every resulting supporter and commitment.
+        Facebook Group member import and automatic Group posting are intentionally unavailable because Meta retired
+        the Groups API. Group administrators share the tracked link manually; VibesMeet measures every resulting
+        supporter and commitment.
       </small>
     </section>
   );
