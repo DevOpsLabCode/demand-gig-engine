@@ -194,8 +194,8 @@ data "aws_iam_policy_document" "notifications" {
   }
 
   statement {
-    sid       = "DenyInsecureTransport"
-    effect    = "Deny"
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
     # SNS topic resource policies accept only the documented topic actions;
     # the wildcard action is rejected by SetTopicAttributes.
     actions = [

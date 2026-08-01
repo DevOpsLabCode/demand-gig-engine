@@ -50,8 +50,8 @@ data "aws_iam_policy_document" "alerts" {
   }
 
   statement {
-    sid       = "DenyInsecureTransport"
-    effect    = "Deny"
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
     # SNS topic resource policies accept only the documented topic actions;
     # the wildcard action is rejected by SetTopicAttributes.
     actions = [
@@ -421,7 +421,7 @@ resource "aws_cloudwatch_dashboard" "service" {
             for service_metric in setproduct(
               sort(tolist(var.service_names)),
               ["CPUUtilization", "MemoryUtilization"],
-            ) : [
+              ) : [
               "AWS/ECS",
               service_metric[1],
               "ClusterName",
