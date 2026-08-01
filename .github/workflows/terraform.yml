@@ -115,6 +115,7 @@ jobs:
           bash -n terraform/scripts/bootstrap.sh
           bash -n terraform/scripts/bootstrap-account.sh
           bash -n terraform/scripts/deploy.sh
+          bash -n terraform/scripts/destroy-tolerant.sh
           bash -n terraform/scripts/reconcile-rds-service-linked-role.sh
           bash -n terraform/scripts/reconcile-elasticache-service-linked-role.sh
 
@@ -641,50 +642,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash terraform/scripts/destroy-tolerant.sh dev destroy
 
-          terraform -chdir=terraform destroy \
-            -input=false \
-            -auto-approve \
-            -lock-timeout=5m \
-            -var-file=envs/dev/terraform.tfvars \
-            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
-
-      - name: Verify no development resources remain
+      - name: Verify destroyed or explicitly preserved resources
         shell: bash
         run: |
-          set -uo pipefail
-
-          VERIFY_LOG="terraform/dev-destroy-verification.log"
-
-          set +e
-
-          terraform -chdir=terraform plan \
-            -destroy \
-            -detailed-exitcode \
-            -input=false \
-            -no-color \
-            -lock-timeout=5m \
-            -var-file=envs/dev/terraform.tfvars \
-            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim" \
-            > "${VERIFY_LOG}" 2>&1
-
-          VERIFY_EXIT_CODE="$?"
-
-          set -e
-
-          cat "${VERIFY_LOG}"
-
-          if [[ "${VERIFY_EXIT_CODE}" -eq 2 ]]; then
-            echo "::error::Terraform still finds development resources to destroy."
-            exit 1
-          fi
-
-          if [[ "${VERIFY_EXIT_CODE}" -ne 0 ]]; then
-            echo "::error::Terraform destroy verification failed."
-            exit "${VERIFY_EXIT_CODE}"
-          fi
-
-          echo "No development workload resources remain."
+          set -euo pipefail
+          bash terraform/scripts/destroy-tolerant.sh dev verify
 
       - name: Record automatic destroy result
         shell: bash
@@ -769,50 +733,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash terraform/scripts/destroy-tolerant.sh dev destroy
 
-          terraform -chdir=terraform destroy \
-            -input=false \
-            -auto-approve \
-            -lock-timeout=5m \
-            -var-file=envs/dev/terraform.tfvars \
-            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
-
-      - name: Verify no development resources remain
+      - name: Verify destroyed or explicitly preserved resources
         shell: bash
         run: |
-          set -uo pipefail
-
-          VERIFY_LOG="terraform/dev-destroy-verification.log"
-
-          set +e
-
-          terraform -chdir=terraform plan \
-            -destroy \
-            -detailed-exitcode \
-            -input=false \
-            -no-color \
-            -lock-timeout=5m \
-            -var-file=envs/dev/terraform.tfvars \
-            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim" \
-            > "${VERIFY_LOG}" 2>&1
-
-          VERIFY_EXIT_CODE="$?"
-
-          set -e
-
-          cat "${VERIFY_LOG}"
-
-          if [[ "${VERIFY_EXIT_CODE}" -eq 2 ]]; then
-            echo "::error::Terraform still finds development resources to destroy."
-            exit 1
-          fi
-
-          if [[ "${VERIFY_EXIT_CODE}" -ne 0 ]]; then
-            echo "::error::Terraform destroy verification failed."
-            exit "${VERIFY_EXIT_CODE}"
-          fi
-
-          echo "No development workload resources remain."
+          set -euo pipefail
+          bash terraform/scripts/destroy-tolerant.sh dev verify
 
   deploy-prod:
     name: Deploy production
