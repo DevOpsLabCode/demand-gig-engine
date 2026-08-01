@@ -16,13 +16,6 @@ locals {
   # The US East (N. Virginia) repository account is published by AWS.
   guardduty_agent_repository_arn = "arn:${data.aws_partition.current.partition}:ecr:${data.aws_region.current.region}:593207742271:repository/aws-guardduty-agent-fargate"
 
-  # Permit application images plus the exact AWS-owned GuardDuty agent
-  # repository. This avoids granting pull access to unrelated ECR repositories.
-  ecr_pull_repository_arns = distinct(concat(
-    var.ecr_repository_arns,
-    [local.guardduty_agent_repository_arn],
-  ))
-
   object_storage_statements = var.object_storage_bucket_arn == null ? [] : [
     {
       Effect   = "Allow"
@@ -240,14 +233,24 @@ resource "aws_iam_role_policy" "execution" {
         Resource = "*"
       },
       {
-        Sid    = "PullApplicationAndGuardDutyImages"
+        Sid    = "PullApplicationImages"
         Effect = "Allow"
         Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:BatchGetImage",
           "ecr:GetDownloadUrlForLayer",
         ]
-        Resource = local.ecr_pull_repository_arns
+        Resource = var.ecr_repository_arns
+      },
+      {
+        Sid    = "PullGuardDutyAgentImage"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+        ]
+        Resource = local.guardduty_agent_repository_arn
       },
       {
         Sid      = "SendGuardDutyRuntimeTelemetry"
