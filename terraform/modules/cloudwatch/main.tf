@@ -52,7 +52,21 @@ data "aws_iam_policy_document" "alerts" {
   statement {
     sid       = "DenyInsecureTransport"
     effect    = "Deny"
-    actions   = ["sns:*"]
+    # SNS topic resource policies accept only the documented topic actions;
+    # the wildcard action is rejected by SetTopicAttributes.
+    actions = [
+      "sns:AddPermission",
+      "sns:DeleteTopic",
+      "sns:GetDataProtectionPolicy",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "sns:Publish",
+      "sns:PutDataProtectionPolicy",
+      "sns:RemovePermission",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+    ]
     resources = [aws_sns_topic.alerts.arn]
 
     principals {
@@ -400,12 +414,22 @@ resource "aws_cloudwatch_dashboard" "service" {
         properties = {
           title  = "ECS service utilization"
           region = data.aws_region.current.region
-          metrics = flatten([
-            for service in sort(tolist(var.service_names)) : [
-              ["AWS/ECS", "CPUUtilization", "ClusterName", var.cluster_name, "ServiceName", service],
-              ["AWS/ECS", "MemoryUtilization", "ClusterName", var.cluster_name, "ServiceName", service],
+          # Build one metric row per service/metric pair. Terraform flatten()
+          # recursively flattened the rows into strings, while CloudWatch
+          # requires metrics to remain an array of string arrays.
+          metrics = [
+            for service_metric in setproduct(
+              sort(tolist(var.service_names)),
+              ["CPUUtilization", "MemoryUtilization"],
+            ) : [
+              "AWS/ECS",
+              service_metric[1],
+              "ClusterName",
+              var.cluster_name,
+              "ServiceName",
+              service_metric[0],
             ]
-          ])
+          ]
           period = 300
           stat   = "Average"
         }

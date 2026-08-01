@@ -73,9 +73,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
       days_after_initiation = 7
     }
 
-    transition {
-      days          = 90
-      storage_class = "GLACIER_IR"
+    # S3 requires expiration to occur after every storage-class transition.
+    # Development retention can be 90 days or less, so omit the transition in
+    # those environments rather than submitting an invalid lifecycle rule.
+    dynamic "transition" {
+      for_each = var.retention_days > 90 ? [1] : []
+
+      content {
+        days          = 90
+        storage_class = "GLACIER_IR"
+      }
     }
 
     expiration {
@@ -189,7 +196,21 @@ data "aws_iam_policy_document" "notifications" {
   statement {
     sid       = "DenyInsecureTransport"
     effect    = "Deny"
-    actions   = ["sns:*"]
+    # SNS topic resource policies accept only the documented topic actions;
+    # the wildcard action is rejected by SetTopicAttributes.
+    actions = [
+      "sns:AddPermission",
+      "sns:DeleteTopic",
+      "sns:GetDataProtectionPolicy",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "sns:Publish",
+      "sns:PutDataProtectionPolicy",
+      "sns:RemovePermission",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+    ]
     resources = [aws_sns_topic.notifications.arn]
 
     principals {
