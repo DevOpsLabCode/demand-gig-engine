@@ -1,4 +1,4 @@
-!/usr/bin/env bash
+#!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Orchestrates validation, immutable image publication,
 # backward-compatible database migration, rolling service updates,
@@ -220,6 +220,175 @@ COMMON_ARGS=(
   -var-file="$TFVARS"
   -var="backend_image=$BACKEND_REPOSITORY:$TAG"
 )
+
+IMPORT_ARGS=(
+  -input=false
+  -lock-timeout=5m
+  -var-file="$TFVARS"
+  -var="backend_image=$BACKEND_REPOSITORY:$TAG"
+)
+
+terraform_resource_in_state() {
+  local address="$1"
+
+  terraform -chdir="$TF" state show "$address" >/dev/null 2>&1
+}
+
+find_secret_metadata() {
+  local secret_name="$1"
+
+  aws secretsmanager list-secrets \
+    --region "$REGION" \
+    --include-planned-deletion \
+    --filters "Key=name,Values=$secret_name" \
+    --output json |
+    jq -cer \
+      --arg name "$secret_name" \
+      '.SecretList[]? | select(.Name == $name)' |
+    head -n 1
+}
+
+restore_and_import_secret() {
+  local resource_address="$1"
+  local secret_name="$2"
+  local version_resource_address="${3:-}"
+  local metadata
+  local secret_arn
+  local deleted_date
+  local version_id
+
+  set +e
+  metadata="$(find_secret_metadata "$secret_name" 2>&1)"
+  local lookup_status="$?"
+  set -e
+
+  if [[ "$lookup_status" -ne 0 || -z "$metadata" ]]; then
+    if grep -qE 'AccessDenied|UnauthorizedOperation' <<<"$metadata"; then
+      echo "Unable to inspect scheduled Secrets Manager secrets." >&2
+      printf '%s\n' "$metadata" >&2
+      return 1
+    fi
+
+    echo "Secret ${secret_name} does not exist; Terraform will create it."
+    return 0
+  fi
+
+  secret_arn="$(jq -er '.ARN' <<<"$metadata")"
+  deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
+
+  if [[ -n "$deleted_date" ]]; then
+    echo "Restoring scheduled secret ${secret_name}."
+
+    aws secretsmanager restore-secret \
+      --region "$REGION" \
+      --secret-id "$secret_arn" \
+      >/dev/null
+
+    for attempt in $(seq 1 30); do
+      metadata="$(find_secret_metadata "$secret_name")"
+      deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
+
+      if [[ -z "$deleted_date" ]]; then
+        echo "Secret ${secret_name} is restored."
+        break
+      fi
+
+      if [[ "$attempt" -eq 30 ]]; then
+        echo "Secret ${secret_name} remained scheduled for deletion." >&2
+        return 1
+      fi
+
+      echo "Waiting for ${secret_name} restoration (${attempt}/30)."
+      sleep 2
+    done
+  fi
+
+  if ! terraform_resource_in_state "$resource_address"; then
+    echo "Importing ${secret_name} into ${resource_address}."
+
+    terraform -chdir="$TF" import \
+      "${IMPORT_ARGS[@]}" \
+      "$resource_address" \
+      "$secret_arn"
+  else
+    echo "${resource_address} is already present in Terraform state."
+  fi
+
+  # Provider credentials may contain manually populated OAuth and payment
+  # values. Import the existing AWSCURRENT version so the initial blank JSON
+  # resource does not replace those values after a development destroy.
+  if [[ -n "$version_resource_address" ]] &&
+     ! terraform_resource_in_state "$version_resource_address"; then
+    metadata="$(
+      aws secretsmanager describe-secret \
+        --region "$REGION" \
+        --secret-id "$secret_arn" \
+        --output json
+    )"
+
+    version_id="$(
+      jq -r '
+        .VersionIdsToStages
+        | to_entries[]
+        | select(.value | index("AWSCURRENT"))
+        | .key
+      ' <<<"$metadata" |
+        head -n 1
+    )"
+
+    if [[ -n "$version_id" && "$version_id" != "null" ]]; then
+      echo "Importing the existing AWSCURRENT version for ${secret_name}."
+
+      terraform -chdir="$TF" import \
+        "${IMPORT_ARGS[@]}" \
+        "$version_resource_address" \
+        "${secret_arn}|${version_id}"
+    else
+      echo "No AWSCURRENT version exists for ${secret_name}; Terraform will create one."
+    fi
+  fi
+}
+
+reconcile_scheduled_secrets() {
+  # The Go shell fixture intentionally does not emulate Secrets Manager
+  # restoration or Terraform imports.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    return 0
+  fi
+
+  local project_name
+  local secret_prefix
+
+  project_name="$(
+    sed -nE \
+      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+  project_name="${project_name:-demand-gig-engine}"
+  secret_prefix="${project_name}-${ENVIRONMENT}"
+
+  restore_and_import_secret \
+    "module.database.aws_secretsmanager_secret.db" \
+    "${secret_prefix}/database"
+
+  restore_and_import_secret \
+    "module.database.aws_secretsmanager_secret.runtime" \
+    "${secret_prefix}/runtime"
+
+  restore_and_import_secret \
+    "module.redis.aws_secretsmanager_secret.runtime" \
+    "${secret_prefix}/redis"
+
+  restore_and_import_secret \
+    "module.secrets_manager.aws_secretsmanager_secret.social" \
+    "${secret_prefix}/provider-credentials" \
+    "module.secrets_manager.aws_secretsmanager_secret_version.initial"
+}
+
+# Development destroy schedules Secrets Manager deletion. AWS reserves those
+# names during the recovery window, so restore and import them before apply.
+reconcile_scheduled_secrets
 
 # Provision the dedicated zero-capacity migration task and all of its
 # infrastructure dependencies without updating the live API or worker services.
