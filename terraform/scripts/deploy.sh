@@ -1,33 +1,77 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Orchestrates validation, image publication, backward-compatible database migration, rolling service updates, frontend publication, and cache invalidation.
-# Execution model: fail fast, validate prerequisites, run each documented phase, and surface errors.
+# Purpose: Orchestrates validation, immutable image publication,
+# backward-compatible database migration, rolling service updates,
+# frontend publication, and CloudFront cache invalidation.
+# Execution model: fail fast, validate prerequisites, reuse immutable images
+# during safe workflow retries, and surface errors.
 
 set -Eeuo pipefail
 
 ENVIRONMENT="${1:-dev}"
-[[ "$ENVIRONMENT" =~ ^(dev|prod)$ ]] || { echo "Usage: $0 dev|prod" >&2; exit 2; }
+
+[[ "$ENVIRONMENT" =~ ^(dev|prod)$ ]] || {
+  echo "Usage: $0 dev|prod" >&2
+  exit 2
+}
+
 for command_name in aws terraform docker jq git; do
-  command -v "$command_name" >/dev/null || { echo "$command_name is required" >&2; exit 1; }
+  command -v "$command_name" >/dev/null || {
+    echo "$command_name is required" >&2
+    exit 1
+  }
 done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TF="$ROOT/terraform"
 REGION="${AWS_REGION:-us-east-1}"
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+ACCOUNT_ID="$(
+  aws sts get-caller-identity \
+    --query Account \
+    --output text
+)"
 TFVARS="envs/$ENVIRONMENT/terraform.tfvars"
 
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
+# Use a temporary Docker configuration so ECR credentials are not left in the
+# runner's default Docker configuration directory.
+DOCKER_CONFIG_DIR="$(mktemp -d)"
+export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+
+CONTAINER_ID=""
+ASSET_DIR=""
+
+cleanup() {
+  if [[ -n "$CONTAINER_ID" ]]; then
+    docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$ASSET_DIR" ]]; then
+    rm -rf "$ASSET_DIR"
+  fi
+
+  rm -rf "$DOCKER_CONFIG_DIR"
+}
+
+trap cleanup EXIT INT TERM
+
+# Call AWS using the active identity and fail if the requested cloud operation
+# is not authorized.
 aws sts get-caller-identity >/dev/null
-# Run the Terraform operation for the selected working directory and environment.
+
+# Validate formatting before changing infrastructure.
 terraform -chdir="$TF" fmt -check -recursive -diff
+
 BACKEND_FILE="$("$TF/scripts/bootstrap.sh" "$ENVIRONMENT")"
-# Run the Terraform operation for the selected working directory and environment.
-terraform -chdir="$TF" init -reconfigure -input=false -backend-config="$BACKEND_FILE"
-# Run the Terraform operation for the selected working directory and environment.
+
+terraform -chdir="$TF" init \
+  -reconfigure \
+  -input=false \
+  -backend-config="$BACKEND_FILE"
+
 terraform -chdir="$TF" validate
 
-# Create only the encryption key and ECR repositories before image publishing.
+# Create only the application KMS key and ECR repositories before publishing
+# container images.
 terraform -chdir="$TF" apply \
   -auto-approve \
   -input=false \
@@ -37,23 +81,126 @@ terraform -chdir="$TF" apply \
   -target=module.kms \
   -target=module.ecr
 
-REPOSITORIES="$(terraform -chdir="$TF" output -json ecr_repository_urls)"
-BACKEND_REPOSITORY="$(jq -r .backend <<<"$REPOSITORIES")"
-FRONTEND_REPOSITORY="$(jq -r .frontend <<<"$REPOSITORIES")"
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws ecr get-login-password --region "$REGION" | \
-  # Build, tag, publish, or inspect the container artifact required by this deployment phase.
-  docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+REPOSITORIES="$(
+  terraform -chdir="$TF" output \
+    -json ecr_repository_urls
+)"
 
-TAG="${GITHUB_SHA:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
-docker build -f "$ROOT/Dockerfile.backend" -t "$BACKEND_REPOSITORY:$TAG" "$ROOT"
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
-docker push "$BACKEND_REPOSITORY:$TAG"
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
-docker build -f "$ROOT/Dockerfile.frontend" -t "$FRONTEND_REPOSITORY:$TAG" "$ROOT"
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
-docker push "$FRONTEND_REPOSITORY:$TAG"
+BACKEND_REPOSITORY="$(jq -er .backend <<<"$REPOSITORIES")"
+FRONTEND_REPOSITORY="$(jq -er .frontend <<<"$REPOSITORIES")"
+
+aws ecr get-login-password \
+  --region "$REGION" |
+  docker login \
+    --username AWS \
+    --password-stdin \
+    "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+
+# ECR tags are immutable. Include the GitHub run ID and rerun attempt so every
+# workflow execution receives a unique image tag even when the same commit is
+# retried. Outside GitHub Actions, use the commit SHA plus a UTC timestamp.
+COMMIT_SHA="$(
+  if [[ -n "${GITHUB_SHA:-}" ]]; then
+    printf '%s' "$GITHUB_SHA"
+  else
+    git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'local'
+  fi
+)"
+
+if [[ -n "${GITHUB_RUN_ID:-}" ]]; then
+  TAG="${COMMIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
+else
+  TAG="${COMMIT_SHA}-$(date -u +%Y%m%d%H%M%S)-$$"
+fi
+
+# ECR permits letters, numbers, underscores, periods, and hyphens in tags.
+# Replace any unexpected character defensively before using the value.
+TAG="${TAG//[^a-zA-Z0-9_.-]/-}"
+
+ecr_image_exists() {
+  local repository_uri="$1"
+  local repository_name="${repository_uri#*/}"
+  local output
+  local status
+
+  set +e
+  output="$(
+    aws ecr describe-images \
+      --region "$REGION" \
+      --repository-name "$repository_name" \
+      --image-ids "imageTag=$TAG" \
+      2>&1
+  )"
+  status="$?"
+  set -e
+
+  if [[ "$status" -eq 0 ]]; then
+    return 0
+  fi
+
+  if grep -q "ImageNotFoundException" <<<"$output"; then
+    return 1
+  fi
+
+  echo "Unable to check ECR image ${repository_name}:${TAG}." >&2
+  printf '%s\n' "$output" >&2
+  return 2
+}
+
+publish_or_reuse_image() {
+  local repository_uri="$1"
+  local dockerfile="$2"
+  local component="$3"
+  local image_uri="${repository_uri}:${TAG}"
+
+  if ecr_image_exists "$repository_uri"; then
+    echo "Reusing existing immutable ${component} image: ${image_uri}"
+    docker pull "$image_uri"
+    return
+  else
+    local lookup_status="$?"
+
+    if [[ "$lookup_status" -ne 1 ]]; then
+      return "$lookup_status"
+    fi
+  fi
+
+  echo "Building ${component} image: ${image_uri}"
+
+  docker build \
+    -f "$dockerfile" \
+    -t "$image_uri" \
+    "$ROOT"
+
+  # A parallel execution could publish the same immutable tag after the
+  # existence check. Treat that race as success only when ECR confirms the tag.
+  if ! docker push "$image_uri"; then
+    if ecr_image_exists "$repository_uri"; then
+      echo "The immutable ${component} image was published concurrently; reusing it."
+      docker pull "$image_uri"
+      return
+    else
+      local lookup_status="$?"
+
+      if [[ "$lookup_status" -ne 1 ]]; then
+        return "$lookup_status"
+      fi
+    fi
+
+    echo "Failed to publish ${component} image: ${image_uri}" >&2
+    return 1
+  fi
+}
+
+publish_or_reuse_image \
+  "$BACKEND_REPOSITORY" \
+  "$ROOT/Dockerfile.backend" \
+  "backend"
+
+publish_or_reuse_image \
+  "$FRONTEND_REPOSITORY" \
+  "$ROOT/Dockerfile.frontend" \
+  "frontend"
 
 COMMON_ARGS=(
   -auto-approve
@@ -63,81 +210,160 @@ COMMON_ARGS=(
   -var="backend_image=$BACKEND_REPOSITORY:$TAG"
 )
 
-# Provision the dedicated zero-capacity migration task and all of its infrastructure
-# dependencies without updating the live API or worker services. Database changes
-# must remain backward-compatible with the currently running application revision.
+# Provision the dedicated zero-capacity migration task and all of its
+# infrastructure dependencies without updating the live API or worker services.
+# Database changes must remain backward-compatible with the currently running
+# application revision.
 terraform -chdir="$TF" apply \
   "${COMMON_ARGS[@]}" \
   -target=module.migration
 
 # Optional non-interactive provider credential injection. The JSON file must
-# contain only the keys documented in terraform/README.md and must not be committed.
+# contain only the keys documented in terraform/README.md and must not be
+# committed.
 if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]]; then
-  [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || { echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2; exit 1; }
+  [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || {
+    echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2
+    exit 1
+  }
+
   jq -e 'type == "object"' "$PROVIDER_CREDENTIALS_FILE" >/dev/null
-  PROVIDER_SECRET_ARN="$(terraform -chdir="$TF" output -raw provider_credentials_secret_arn)"
-  # Call AWS using the active identity and fail if the requested cloud operation is not authorized.
+
+  PROVIDER_SECRET_ARN="$(
+    terraform -chdir="$TF" output \
+      -raw provider_credentials_secret_arn
+  )"
+
   aws secretsmanager put-secret-value \
     --secret-id "$PROVIDER_SECRET_ARN" \
-    --secret-string "file://$PROVIDER_CREDENTIALS_FILE" >/dev/null
+    --secret-string "file://$PROVIDER_CREDENTIALS_FILE" \
+    >/dev/null
 fi
 
-CLUSTER_ARN="$(terraform -chdir="$TF" output -raw ecs_cluster_arn)"
-TASK_DEFINITION="$(terraform -chdir="$TF" output -raw migration_task_definition_arn)"
-SERVICE_NAME="$(terraform -chdir="$TF" output -raw migration_container_name)"
-SECURITY_GROUP="$(terraform -chdir="$TF" output -raw app_security_group_id)"
-SUBNETS="$(terraform -chdir="$TF" output -json app_subnet_ids | jq -r 'join(",")')"
-OVERRIDES="$(jq -cn --arg name "$SERVICE_NAME" '{containerOverrides:[{name:$name,command:["python","manage.py","migrate","--noinput"]}]}')"
+CLUSTER_ARN="$(
+  terraform -chdir="$TF" output \
+    -raw ecs_cluster_arn
+)"
 
-MIGRATION_TASK="$(aws ecs run-task \
+TASK_DEFINITION="$(
+  terraform -chdir="$TF" output \
+    -raw migration_task_definition_arn
+)"
+
+SERVICE_NAME="$(
+  terraform -chdir="$TF" output \
+    -raw migration_container_name
+)"
+
+SECURITY_GROUP="$(
+  terraform -chdir="$TF" output \
+    -raw app_security_group_id
+)"
+
+SUBNETS="$(
+  terraform -chdir="$TF" output \
+    -json app_subnet_ids |
+    jq -r 'join(",")'
+)"
+
+OVERRIDES="$(
+  jq -cn \
+    --arg name "$SERVICE_NAME" \
+    '{
+      containerOverrides: [
+        {
+          name: $name,
+          command: ["python", "manage.py", "migrate", "--noinput"]
+        }
+      ]
+    }'
+)"
+
+MIGRATION_TASK="$(
+  aws ecs run-task \
+    --cluster "$CLUSTER_ARN" \
+    --launch-type FARGATE \
+    --task-definition "$TASK_DEFINITION" \
+    --network-configuration \
+      "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
+    --overrides "$OVERRIDES" \
+    --query 'tasks[0].taskArn' \
+    --output text
+)"
+
+[[ "$MIGRATION_TASK" != "None" && -n "$MIGRATION_TASK" ]] || {
+  echo "Failed to start migration task" >&2
+  exit 1
+}
+
+aws ecs wait tasks-stopped \
   --cluster "$CLUSTER_ARN" \
-  --launch-type FARGATE \
-  --task-definition "$TASK_DEFINITION" \
-  --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
-  --overrides "$OVERRIDES" \
-  --query 'tasks[0].taskArn' \
-  --output text)"
-[[ "$MIGRATION_TASK" != "None" && -n "$MIGRATION_TASK" ]] || { echo "Failed to start migration task" >&2; exit 1; }
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws ecs wait tasks-stopped --cluster "$CLUSTER_ARN" --tasks "$MIGRATION_TASK"
-MIGRATION_EXIT_CODE="$(aws ecs describe-tasks \
-  --cluster "$CLUSTER_ARN" \
-  --tasks "$MIGRATION_TASK" \
-  --query 'tasks[0].containers[0].exitCode' \
-  --output text)"
+  --tasks "$MIGRATION_TASK"
+
+MIGRATION_EXIT_CODE="$(
+  aws ecs describe-tasks \
+    --cluster "$CLUSTER_ARN" \
+    --tasks "$MIGRATION_TASK" \
+    --query 'tasks[0].containers[0].exitCode' \
+    --output text
+)"
+
 [[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
-  # Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-  aws ecs describe-tasks --cluster "$CLUSTER_ARN" --tasks "$MIGRATION_TASK"
+  aws ecs describe-tasks \
+    --cluster "$CLUSTER_ARN" \
+    --tasks "$MIGRATION_TASK"
+
   echo "Database migration task failed with exit code $MIGRATION_EXIT_CODE" >&2
   exit 1
 }
 
-# Deploy or update the API and worker only after the migration exits successfully.
+# Deploy or update the API and worker only after the migration exits
+# successfully.
 terraform -chdir="$TF" apply "${COMMON_ARGS[@]}"
 
-STATIC_BUCKET="$(terraform -chdir="$TF" output -raw static_bucket_id)"
-DISTRIBUTION_ID="$(terraform -chdir="$TF" output -raw cloudfront_distribution_id)"
-CONTAINER_ID="$(docker create "$FRONTEND_REPOSITORY:$TAG")"
-ASSET_DIR="$(mktemp -d)"
-trap 'docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true; rm -rf "$ASSET_DIR"' EXIT
+STATIC_BUCKET="$(
+  terraform -chdir="$TF" output \
+    -raw static_bucket_id
+)"
 
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
-docker cp "$CONTAINER_ID:/usr/share/nginx/html/." "$ASSET_DIR/"
-# Build, tag, publish, or inspect the container artifact required by this deployment phase.
+DISTRIBUTION_ID="$(
+  terraform -chdir="$TF" output \
+    -raw cloudfront_distribution_id
+)"
+
+# publish_or_reuse_image pulls an existing frontend image during a retry, so it
+# is guaranteed to be available locally for asset extraction.
+CONTAINER_ID="$(
+  docker create "$FRONTEND_REPOSITORY:$TAG"
+)"
+
+ASSET_DIR="$(mktemp -d)"
+
+docker cp \
+  "$CONTAINER_ID:/usr/share/nginx/html/." \
+  "$ASSET_DIR/"
+
 docker rm "$CONTAINER_ID" >/dev/null
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3 sync "$ASSET_DIR" "s3://$STATIC_BUCKET" \
+CONTAINER_ID=""
+
+aws s3 sync \
+  "$ASSET_DIR" \
+  "s3://$STATIC_BUCKET" \
   --delete \
   --exclude "index.html" \
   --cache-control "public,max-age=31536000,immutable" \
   --only-show-errors
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws s3 cp "$ASSET_DIR/index.html" "s3://$STATIC_BUCKET/index.html" \
+
+aws s3 cp \
+  "$ASSET_DIR/index.html" \
+  "s3://$STATIC_BUCKET/index.html" \
   --content-type "text/html; charset=utf-8" \
   --cache-control "no-cache,no-store,must-revalidate" \
   --only-show-errors
-# Call AWS using the active identity and fail if the requested cloud operation is not authorized.
-aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths '/*' >/dev/null
 
-# Run the Terraform operation for the selected working directory and environment.
+aws cloudfront create-invalidation \
+  --distribution-id "$DISTRIBUTION_ID" \
+  --paths '/*' \
+  >/dev/null
+
 terraform -chdir="$TF" output
