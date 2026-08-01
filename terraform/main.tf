@@ -196,16 +196,15 @@ module "alb" {
   origin_verify_header_value = random_password.origin_verify.result
   tags                       = local.tags
 
-  # A targeted migration bootstrap otherwise depends only on the VPC and
-  # subnet output values. Wait for the complete networking module so the
-  # Internet Gateway and public routing exist before AWS creates the
-  # internet-facing Application Load Balancer.
-  depends_on = [module.networking]
-}
-
-resource "aws_wafv2_web_acl_association" "alb" {
-  resource_arn = module.alb.arn
-  web_acl_arn  = module.waf_alb.arn
+  # A targeted migration bootstrap otherwise depends only on selected output
+  # values. Wait for complete networking and access-log modules so the Internet
+  # Gateway, public routing, S3 encryption, ownership controls, ACL, and bucket
+  # policy all exist before AWS creates the internet-facing ALB and enables
+  # access logging.
+  depends_on = [
+    module.networking,
+    module.access_logs,
+  ]
 }
 # Invokes the reusable cloudfront module and passes this environment configuration into it.
 module "cloudfront" {
