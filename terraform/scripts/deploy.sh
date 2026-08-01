@@ -308,26 +308,25 @@ aws ecs wait tasks-stopped \
   --cluster "$CLUSTER_ARN" \
   --tasks "$MIGRATION_TASK"
 
-TASK_DETAILS="$(
-  aws ecs describe-tasks \
-    --cluster "$CLUSTER_ARN" \
-    --tasks "$MIGRATION_TASK" \
-    --output json
-)"
-
 # GuardDuty Runtime Monitoring can inject a sidecar before the application
 # container. Select the migration container by its exact name instead of using
 # containers[0], which can report the sidecar's null exit code.
 MIGRATION_EXIT_CODE="$(
-  jq -er \
-    --arg name "$SERVICE_NAME" \
-    '.tasks[0].containers[]
-     | select(.name == $name)
-     | (.exitCode // "None")' \
-    <<<"$TASK_DETAILS"
+  aws ecs describe-tasks \
+    --cluster "$CLUSTER_ARN" \
+    --tasks "$MIGRATION_TASK" \
+    --query "tasks[0].containers[?name=='$SERVICE_NAME'].exitCode | [0]" \
+    --output text
 )"
 
 [[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
+  TASK_DETAILS="$(
+    aws ecs describe-tasks \
+      --cluster "$CLUSTER_ARN" \
+      --tasks "$MIGRATION_TASK" \
+      --output json
+  )"
+
   echo "ECS task details:" >&2
   jq . <<<"$TASK_DETAILS" >&2
 
