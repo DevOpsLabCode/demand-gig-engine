@@ -115,6 +115,7 @@ jobs:
           bash -n terraform/scripts/bootstrap.sh
           bash -n terraform/scripts/bootstrap-account.sh
           bash -n terraform/scripts/deploy.sh
+          bash -n terraform/scripts/reconcile-rds-service-linked-role.sh
 
       - name: Run TFLint
         run: tflint --chdir=terraform --recursive
@@ -228,6 +229,12 @@ jobs:
             -reconfigure \
             -backend-config=backend.hcl
 
+      - name: Reconcile RDS service-linked role
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+
       - name: Apply account foundation
         shell: bash
         run: |
@@ -236,6 +243,8 @@ jobs:
           terraform -chdir=terraform/global/account apply \
             -input=false \
             -auto-approve
+
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
 
       - name: Verify account foundation
         shell: bash
@@ -464,9 +473,13 @@ jobs:
             -reconfigure \
             -backend-config=backend.hcl
 
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+
           terraform -chdir=terraform/global/account apply \
             -input=false \
             -auto-approve
+
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
 
       - name: Build, migrate, and deploy development
         shell: bash
@@ -883,9 +896,13 @@ jobs:
             -reconfigure \
             -backend-config=backend.hcl
 
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+
           terraform -chdir=terraform/global/account apply \
             -input=false \
             -auto-approve
+
+          ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
 
       - name: Build, migrate, and deploy production
         shell: bash
