@@ -1,86 +1,414 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Creates tracked Facebook links, connects an organizer account, lists managed Pages, and publishes campaign messages.
+ * Reading guide: JSDoc comments describe each exported contract and executable block.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Send, Share2, Users } from "lucide-react";
+import { api } from "../api";
+import { loginWithFacebook } from "../facebook";
+import type {
+  Campaign,
+  FacebookConfig,
+  FacebookPage,
+  FacebookProfile,
+  FacebookShareLink,
+} from "../types";
 
-TARGET="frontend/src/components/FacebookIntegration.tsx"
-EXPECTED_SHA256="04a928941271e7b3e9ca218a979ddabfcb314b00a4304bf7047fcc6a7293328b"
-
-[[ -d ".git" ]] || {
-  echo "Run this script from the demand-gig-engine repository root." >&2
-  exit 1
+/**
+ * Receive the active campaign and a callback for presenting integration status to the surrounding card.
+ */
+interface Props {
+  campaign: Campaign;
+  onMessage: (message: string) => void;
 }
 
-[[ -d "frontend/src/components" ]] || {
-  echo "Missing frontend/src/components directory." >&2
-  exit 1
+/**
+ * Coordinate manual Group sharing, tracked-link copying, Facebook Login,
+ * managed-Page discovery, and Page publication.
+ */
+export function FacebookIntegration({
+  campaign,
+  onMessage,
+}: Props) {
+  const query = useMemo(
+    () => new URLSearchParams(window.location.search),
+    [],
+  );
+
+  const [config, setConfig] =
+    useState<FacebookConfig | null>(null);
+
+  const [groupName, setGroupName] =
+    useState(query.get("group") ?? "");
+
+  const [referralCode, setReferralCode] =
+    useState(query.get("ref") ?? "");
+
+  const [shareLink, setShareLink] =
+    useState<FacebookShareLink | null>(null);
+
+  const [profile, setProfile] =
+    useState<FacebookProfile | null>(null);
+
+  const [pages, setPages] =
+    useState<FacebookPage[]>([]);
+
+  const [selectedPageId, setSelectedPageId] =
+    useState("");
+
+  const [accessToken, setAccessToken] =
+    useState("");
+
+  const [busy, setBusy] =
+    useState(false);
+
+  // Load only public capability/configuration data.
+  // Meta secrets stay on the Django server.
+  useEffect(() => {
+    api.facebookConfig()
+      .then(setConfig)
+      .catch(() => setConfig(null));
+  }, []);
+
+  /**
+   * Ask the backend to sign a tracked URL carrying community
+   * and referral attribution.
+   */
+  async function generateLink(): Promise<FacebookShareLink> {
+    const link = await api.facebookShareLink(
+      campaign.slug,
+      {
+        source: "facebook_group",
+        group_name: groupName,
+        referral_code: referralCode,
+      },
+    );
+
+    setShareLink(link);
+
+    return link;
+  }
+
+  /**
+   * Open Facebook Share in a popup using the tracked URL.
+   * Group selection remains controlled by the user in Facebook.
+   */
+  async function shareToFacebook() {
+    setBusy(true);
+
+    try {
+      const link =
+        shareLink ?? await generateLink();
+
+      window.open(
+        link.share_dialog_url,
+        "facebook-share",
+        "width=720,height=640",
+      );
+
+      onMessage(
+        "Facebook Share opened with a tracked campaign link.",
+      );
+    } catch (error) {
+      onMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not create Facebook share link.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Copy the attributed campaign URL for Facebook Events,
+   * Groups, Messenger, WhatsApp, or other communities.
+   */
+  async function copyTrackedLink() {
+    setBusy(true);
+
+    try {
+      const link =
+        shareLink ?? await generateLink();
+
+      await navigator.clipboard.writeText(
+        link.campaign_url,
+      );
+
+      onMessage(
+        "Tracked link copied. Paste it into the Facebook Event, Group, Page, Messenger, or WhatsApp chat.",
+      );
+    } catch (error) {
+      onMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not copy the link.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Obtain a user token in the browser, verify it on the backend,
+   * and load Pages the organizer may manage.
+   */
+  async function connectFacebook() {
+    if (!config?.enabled) {
+      onMessage(
+        "Configure META_APP_ID and META_APP_SECRET to connect Facebook Pages.",
+      );
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const token = await loginWithFacebook(
+        config.app_id,
+        config.graph_api_version,
+      );
+
+      const [
+        connectedProfile,
+        managedPages,
+      ] = await Promise.all([
+        api.facebookLogin(token),
+        api.facebookPages(token),
+      ]);
+
+      setAccessToken(token);
+      setProfile(connectedProfile);
+      setPages(managedPages);
+      setSelectedPageId(
+        managedPages[0]?.id ?? "",
+      );
+
+      onMessage(
+        `Connected as ${connectedProfile.name}. ${managedPages.length} managed Page(s) available.`,
+      );
+    } catch (error) {
+      onMessage(
+        error instanceof Error
+          ? error.message
+          : "Facebook connection failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Publish a tracked campaign message to the selected managed
+   * Facebook Page through the backend Graph API adapter.
+   */
+  async function publishToPage() {
+    const page = pages.find(
+      (item) => item.id === selectedPageId,
+    );
+
+    if (!page) {
+      onMessage(
+        "Choose a Facebook Page first.",
+      );
+
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result =
+        await api.publishFacebookPage(
+          campaign.slug,
+          {
+            page_id: page.id,
+            page_access_token:
+              page.page_access_token,
+            source: "facebook_page",
+            referral_code:
+              referralCode ||
+              `page-${page.id}`,
+            message:
+              `${campaign.title}\n\n` +
+              `${campaign.pitch}\n\n` +
+              "Support the seed. The artist and venue are confirmed only after enough fans commit.",
+          },
+        );
+
+      onMessage(
+        `Published to ${page.name}. Facebook post ID: ${result.post_id}`,
+      );
+    } catch (error) {
+      onMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not publish to the Facebook Page.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="facebook-integration">
+      <div className="facebook-title">
+        <Share2
+          size={19}
+          aria-hidden="true"
+        />
+
+        Facebook organizer integration
+      </div>
+
+      <p className="facebook-note">
+        Use Facebook Events and Groups for discovery,
+        then route supporters to a tracked gig seed
+        where demand, deposits, sponsors, and
+        conversion are verified.
+      </p>
+
+      <div className="facebook-grid">
+        <label>
+          Facebook Group or community name
+
+          <input
+            value={groupName}
+            onChange={(event) => {
+              setGroupName(
+                event.target.value,
+              );
+
+              setShareLink(null);
+            }}
+            placeholder="Band X NYC Fans"
+          />
+        </label>
+
+        <label>
+          Organizer/referral code
+
+          <input
+            value={referralCode}
+            onChange={(event) => {
+              setReferralCode(
+                event.target.value,
+              );
+
+              setShareLink(null);
+            }}
+            placeholder="admin-jane"
+          />
+        </label>
+      </div>
+
+      <div className="facebook-actions">
+        <button
+          type="button"
+          className="facebook-button"
+          disabled={busy}
+          onClick={shareToFacebook}
+        >
+          <Share2
+            size={17}
+            aria-hidden="true"
+          />
+
+          Share on Facebook
+        </button>
+
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={copyTrackedLink}
+        >
+          <Copy
+            size={17}
+            aria-hidden="true"
+          />
+
+          Copy tracked link
+        </button>
+
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={connectFacebook}
+        >
+          <Users
+            size={17}
+            aria-hidden="true"
+          />
+
+          {profile
+            ? `Connected: ${profile.name}`
+            : "Connect Facebook Pages"}
+        </button>
+      </div>
+
+      {shareLink && (
+        <input
+          className="share-url"
+          value={shareLink.campaign_url}
+          readOnly
+          aria-label="Tracked Facebook campaign URL"
+        />
+      )}
+
+      {pages.length > 0 && (
+        <div className="page-publisher">
+          <select
+            value={selectedPageId}
+            onChange={(event) =>
+              setSelectedPageId(
+                event.target.value,
+              )
+            }
+            aria-label="Facebook Page"
+          >
+            {pages.map((page) => (
+              <option
+                key={page.id}
+                value={page.id}
+              >
+                {page.name}
+
+                {page.category
+                  ? ` — ${page.category}`
+                  : ""}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="facebook-button"
+            disabled={
+              busy || !accessToken
+            }
+            onClick={publishToPage}
+          >
+            <Send
+              size={17}
+              aria-hidden="true"
+            />
+
+            Publish campaign to Page
+          </button>
+        </div>
+      )}
+
+      <small>
+        Facebook Group member import and automatic
+        Group posting are intentionally unavailable.
+        Group administrators share the tracked link
+        manually; VibesMeet measures every resulting
+        supporter and commitment.
+      </small>
+    </section>
+  );
 }
-
-python3 - <<'PY'
-from pathlib import Path
-import base64
-
-target = Path("frontend/src/components/FacebookIntegration.tsx")
-payload = """
-LyoqCiAqIEF1dGhvcjogU3RhbiBadmVuaWdvcm9kc2tpeSB8IERldk9wcyBMYWIgSW5jLiB8IGh0dHBzOi8vRGV2T3BzTGFiSW5jLmNvbQogKiBQdXJwb3NlOiBDcmVhdGVzIHRyYWNrZWQgRmFjZWJvb2sgbGlua3MsIGNvbm5lY3RzIGFuIG9yZ2FuaXplciBhY2NvdW50LCBsaXN0cyBtYW5hZ2VkIFBhZ2VzLCBhbmQgcHVibGlzaGVzIGNhbXBhaWduIG1lc3NhZ2VzLgogKiBSZWFkaW5nIGd1aWRlOiBKU0RvYyBjb21tZW50cyBkZXNjcmliZSBlYWNoIGV4cG9ydGVkIGNvbnRyYWN0IGFuZCBleGVjdXRhYmxlIGJsb2NrLgogKi8KaW1wb3J0IHsgdXNlRWZmZWN0LCB1c2VNZW1vLCB1c2VTdGF0ZSB9IGZyb20gInJlYWN0IjsKaW1wb3J0IHsgQ29weSwgU2VuZCwgU2hhcmUyLCBVc2VycyB9IGZyb20gImx1Y2lkZS1yZWFjdCI7CmltcG9ydCB7IGFwaSB9IGZyb20gIi4uL2FwaSI7CmltcG9ydCB7IGxvZ2luV2l0aEZhY2Vib29rIH0gZnJvbSAiLi4vZmFjZWJvb2siOwppbXBvcnQgdHlwZSB7IENhbXBhaWduLCBGYWNlYm9va0NvbmZpZywgRmFjZWJvb2tQYWdlLCBGYWNlYm9va1Byb2ZpbGUsIEZhY2Vib29rU2hhcmVMaW5rIH0gZnJvbSAiLi4vdHlwZXMiOwoKLyoqCiAqIFJlY2VpdmUgdGhlIGFjdGl2ZSBjYW1wYWlnbiBhbmQgYSBjYWxsYmFjayBmb3IgcHJlc2VudGluZyBpbnRlZ3JhdGlvbiBzdGF0dXMgdG8gdGhlIHN1cnJvdW5kaW5nIGNhcmQuCiAqLwppbnRlcmZhY2UgUHJvcHMgewogIGNhbXBhaWduOiBDYW1wYWlnbjsKICBvbk1lc3NhZ2U6IChtZXNzYWdlOiBzdHJpbmcpID0+IHZvaWQ7Cn0KCi8qKgogKiBDb29yZGluYXRlIG1hbnVhbCBHcm91cCBzaGFyaW5nLCB0cmFja2VkLWxpbmsgY29weWluZywgRmFjZWJvb2sgTG9naW4sIG1hbmFnZWQtUGFnZSBkaXNjb3ZlcnksIGFuZCBQYWdlIHB1YmxpY2F0aW9uLgogKi8KZXhwb3J0IGZ1bmN0aW9uIEZhY2Vib29rSW50ZWdyYXRpb24oeyBjYW1wYWlnbiwgb25NZXNzYWdlIH06IFByb3BzKSB7CiAgY29uc3QgcXVlcnkgPSB1c2VNZW1vKCgpID0+IG5ldyBVUkxTZWFyY2hQYXJhbXMod2luZG93LmxvY2F0aW9uLnNlYXJjaCksIFtdKTsKICBjb25zdCBbY29uZmlnLCBzZXRDb25maWddID0gdXNlU3RhdGU8RmFjZWJvb2tDb25maWcgfCBudWxsPihudWxsKTsKICBjb25zdCBbZ3JvdXBOYW1lLCBzZXRHcm91cE5hbWVdID0gdXNlU3RhdGUocXVlcnkuZ2V0KCJncm91cCIpID8/ICIiKTsKICBjb25zdCBbcmVmZXJyYWxDb2RlLCBzZXRSZWZlcnJhbENvZGVdID0gdXNlU3RhdGUocXVlcnkuZ2V0KCJyZWYiKSA/PyAiIik7CiAgY29uc3QgW3NoYXJlTGluaywgc2V0U2hhcmVMaW5rXSA9IHVzZVN0YXRlPEZhY2Vib29rU2hhcmVMaW5rIHwgbnVsbD4obnVsbCk7CiAgY29uc3QgW3Byb2ZpbGUsIHNldFByb2ZpbGVdID0gdXNlU3RhdGU8RmFjZWJvb2tQcm9maWxlIHwgbnVsbD4obnVsbCk7CiAgY29uc3QgW3BhZ2VzLCBzZXRQYWdlc10gPSB1c2VTdGF0ZTxGYWNlYm9va1BhZ2VbXT4oW10pOwogIGNvbnN0IFtzZWxlY3RlZFBhZ2VJZCwgc2V0U2VsZWN0ZWRQYWdlSWRdID0gdXNlU3RhdGUoIiIpOwogIGNvbnN0IFthY2Nlc3NUb2tlbiwgc2V0QWNjZXNzVG9rZW5dID0gdXNlU3RhdGUoIiIpOwogIGNvbnN0IFtidXN5LCBzZXRCdXN5XSA9IHVzZVN0YXRlKGZhbHNlKTsKCiAgLy8gTG9hZCBvbmx5IHB1YmxpYyBjYXBhYmlsaXR5L2NvbmZpZ3VyYXRpb24gZGF0YTsgTWV0YSBzZWNyZXRzIHN0YXkgb24gdGhlIERqYW5nbyBzZXJ2ZXIuCiAgdXNlRWZmZWN0KCgpID0+IHsKICAgIGFwaS5mYWNlYm9va0NvbmZpZygpLnRoZW4oc2V0Q29uZmlnKS5jYXRjaCgoKSA9PiBzZXRDb25maWcobnVsbCkpOwogIH0sIFtdKTsKCiAgLyoqIEFzayB0aGUgYmFja2VuZCB0byBzaWduIGEgdHJhY2tlZCBVUkwgY2FycnlpbmcgY29tbXVuaXR5IGFuZCByZWZlcnJhbCBhdHRyaWJ1dGlvbi4gKi8KICBhc3luYyBmdW5jdGlvbiBnZW5lcmF0ZUxpbmsoKTogUHJvbWlzZTxGYWNlYm9va1NoYXJlTGluaz4gewogICAgY29uc3QgbGluayA9IGF3YWl0IGFwaS5mYWNlYm9va1NoYXJlTGluayhjYW1wYWlnbi5zbHVnLCB7CiAgICAgIHNvdXJjZTogImZhY2Vib29rX2dyb3VwIiwKICAgICAgZ3JvdXBfbmFtZTogZ3JvdXBOYW1lLAogICAgICByZWZlcnJhbF9jb2RlOiByZWZlcnJhbENvZGUsCiAgICB9KTsKICAgIHNldFNoYXJlTGluayhsaW5rKTsKICAgIHJldHVybiBsaW5rOwogIH0KCiAgLyoqIE9wZW4gRmFjZWJvb2sgU2hhcmUgaW4gYSBwb3B1cCB1c2luZyB0aGUgdHJhY2tlZCBVUkw7IEdyb3VwIHNlbGVjdGlvbiByZW1haW5zIGEgdXNlci1jb250cm9sbGVkIE1ldGEgYWN0aW9uLiAqLwogIGFzeW5jIGZ1bmN0aW9uIHNoYXJlVG9GYWNlYm9vaygpIHsKICAgIHNldEJ1c3kodHJ1ZSk7CiAgICB0cnkgewogICAgICBjb25zdCBsaW5rID0gc2hhcmVMaW5rID8/IGF3YWl0IGdlbmVyYXRlTGluaygpOwogICAgICB3aW5kb3cub3BlbihsaW5rLnNoYXJlX2RpYWxvZ191cmwsICJmYWNlYm9vay1zaGFyZSIsICJ3aWR0aD03MjAsaGVpZ2h0PTY0MCIpOwogICAgICBvbk1lc3NhZ2UoIkZhY2Vib29rIFNoYXJlIG9wZW5lZCB3aXRoIGEgdHJhY2tlZCBjYW1wYWlnbiBsaW5rLiIpOwogICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgb25NZXNzYWdlKGVycm9yIGluc3RhbmNlb2YgRXJyb3IgPyBlcnJvci5tZXNzYWdlIDogIkNvdWxkIG5vdCBjcmVhdGUgRmFjZWJvb2sgc2hhcmUgbGluay4iKTsKICAgIH0gZmluYWxseSB7CiAgICAgIHNldEJ1c3koZmFsc2UpOwogICAgfQogIH0KCiAgLyoqIENvcHkgdGhlIHNhbWUgYXR0cmlidXRlZCBjYW1wYWlnbiBVUkwgZm9yIEZhY2Vib29rIEV2ZW50cywgR3JvdXBzLCBNZXNzZW5nZXIsIFdoYXRzQXBwLCBvciBvdGhlciBjb21tdW5pdGllcy4gKi8KICBhc3luYyBmdW5jdGlvbiBjb3B5VHJhY2tlZExpbmsoKSB7CiAgICBzZXRCdXN5KHRydWUpOwogICAgdHJ5IHsKICAgICAgY29uc3QgbGluayA9IHNoYXJlTGluayA/PyBhd2FpdCBnZW5lcmF0ZUxpbmsoKTsKICAgICAgYXdhaXQgbmF2aWdhdG9yLmNsaXBib2FyZC53cml0ZVRleHQobGluay5jYW1wYWlnbl91cmwpOwogICAgICBvbk1lc3NhZ2UoIlRyYWNrZWQgbGluayBjb3BpZWQuIFBhc3RlIGl0IGludG8gdGhlIEZhY2Vib29rIEV2ZW50LCBHcm91cCwgUGFnZSwgTWVzc2VuZ2VyLCBvciBXaGF0c0FwcCBjaGF0LiIpOwogICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgb25NZXNzYWdlKGVycm9yIGluc3RhbmNlb2YgRXJyb3IgPyBlcnJvci5tZXNzYWdlIDogIkNvdWxkIG5vdCBjb3B5IHRoZSBsaW5rLiIpOwogICAgfSBmaW5hbGx5IHsKICAgICAgc2V0QnVzeShmYWxzZSk7CiAgICB9CiAgfQoKICAvKiogT2J0YWluIGEgdXNlciB0b2tlbiBpbiB0aGUgYnJvd3NlciwgdmVyaWZ5IGl0IG9uIHRoZSBiYWNrZW5kLCBhbmQgbG9hZCBQYWdlcyB0aGUgb3JnYW5pemVyIG1heSBtYW5hZ2UuICovCiAgYXN5bmMgZnVuY3Rpb24gY29ubmVjdEZhY2Vib29rKCkgewogICAgaWYgKCFjb25maWc/LmVuYWJsZWQpIHsKICAgICAgb25NZXNzYWdlKCJDb25maWd1cmUgTUVUQV9BUFBfSUQgYW5kIE1FVEFfQVBQX1NFQ1JFVCB0byBjb25uZWN0IEZhY2Vib29rIFBhZ2VzLiIpOwogICAgICByZXR1cm47CiAgICB9CgogICAgc2V0QnVzeSh0cnVlKTsKICAgIHRyeSB7CiAgICAgIGNvbnN0IHRva2VuID0gYXdhaXQgbG9naW5XaXRoRmFjZWJvb2soY29uZmlnLmFwcF9pZCwgY29uZmlnLmdyYXBoX2FwaV92ZXJzaW9uKTsKICAgICAgY29uc3QgW2Nvbm5lY3RlZFByb2ZpbGUsIG1hbmFnZWRQYWdlc10gPSBhd2FpdCBQcm9taXNlLmFsbChbCiAgICAgICAgYXBpLmZhY2Vib29rTG9naW4odG9rZW4pLAogICAgICAgIGFwaS5mYWNlYm9va1BhZ2VzKHRva2VuKSwKICAgICAgXSk7CgogICAgICBzZXRBY2Nlc3NUb2tlbih0b2tlbik7CiAgICAgIHNldFByb2ZpbGUoY29ubmVjdGVkUHJvZmlsZSk7CiAgICAgIHNldFBhZ2VzKG1hbmFnZWRQYWdlcyk7CiAgICAgIHNldFNlbGVjdGVkUGFnZUlkKG1hbmFnZWRQYWdlc1swXT8uaWQgPz8gIiIpOwogICAgICBvbk1lc3NhZ2UoYENvbm5lY3RlZCBhcyAke2Nvbm5lY3RlZFByb2ZpbGUubmFtZX0uICR7bWFuYWdlZFBhZ2VzLmxlbmd0aH0gbWFuYWdlZCBQYWdlKHMpIGF2YWlsYWJsZS5gKTsKICAgIH0gY2F0Y2ggKGVycm9yKSB7CiAgICAgIG9uTWVzc2FnZShlcnJvciBpbnN0YW5jZW9mIEVycm9yID8gZXJyb3IubWVzc2FnZSA6ICJGYWNlYm9vayBjb25uZWN0aW9uIGZhaWxlZC4iKTsKICAgIH0gZmluYWxseSB7CiAgICAgIHNldEJ1c3koZmFsc2UpOwogICAgfQogIH0KCiAgLyoqIFB1Ymxpc2ggYSB0cmFja2VkIGNhbXBhaWduIG1lc3NhZ2UgdG8gdGhlIHNlbGVjdGVkIG1hbmFnZWQgUGFnZSB0aHJvdWdoIHRoZSBiYWNrZW5kIEdyYXBoIEFQSSBhZGFwdGVyLiAqLwogIGFzeW5jIGZ1bmN0aW9uIHB1Ymxpc2hUb1BhZ2UoKSB7CiAgICBjb25zdCBwYWdlID0gcGFnZXMuZmluZCgoaXRlbSkgPT4gaXRlbS5pZCA9PT0gc2VsZWN0ZWRQYWdlSWQpOwoKICAgIGlmICghcGFnZSkgewogICAgICBvbk1lc3NhZ2UoIkNob29zZSBhIEZhY2Vib29rIFBhZ2UgZmlyc3QuIik7CiAgICAgIHJldHVybjsKICAgIH0KCiAgICBzZXRCdXN5KHRydWUpOwogICAgdHJ5IHsKICAgICAgY29uc3QgcmVzdWx0ID0gYXdhaXQgYXBpLnB1Ymxpc2hGYWNlYm9va1BhZ2UoY2FtcGFpZ24uc2x1ZywgewogICAgICAgIHBhZ2VfaWQ6IHBhZ2UuaWQsCiAgICAgICAgcGFnZV9hY2Nlc3NfdG9rZW46IHBhZ2UucGFnZV9hY2Nlc3NfdG9rZW4sCiAgICAgICAgc291cmNlOiAiZmFjZWJvb2tfcGFnZSIsCiAgICAgICAgcmVmZXJyYWxfY29kZTogcmVmZXJyYWxDb2RlIHx8IGBwYWdlLSR7cGFnZS5pZH1gLAogICAgICAgIG1lc3NhZ2U6IGAke2NhbXBhaWduLnRpdGxlfVxuXG4ke2NhbXBhaWduLnBpdGNofVxuXG5TdXBwb3J0IHRoZSBzZWVkLiBUaGUgYXJ0aXN0IGFuZCB2ZW51ZSBhcmUgY29uZmlybWVkIG9ubHkgYWZ0ZXIgZW5vdWdoIGZhbnMgY29tbWl0LmAsCiAgICAgIH0pOwoKICAgICAgb25NZXNzYWdlKGBQdWJsaXNoZWQgdG8gJHtwYWdlLm5hbWV9LiBGYWNlYm9vayBwb3N0IElEOiAke3Jlc3VsdC5wb3N0X2lkfWApOwogICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgb25NZXNzYWdlKGVycm9yIGluc3RhbmNlb2YgRXJyb3IgPyBlcnJvci5tZXNzYWdlIDogIkNvdWxkIG5vdCBwdWJsaXNoIHRvIHRoZSBGYWNlYm9vayBQYWdlLiIpOwogICAgfSBmaW5hbGx5IHsKICAgICAgc2V0QnVzeShmYWxzZSk7CiAgICB9CiAgfQoKICByZXR1cm4gKAogICAgPHNlY3Rpb24gY2xhc3NOYW1lPSJmYWNlYm9vay1pbnRlZ3JhdGlvbiI+CiAgICAgIDxkaXYgY2xhc3NOYW1lPSJmYWNlYm9vay10aXRsZSI+CiAgICAgICAgPFNoYXJlMiBzaXplPXsxOX0gYXJpYS1oaWRkZW49InRydWUiIC8+CiAgICAgICAgRmFjZWJvb2sgb3JnYW5pemVyIGludGVncmF0aW9uCiAgICAgIDwvZGl2PgoKICAgICAgPHAgY2xhc3NOYW1lPSJmYWNlYm9vay1ub3RlIj4KICAgICAgICBVc2UgRmFjZWJvb2sgRXZlbnRzIGFuZCBHcm91cHMgZm9yIGRpc2NvdmVyeSwgdGhlbiByb3V0ZSBzdXBwb3J0ZXJzIHRvIGEgdHJhY2tlZCBnaWcgc2VlZCB3aGVyZSBkZW1hbmQsCiAgICAgICAgZGVwb3NpdHMsIHNwb25zb3JzLCBhbmQgY29udmVyc2lvbiBhcmUgdmVyaWZpZWQuCiAgICAgIDwvcD4KCiAgICAgIDxkaXYgY2xhc3NOYW1lPSJmYWNlYm9vay1ncmlkIj4KICAgICAgICA8bGFiZWw+CiAgICAgICAgICBGYWNlYm9vayBHcm91cCBvciBjb21tdW5pdHkgbmFtZQogICAgICAgICAgPGlucHV0CiAgICAgICAgICAgIHZhbHVlPXtncm91cE5hbWV9CiAgICAgICAgICAgIG9uQ2hhbmdlPXsoZXZlbnQpID0+IHsKICAgICAgICAgICAgICBzZXRHcm91cE5hbWUoZXZlbnQudGFyZ2V0LnZhbHVlKTsKICAgICAgICAgICAgICBzZXRTaGFyZUxpbmsobnVsbCk7CiAgICAgICAgICAgIH19CiAgICAgICAgICAgIHBsYWNlaG9sZGVyPSJCYW5kIFggTllDIEZhbnMiCiAgICAgICAgICAvPgogICAgICAgIDwvbGFiZWw+CgogICAgICAgIDxsYWJlbD4KICAgICAgICAgIE9yZ2FuaXplci9yZWZlcnJhbCBjb2RlCiAgICAgICAgICA8aW5wdXQKICAgICAgICAgICAgdmFsdWU9e3JlZmVycmFsQ29kZX0KICAgICAgICAgICAgb25DaGFuZ2U9eyhldmVudCkgPT4gewogICAgICAgICAgICAgIHNldFJlZmVycmFsQ29kZShldmVudC50YXJnZXQudmFsdWUpOwogICAgICAgICAgICAgIHNldFNoYXJlTGluayhudWxsKTsKICAgICAgICAgICAgfX0KICAgICAgICAgICAgcGxhY2Vob2xkZXI9ImFkbWluLWphbmUiCiAgICAgICAgICAvPgogICAgICAgIDwvbGFiZWw+CiAgICAgIDwvZGl2PgoKICAgICAgPGRpdiBjbGFzc05hbWU9ImZhY2Vib29rLWFjdGlvbnMiPgogICAgICAgIDxidXR0b24KICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgIGNsYXNzTmFtZT0iZmFjZWJvb2stYnV0dG9uIgogICAgICAgICAgZGlzYWJsZWQ9e2J1c3l9CiAgICAgICAgICBvbkNsaWNrPXtzaGFyZVRvRmFjZWJvb2t9CiAgICAgICAgPgogICAgICAgICAgPFNoYXJlMiBzaXplPXsxN30gYXJpYS1oaWRkZW49InRydWUiIC8+CiAgICAgICAgICBTaGFyZSBvbiBGYWNlYm9vawogICAgICAgIDwvYnV0dG9uPgoKICAgICAgICA8YnV0dG9uCiAgICAgICAgICB0eXBlPSJidXR0b24iCiAgICAgICAgICBjbGFzc05hbWU9InNlY29uZGFyeSIKICAgICAgICAgIGRpc2FibGVkPXtidXN5fQogICAgICAgICAgb25DbGljaz17Y29weVRyYWNrZWRMaW5rfQogICAgICAgID4KICAgICAgICAgIDxDb3B5IHNpemU9ezE3fSBhcmlhLWhpZGRlbj0idHJ1ZSIgLz4KICAgICAgICAgIENvcHkgdHJhY2tlZCBsaW5rCiAgICAgICAgPC9idXR0b24+CgogICAgICAgIDxidXR0b24KICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgIGNsYXNzTmFtZT0ic2Vjb25kYXJ5IgogICAgICAgICAgZGlzYWJsZWQ9e2J1c3l9CiAgICAgICAgICBvbkNsaWNrPXtjb25uZWN0RmFjZWJvb2t9CiAgICAgICAgPgogICAgICAgICAgPFVzZXJzIHNpemU9ezE3fSBhcmlhLWhpZGRlbj0idHJ1ZSIgLz4KICAgICAgICAgIHtwcm9maWxlID8gYENvbm5lY3RlZDogJHtwcm9maWxlLm5hbWV9YCA6ICJDb25uZWN0IEZhY2Vib29rIFBhZ2VzIn0KICAgICAgICA8L2J1dHRvbj4KICAgICAgPC9kaXY+CgogICAgICB7c2hhcmVMaW5rICYmICgKICAgICAgICA8aW5wdXQKICAgICAgICAgIGNsYXNzTmFtZT0ic2hhcmUtdXJsIgogICAgICAgICAgdmFsdWU9e3NoYXJlTGluay5jYW1wYWlnbl91cmx9CiAgICAgICAgICByZWFkT25seQogICAgICAgICAgYXJpYS1sYWJlbD0iVHJhY2tlZCBGYWNlYm9vayBjYW1wYWlnbiBVUkwiCiAgICAgICAgLz4KICAgICAgKX0KCiAgICAgIHtwYWdlcy5sZW5ndGggPiAwICYmICgKICAgICAgICA8ZGl2IGNsYXNzTmFtZT0icGFnZS1wdWJsaXNoZXIiPgogICAgICAgICAgPHNlbGVjdAogICAgICAgICAgICB2YWx1ZT17c2VsZWN0ZWRQYWdlSWR9CiAgICAgICAgICAgIG9uQ2hhbmdlPXsoZXZlbnQpID0+IHNldFNlbGVjdGVkUGFnZUlkKGV2ZW50LnRhcmdldC52YWx1ZSl9CiAgICAgICAgICAgIGFyaWEtbGFiZWw9IkZhY2Vib29rIFBhZ2UiCiAgICAgICAgICA+CiAgICAgICAgICAgIHtwYWdlcy5tYXAoKHBhZ2UpID0+ICgKICAgICAgICAgICAgICA8b3B0aW9uIGtleT17cGFnZS5pZH0gdmFsdWU9e3BhZ2UuaWR9PgogICAgICAgICAgICAgICAge3BhZ2UubmFtZX0KICAgICAgICAgICAgICAgIHtwYWdlLmNhdGVnb3J5ID8gYCDigJQgJHtwYWdlLmNhdGVnb3J5fWAgOiAiIn0KICAgICAgICAgICAgICA8L29wdGlvbj4KICAgICAgICAgICAgKSl9CiAgICAgICAgICA8L3NlbGVjdD4KCiAgICAgICAgICA8YnV0dG9uCiAgICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgICAgY2xhc3NOYW1lPSJmYWNlYm9vay1idXR0b24iCiAgICAgICAgICAgIGRpc2FibGVkPXtidXN5IHx8ICFhY2Nlc3NUb2tlbn0KICAgICAgICAgICAgb25DbGljaz17cHVibGlzaFRvUGFnZX0KICAgICAgICAgID4KICAgICAgICAgICAgPFNlbmQgc2l6ZT17MTd9IGFyaWEtaGlkZGVuPSJ0cnVlIiAvPgogICAgICAgICAgICBQdWJsaXNoIGNhbXBhaWduIHRvIFBhZ2UKICAgICAgICAgIDwvYnV0dG9uPgogICAgICAgIDwvZGl2PgogICAgICApfQoKICAgICAgPHNtYWxsPgogICAgICAgIEZhY2Vib29rIEdyb3VwIG1lbWJlciBpbXBvcnQgYW5kIGF1dG9tYXRpYyBHcm91cCBwb3N0aW5nIGFyZSBpbnRlbnRpb25hbGx5IHVuYXZhaWxhYmxlIGJlY2F1c2UgTWV0YSByZXRpcmVkCiAgICAgICAgdGhlIEdyb3VwcyBBUEkuIEdyb3VwIGFkbWluaXN0cmF0b3JzIHNoYXJlIHRoZSB0cmFja2VkIGxpbmsgbWFudWFsbHk7IFZpYmVzTWVldCBtZWFzdXJlcyBldmVyeSByZXN1bHRpbmcKICAgICAgICBzdXBwb3J0ZXIgYW5kIGNvbW1pdG1lbnQuCiAgICAgIDwvc21hbGw+CiAgICA8L3NlY3Rpb24+CiAgKTsKfQo=
-""".strip()
-
-target.write_bytes(base64.b64decode(payload))
-PY
-
-actual_sha256="$(
-  python3 - <<'PY'
-from pathlib import Path
-import hashlib
-
-path = Path("frontend/src/components/FacebookIntegration.tsx")
-print(hashlib.sha256(path.read_bytes()).hexdigest())
-PY
-)"
-
-if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
-  echo "File checksum mismatch after replacement." >&2
-  echo "Expected: $EXPECTED_SHA256" >&2
-  echo "Actual:   $actual_sha256" >&2
-  exit 1
-fi
-
-if grep -nE '^(Library|FacebookIntegration\.tsx|```[A-Za-z]*)$' "$TARGET"; then
-  echo "Invalid copied UI labels remain in $TARGET." >&2
-  exit 1
-fi
-
-if grep -nE 'import .*\bFacebook\b.*from "lucide-react"' "$TARGET"; then
-  echo "Unsupported lucide-react Facebook icon import remains." >&2
-  exit 1
-fi
-
-first_line="$(head -n 1 "$TARGET")"
-if [[ "$first_line" != '/**' ]]; then
-  echo "Unexpected first line in $TARGET: $first_line" >&2
-  exit 1
-fi
-
-echo "Replaced $TARGET successfully."
-echo "SHA256: $actual_sha256"
-echo
-echo "First 10 lines:"
-nl -ba "$TARGET" | sed -n '1,10p'
-
-echo
-echo "Running frontend build..."
-(
-  cd frontend
-  rm -rf node_modules dist
-  npm install --no-audit --no-fund
-  npm run build
-)
-
-echo
-echo "Frontend source and production build passed."
-echo
-echo "Next commands:"
-echo "  git add $TARGET"
-echo '  git commit -m "Fix Facebook integration source file"'
-echo "  git push origin main"
-echo
-echo "After pushing, open the NEW workflow run created by this commit."
-echo "Do not rerun the old failed workflow."
