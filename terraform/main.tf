@@ -195,6 +195,12 @@ module "alb" {
   access_log_prefix          = "alb"
   origin_verify_header_value = random_password.origin_verify.result
   tags                       = local.tags
+
+  # A targeted migration bootstrap otherwise depends only on the VPC and
+  # subnet output values. Wait for the complete networking module so the
+  # Internet Gateway and public routing exist before AWS creates the
+  # internet-facing Application Load Balancer.
+  depends_on = [module.networking]
 }
 
 resource "aws_wafv2_web_acl_association" "alb" {
