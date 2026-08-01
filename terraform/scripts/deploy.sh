@@ -308,18 +308,62 @@ aws ecs wait tasks-stopped \
   --cluster "$CLUSTER_ARN" \
   --tasks "$MIGRATION_TASK"
 
-MIGRATION_EXIT_CODE="$(
+TASK_DETAILS="$(
   aws ecs describe-tasks \
     --cluster "$CLUSTER_ARN" \
     --tasks "$MIGRATION_TASK" \
-    --query 'tasks[0].containers[0].exitCode' \
-    --output text
+    --output json
+)"
+
+# GuardDuty Runtime Monitoring can inject a sidecar before the application
+# container. Select the migration container by its exact name instead of using
+# containers[0], which can report the sidecar's null exit code.
+MIGRATION_EXIT_CODE="$(
+  jq -er \
+    --arg name "$SERVICE_NAME" \
+    '.tasks[0].containers[]
+     | select(.name == $name)
+     | (.exitCode // "None")' \
+    <<<"$TASK_DETAILS"
 )"
 
 [[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
-  aws ecs describe-tasks \
-    --cluster "$CLUSTER_ARN" \
-    --tasks "$MIGRATION_TASK"
+  echo "ECS task details:" >&2
+  jq . <<<"$TASK_DETAILS" >&2
+
+  echo "Container failure reasons:" >&2
+  jq -r \
+    '.tasks[0].containers[]
+     | select(.reason != null)
+     | "- \(.name): \(.reason)"' \
+    <<<"$TASK_DETAILS" >&2 || true
+
+  TASK_ID="${MIGRATION_TASK##*/}"
+  LOG_GROUP="/aws/ecs/$SERVICE_NAME"
+  LOG_STREAM="ecs/$SERVICE_NAME/$TASK_ID"
+
+  echo "Migration logs from ${LOG_GROUP}/${LOG_STREAM}:" >&2
+
+  LOGS_PRINTED=false
+  for attempt in 1 2 3 4 5; do
+    if aws logs get-log-events \
+      --region "$REGION" \
+      --log-group-name "$LOG_GROUP" \
+      --log-stream-name "$LOG_STREAM" \
+      --start-from-head \
+      --query 'events[].message' \
+      --output text >&2; then
+      LOGS_PRINTED=true
+      break
+    fi
+
+    echo "Migration log stream is not ready; retrying in 5 seconds (${attempt}/5)." >&2
+    sleep 5
+  done
+
+  if [[ "$LOGS_PRINTED" != "true" ]]; then
+    echo "Unable to read the migration CloudWatch log stream." >&2
+  fi
 
   echo "Database migration task failed with exit code $MIGRATION_EXIT_CODE" >&2
   exit 1
