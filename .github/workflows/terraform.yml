@@ -1,6 +1,7 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Validates infrastructure with Terraform formatting and native
-# validation, TFLint, Checkov, Go contract tests, and shell-script checks.
+# Purpose: Validates Terraform, provisions required account-level controls,
+# creates protected remote-state backends, produces development plans,
+# and performs protected development or production deployments.
 
 name: Terraform
 
@@ -21,15 +22,15 @@ on:
       - "Dockerfile.frontend"
       - ".github/workflows/**"
 
-  # Manual runs deploy only to development.
+  # Manual execution deploys development only.
   workflow_dispatch: {}
 
-  # Production deployment occurs only after publishing a GitHub Release.
+  # Production deployment occurs only from a published GitHub Release.
   release:
     types:
       - published
 
-# Static AWS access-key authentication does not require an OIDC token.
+# Static IAM credentials do not require GitHub OIDC token permission.
 permissions:
   contents: read
 
@@ -115,14 +116,15 @@ jobs:
   plan:
     name: Development plan
 
-    # Remote-state operations run only after trusted code reaches main.
+    # Remote state and AWS data sources are accessed only after trusted code
+    # reaches the main branch.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     needs:
       - validate
 
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: dev
 
     permissions:
@@ -149,13 +151,11 @@ jobs:
 
           if [[ -z "${ACCESS_KEY_ID}" ]]; then
             echo "::error::AWS_ACCESS_KEY_ID is missing or unavailable."
-            echo "::error::Add it under repository Settings > Secrets and variables > Actions."
             exit 1
           fi
 
           if [[ -z "${SECRET_ACCESS_KEY}" ]]; then
             echo "::error::AWS_SECRET_ACCESS_KEY is missing or unavailable."
-            echo "::error::Add it under repository Settings > Secrets and variables > Actions."
             exit 1
           fi
 
@@ -178,8 +178,7 @@ jobs:
           set -euo pipefail
           aws sts get-caller-identity
 
-      # First trusted run creates the encrypted S3 state backend.
-      # The bootstrap script must remain idempotent for later runs.
+      # Create or verify the development workload-state bucket and KMS key.
       - name: Bootstrap development remote backend
         shell: bash
         env:
@@ -188,7 +187,70 @@ jobs:
           set -euo pipefail
           ./terraform/scripts/bootstrap.sh dev
 
-      - name: Initialize remote state
+      # Create or verify the separate account-foundation state backend.
+      - name: Bootstrap account-foundation backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap-account.sh
+
+      - name: Initialize account foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "terraform/global/account/backend.hcl" ]]; then
+            echo "::error::terraform/global/account/backend.hcl was not generated."
+            exit 1
+          fi
+
+          terraform -chdir=terraform/global/account init \
+            -input=false \
+            -reconfigure \
+            -backend-config=backend.hcl
+
+      # Creates or updates the account-wide OIDC provider, GuardDuty detector,
+      # Terraform roles, runtime monitoring, and enhanced ECR scanning.
+      - name: Apply account foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform -chdir=terraform/global/account apply \
+            -input=false \
+            -auto-approve
+
+      - name: Verify account foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID="$(
+            aws sts get-caller-identity \
+              --query Account \
+              --output text
+          )"
+
+          aws iam get-open-id-connect-provider \
+            --open-id-connect-provider-arn \
+            "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+
+          DETECTOR_ID="$(
+            aws guardduty list-detectors \
+              --region "${AWS_REGION}" \
+              --query 'DetectorIds[0]' \
+              --output text
+          )"
+
+          if [[ -z "${DETECTOR_ID}" || "${DETECTOR_ID}" == "None" ]]; then
+            echo "::error::GuardDuty detector is not available in ${AWS_REGION}."
+            exit 1
+          fi
+
+          echo "GitHub OIDC provider is available."
+          echo "GuardDuty detector: ${DETECTOR_ID}"
+
+      - name: Initialize development remote state
         shell: bash
         run: |
           set -euo pipefail
@@ -290,10 +352,7 @@ jobs:
           mask-aws-account-id: true
 
       - name: Verify development AWS identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
       - name: Ensure development backend exists
         shell: bash
@@ -302,6 +361,26 @@ jobs:
         run: |
           set -euo pipefail
           ./terraform/scripts/bootstrap.sh dev
+
+      - name: Ensure account-foundation backend exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap-account.sh
+
+      - name: Initialize and apply account foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform -chdir=terraform/global/account init \
+            -input=false \
+            -reconfigure \
+            -backend-config=backend.hcl
+
+          terraform -chdir=terraform/global/account apply \
+            -input=false \
+            -auto-approve
 
       - name: Build, migrate, and deploy development
         shell: bash
@@ -367,10 +446,7 @@ jobs:
           mask-aws-account-id: true
 
       - name: Verify production AWS identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
       - name: Ensure production backend exists
         shell: bash
@@ -379,6 +455,26 @@ jobs:
         run: |
           set -euo pipefail
           ./terraform/scripts/bootstrap.sh prod
+
+      - name: Ensure account-foundation backend exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap-account.sh
+
+      - name: Initialize and apply account foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform -chdir=terraform/global/account init \
+            -input=false \
+            -reconfigure \
+            -backend-config=backend.hcl
+
+          terraform -chdir=terraform/global/account apply \
+            -input=false \
+            -auto-approve
 
       - name: Build, migrate, and deploy production
         shell: bash
