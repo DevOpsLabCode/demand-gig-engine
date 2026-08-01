@@ -1,4 +1,4 @@
-## Demand Gig Engine Terraform framework
+# Demand Gig Engine Terraform framework
 
 > **Author:** Stan Zvenigorodskiy  
 > **Organization:** DevOps Lab Inc.  
