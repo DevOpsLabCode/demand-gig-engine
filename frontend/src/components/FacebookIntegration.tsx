@@ -1,8 +1,3 @@
-Library
-/
-FacebookIntegration.tsx
-
-
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
  * Purpose: Creates tracked Facebook links, connects an organizer account, lists managed Pages, and publishes campaign messages.
