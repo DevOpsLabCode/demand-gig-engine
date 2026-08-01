@@ -1,8 +1,6 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Validates infrastructure with Terraform formatting and native
 # validation, TFLint, Checkov, Go contract tests, and shell-script checks.
-# Comments identify triggers, permission boundaries, jobs, services,
-# and major execution steps.
 
 name: Terraform
 
@@ -117,7 +115,7 @@ jobs:
   plan:
     name: Development plan
 
-    # AWS-backed plans run only after trusted code reaches main.
+    # Remote-state operations run only after trusted code reaches main.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     needs:
@@ -180,10 +178,12 @@ jobs:
           set -euo pipefail
           aws sts get-caller-identity
 
-      - name: Resolve existing remote backend
+      # First trusted run creates the encrypted S3 state backend.
+      # The bootstrap script must remain idempotent for later runs.
+      - name: Bootstrap development remote backend
         shell: bash
         env:
-          CREATE_BACKEND: "false"
+          CREATE_BACKEND: "true"
         run: |
           set -euo pipefail
           ./terraform/scripts/bootstrap.sh dev
@@ -192,7 +192,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          terraform -chdir=terraform init -input=false -backend-config=envs/dev/backend.hcl
+
+          if [[ ! -f "terraform/envs/dev/backend.hcl" ]]; then
+            echo "::error::terraform/envs/dev/backend.hcl was not generated."
+            exit 1
+          fi
+
+          terraform -chdir=terraform init \
+            -input=false \
+            -reconfigure \
+            -backend-config=envs/dev/backend.hcl
 
       - name: Create Terraform plan
         shell: bash
@@ -210,7 +219,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          terraform -chdir=terraform show -no-color dev.tfplan > terraform/dev-plan.txt
+
+          terraform -chdir=terraform show \
+            -no-color \
+            dev.tfplan > terraform/dev-plan.txt
 
       - name: Upload plan summary
         uses: actions/upload-artifact@v6
@@ -283,6 +295,14 @@ jobs:
           set -euo pipefail
           aws sts get-caller-identity
 
+      - name: Ensure development backend exists
+        shell: bash
+        env:
+          CREATE_BACKEND: "true"
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap.sh dev
+
       - name: Build, migrate, and deploy development
         shell: bash
         run: |
@@ -351,6 +371,14 @@ jobs:
         run: |
           set -euo pipefail
           aws sts get-caller-identity
+
+      - name: Ensure production backend exists
+        shell: bash
+        env:
+          CREATE_BACKEND: "true"
+        run: |
+          set -euo pipefail
+          ./terraform/scripts/bootstrap.sh prod
 
       - name: Build, migrate, and deploy production
         shell: bash
