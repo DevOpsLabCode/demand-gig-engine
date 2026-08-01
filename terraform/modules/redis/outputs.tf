@@ -20,4 +20,9 @@ output "runtime_secret_arn" {
   description = "Secrets Manager ARN containing the authenticated REDIS_URL value."
   value       = aws_secretsmanager_secret.runtime.arn
   sensitive   = true
+
+  # Do not expose the ARN to ECS until the JSON value has an AWSCURRENT version.
+  depends_on = [
+    aws_secretsmanager_secret_version.runtime,
+  ]
 }

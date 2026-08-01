@@ -227,6 +227,10 @@ COMMON_ARGS=(
 # application revision.
 terraform -chdir="$TF" apply \
   "${COMMON_ARGS[@]}" \
+  -target=module.database.aws_secretsmanager_secret_version.db \
+  -target=module.database.aws_secretsmanager_secret_version.runtime \
+  -target=module.redis.aws_secretsmanager_secret_version.runtime \
+  -target=module.secrets_manager.aws_secretsmanager_secret_version.initial \
   -target=module.migration
 
 # Optional non-interactive provider credential injection. The JSON file must
