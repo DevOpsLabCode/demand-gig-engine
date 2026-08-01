@@ -116,6 +116,7 @@ jobs:
           bash -n terraform/scripts/bootstrap-account.sh
           bash -n terraform/scripts/deploy.sh
           bash -n terraform/scripts/reconcile-rds-service-linked-role.sh
+          bash -n terraform/scripts/reconcile-elasticache-service-linked-role.sh
 
       - name: Run TFLint
         run: tflint --chdir=terraform --recursive
@@ -234,6 +235,7 @@ jobs:
         run: |
           set -euo pipefail
           ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh reconcile
 
       - name: Apply account foundation
         shell: bash
@@ -245,6 +247,7 @@ jobs:
             -auto-approve
 
           ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh verify
 
       - name: Verify account foundation
         shell: bash
@@ -474,12 +477,14 @@ jobs:
             -backend-config=backend.hcl
 
           ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh reconcile
 
           terraform -chdir=terraform/global/account apply \
             -input=false \
             -auto-approve
 
           ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh verify
 
       - name: Build, migrate, and deploy development
         shell: bash
@@ -897,12 +902,14 @@ jobs:
             -backend-config=backend.hcl
 
           ./terraform/scripts/reconcile-rds-service-linked-role.sh reconcile
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh reconcile
 
           terraform -chdir=terraform/global/account apply \
             -input=false \
             -auto-approve
 
           ./terraform/scripts/reconcile-rds-service-linked-role.sh verify
+          ./terraform/scripts/reconcile-elasticache-service-linked-role.sh verify
 
       - name: Build, migrate, and deploy production
         shell: bash
