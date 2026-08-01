@@ -139,6 +139,15 @@ locals {
 data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
+# Amazon RDS requires this account-wide service-linked role before it can
+# create and operate DB instances, clusters, and RDS Proxy resources.
+# The GitHub workflow imports an existing role into this state when necessary;
+# otherwise this resource creates it before the environment deployment begins.
+resource "aws_iam_service_linked_role" "rds" {
+  aws_service_name = "rds.amazonaws.com"
+  description      = "Allows Amazon RDS to manage required AWS resources."
+}
+
 # Shared trust-policy template with different subject sets for plan and apply roles.
 data "aws_iam_policy_document" "terraform_plan_assume" {
   statement {
