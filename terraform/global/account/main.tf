@@ -148,6 +148,15 @@ resource "aws_iam_service_linked_role" "rds" {
   description      = "Allows Amazon RDS to manage required AWS resources."
 }
 
+# Amazon ElastiCache requires this account-wide service-linked role before it
+# can create and operate Redis/Valkey clusters and replication groups.
+# The GitHub workflow imports an existing role into this state when necessary;
+# otherwise Terraform creates it during the account-foundation apply.
+resource "aws_iam_service_linked_role" "elasticache" {
+  aws_service_name = "elasticache.amazonaws.com"
+  description      = "Allows Amazon ElastiCache to manage required AWS resources."
+}
+
 # Shared trust-policy template with different subject sets for plan and apply roles.
 data "aws_iam_policy_document" "terraform_plan_assume" {
   statement {
@@ -382,6 +391,22 @@ data "aws_iam_policy_document" "terraform_apply_iam" {
         "rds.amazonaws.com",
         "replication.ecr.amazonaws.com",
       ]
+    }
+  }
+
+  # AWS documents iam:PutRolePolicy as part of creating the ElastiCache
+  # service-linked role. Restrict it to that exact service-linked role path.
+  statement {
+    sid     = "MaintainElastiCacheServiceLinkedRole"
+    actions = ["iam:PutRolePolicy"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache*",
+    ]
+
+    condition {
+      test     = "StringLike"
+      variable = "iam:AWSServiceName"
+      values   = ["elasticache.amazonaws.com"]
     }
   }
 }
