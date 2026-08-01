@@ -100,13 +100,24 @@ jobs:
           python -m pip install --requirement security-requirements.txt
           checkov --version
 
-      # Capture the exit code so reports are uploaded before the policy gate is
-      # enforced. Unlike --soft-fail, a failed scan cannot pass the final gate.
-      - name: Run complete Checkov scan and create SARIF
+      # Capture the scanner exit code so reports are uploaded before the policy
+      # gate is enforced. Unlike --soft-fail, an unsuppressed finding cannot pass.
+      #
+      # Approved narrow suppressions:
+      # - CKV_GHA_5/6: action tags are governed by scripts/validate_workflows.py.
+      # - CKV_GHA_7: terraform.yml intentionally uses typed manual inputs. The
+      #   operation is a fixed choice, auto_destroy is boolean, and the delay is
+      #   passed through an environment variable and validated as an integer.
+      # - CKV_SECRET_6 only for README_FUTURE.md: the documentation-only channel
+      #   list is a confirmed entropy false positive. Secret scanning remains
+      #   enabled for every other check and every other repository file.
+      - name: Run complete Checkov scan and create reports
         id: checkov
         shell: bash
         run: |
           set +e
+          set -o pipefail
+
           checkov --directory . \
             --framework terraform cloudformation kubernetes helm bicep arm serverless dockerfile github_actions openapi secrets \
             --enable-secret-scan-all-files \
@@ -116,21 +127,25 @@ jobs:
             --skip-path 'node_modules/' \
             --skip-path '__pycache__/' \
             --skip-path '\.env\.example$' \
-            --skip-check CKV_GHA_5,CKV_GHA_6 \
+            --skip-check 'CKV_GHA_5,CKV_GHA_6,CKV_GHA_7,CKV_SECRET_6:.*README_FUTURE\.md$' \
             --compact \
             --output cli \
             --output sarif \
-            --output-file-path console,checkov.sarif
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
+            --output-file-path console,checkov.sarif \
+            2>&1 | tee checkov-cli.txt
+
+          status="${PIPESTATUS[0]}"
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
           exit 0
 
-      - name: Upload Checkov report
+      - name: Upload Checkov reports
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: checkov-results
-          path: checkov.sarif
+          path: |
+            checkov.sarif
+            checkov-cli.txt
           if-no-files-found: warn
           retention-days: 14
 
@@ -148,8 +163,19 @@ jobs:
 
       - name: Enforce complete Checkov policy gate
         if: steps.checkov.outputs.status != '0'
+        shell: bash
         run: |
-          echo "Checkov found a policy violation or could not complete."
+          set -euo pipefail
+
+          echo "Checkov found an unsuppressed policy violation or could not complete."
+
+          if [[ -f checkov-cli.txt ]]; then
+            echo "::group::Checkov failed findings"
+            grep -B 3 -A 10 -E 'FAILED for resource|ERROR|Error:' checkov-cli.txt || true
+            echo "::endgroup::"
+          fi
+
+          echo "Download the checkov-results artifact for the complete CLI and SARIF reports."
           exit 1
 
   python-dependency-audit:
