@@ -42,6 +42,12 @@ variable "retained_image_count" {
   }
 }
 
+variable "force_delete" {
+  type        = bool
+  description = "Whether Terraform may delete a non-empty repository. Enable only for ephemeral environments."
+  default     = false
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common ownership, environment, cost, and governance tags."
