@@ -15,18 +15,14 @@ resource "aws_security_group" "alb" {
   description = "Allow only CloudFront origin-facing traffic to the public ALB"
   vpc_id      = var.vpc_id
 
+  # The AWS-managed CloudFront prefix list has a security-group weight of 55.
+  # Referencing it once for HTTP and once for HTTPS would consume 110 rules and
+  # exceed the default quota. Permit only the protocol CloudFront actually uses
+  # for this environment's origin connection.
   ingress {
-    description     = "HTTP from CloudFront origin-facing network"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
-  }
-
-  ingress {
-    description     = "HTTPS from CloudFront origin-facing network"
-    from_port       = 443
-    to_port         = 443
+    description     = var.origin_port == 443 ? "HTTPS from CloudFront origin-facing network" : "HTTP from CloudFront origin-facing network"
+    from_port       = var.origin_port
+    to_port         = var.origin_port
     protocol        = "tcp"
     prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
   }

@@ -32,6 +32,17 @@ variable "vpc_cidr" {
   }
 }
 
+variable "origin_port" {
+  type        = number
+  description = "Single ALB listener port used by CloudFront for origin traffic. One CloudFront prefix-list rule avoids exceeding the default security-group quota."
+  default     = 80
+
+  validation {
+    condition     = contains([80, 443], var.origin_port)
+    error_message = "origin_port must be 80 or 443."
+  }
+}
+
 variable "app_port" {
   type        = number
   description = "Application TCP port allowed between the ALB and ECS tasks."

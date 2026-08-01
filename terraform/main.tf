@@ -112,11 +112,12 @@ module "networking" {
 }
 # Invokes the reusable security module and passes this environment configuration into it.
 module "security" {
-  source   = "./modules/security"
-  name     = local.name
-  vpc_id   = module.networking.vpc_id
-  vpc_cidr = var.vpc_cidr
-  tags     = local.tags
+  source      = "./modules/security"
+  name        = local.name
+  vpc_id      = module.networking.vpc_id
+  vpc_cidr    = var.vpc_cidr
+  origin_port = module.acm_origin.certificate_arn != null ? 443 : 80
+  tags        = local.tags
 }
 # Invokes the reusable ecr module and passes this environment configuration into it.
 module "ecr" {

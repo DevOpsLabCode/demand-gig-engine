@@ -70,8 +70,10 @@ resource "aws_cloudfront_cache_policy" "api_disabled" {
   min_ttl     = 0
 
   parameters_in_cache_key_and_forwarded_to_origin {
-    enable_accept_encoding_brotli = true
-    enable_accept_encoding_gzip   = true
+    # Compression variants are meaningless when every TTL is zero. AWS rejects
+    # Accept-Encoding cache-key flags on a completely disabled cache policy.
+    enable_accept_encoding_brotli = false
+    enable_accept_encoding_gzip   = false
 
     cookies_config {
       cookie_behavior = "none"
@@ -110,7 +112,6 @@ resource "aws_cloudfront_origin_request_policy" "api" {
         "Referer",
         "X-CSRFToken",
         "X-Origin-Viewer-IP",
-        "X-Requested-With",
       ]
     }
   }
