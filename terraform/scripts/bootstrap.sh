@@ -110,13 +110,13 @@ bootstrap_locally_then_migrate() {
 
   rm -rf "$BOOTSTRAP_DIR/.terraform"
 
-  terraform -chdir="$BOOTSTRAP_DIR" init -backend=false -input=false
+  terraform -chdir="$BOOTSTRAP_DIR" init -backend=false -input=false >&2
   terraform -chdir="$BOOTSTRAP_DIR" apply \
     -auto-approve \
     -input=false \
     -var="aws_region=$REGION" \
     -var="environment=$ENVIRONMENT" \
-    -var="project_name=$PROJECT_NAME"
+    -var="project_name=$PROJECT_NAME" >&2
 
   KMS_KEY_ARN="$(
     terraform -chdir="$BOOTSTRAP_DIR" output -raw kms_key_arn
@@ -137,14 +137,14 @@ bootstrap_locally_then_migrate() {
     -force-copy \
     -migrate-state \
     -input=false \
-    -backend-config="$BOOTSTRAP_BACKEND_FILE"
+    -backend-config="$BOOTSTRAP_BACKEND_FILE" >&2
 
   rm -f \
     "$BOOTSTRAP_DIR/terraform.tfstate" \
     "$BOOTSTRAP_DIR/terraform.tfstate.backup"
 }
 
-if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+if ! aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
   if [[ "$CREATE_BACKEND" != "true" ]]; then
     echo "Terraform state bucket $BUCKET does not exist. Run bootstrap.sh once with trusted credentials and CREATE_BACKEND=true." >&2
     exit 1
@@ -178,7 +178,7 @@ else
     terraform -chdir="$BOOTSTRAP_DIR" init \
       -reconfigure \
       -input=false \
-      -backend-config="$BOOTSTRAP_BACKEND_FILE"
+      -backend-config="$BOOTSTRAP_BACKEND_FILE" >&2
 
     if [[ -z "$(terraform -chdir="$BOOTSTRAP_DIR" state list 2>/dev/null)" ]]; then
       echo "Backend bucket exists but bootstrap Terraform state is missing. Import the existing bootstrap resources before continuing; refusing to create a second ownership path." >&2
@@ -190,7 +190,7 @@ else
       -input=false \
       -var="aws_region=$REGION" \
       -var="environment=$ENVIRONMENT" \
-      -var="project_name=$PROJECT_NAME"
+      -var="project_name=$PROJECT_NAME" >&2
   fi
 fi
 
@@ -201,4 +201,7 @@ write_backend_file \
   "$CONSUMER_STATE_KEY" \
   "$KMS_KEY_ARN"
 
+# Output contract: stdout contains exactly one value, the generated consumer
+# backend configuration path. All diagnostics and Terraform progress are sent
+# to stderr so callers may safely use command substitution.
 printf '%s\n' "$CONSUMER_BACKEND_FILE"
