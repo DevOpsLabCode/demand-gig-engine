@@ -178,7 +178,6 @@ jobs:
           set -euo pipefail
           aws sts get-caller-identity
 
-      # Create or verify the development workload-state bucket and KMS key.
       - name: Bootstrap development remote backend
         shell: bash
         env:
@@ -187,7 +186,6 @@ jobs:
           set -euo pipefail
           ./terraform/scripts/bootstrap.sh dev
 
-      # Create or verify the separate account-foundation state backend.
       - name: Bootstrap account-foundation backend
         shell: bash
         run: |
@@ -209,8 +207,6 @@ jobs:
             -reconfigure \
             -backend-config=backend.hcl
 
-      # Creates or updates the account-wide OIDC provider, GuardDuty detector,
-      # Terraform roles, runtime monitoring, and enhanced ECR scanning.
       - name: Apply account foundation
         shell: bash
         run: |
@@ -266,18 +262,58 @@ jobs:
             -backend-config=envs/dev/backend.hcl
 
       - name: Create Terraform plan
+        id: terraform-plan
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+
+          PLAN_LOG="terraform/dev-plan.log"
+          PLAN_FILE="dev.tfplan"
+
+          rm -f "${PLAN_LOG}"
+          rm -f "terraform/${PLAN_FILE}"
+
+          set +e
 
           terraform -chdir=terraform plan \
             -input=false \
+            -no-color \
             -lock-timeout=5m \
-            -out=dev.tfplan \
+            -out="${PLAN_FILE}" \
             -var-file=envs/dev/terraform.tfvars \
-            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
+            -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim" \
+            2>&1 | tee "${PLAN_LOG}"
+
+          PLAN_EXIT_CODE="${PIPESTATUS[0]}"
+
+          set -e
+
+          echo "exit_code=${PLAN_EXIT_CODE}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${PLAN_EXIT_CODE}" -ne 0 ]]; then
+            echo "::group::Terraform error details"
+
+            awk '
+              /^Error:/ {
+                capture = 1
+              }
+
+              capture {
+                print
+              }
+            ' "${PLAN_LOG}" || true
+
+            echo "::endgroup::"
+            echo "::error::Terraform plan failed with exit code ${PLAN_EXIT_CODE}."
+            echo "::error::Download terraform-dev-diagnostics for the complete log."
+
+            exit "${PLAN_EXIT_CODE}"
+          fi
+
+          echo "Terraform plan completed successfully."
 
       - name: Render plan summary
+        if: steps.terraform-plan.outputs.exit_code == '0'
         shell: bash
         run: |
           set -euo pipefail
@@ -286,13 +322,25 @@ jobs:
             -no-color \
             dev.tfplan > terraform/dev-plan.txt
 
-      - name: Upload plan summary
+      - name: Upload Terraform plan
+        if: steps.terraform-plan.outputs.exit_code == '0'
         uses: actions/upload-artifact@v6
         with:
           name: terraform-dev-plan
-          path: terraform/dev-plan.txt
+          path: |
+            terraform/dev.tfplan
+            terraform/dev-plan.txt
           retention-days: 14
           if-no-files-found: error
+
+      - name: Upload Terraform diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: terraform-dev-diagnostics
+          path: terraform/dev-plan.log
+          retention-days: 14
+          if-no-files-found: warn
 
   deploy-dev:
     name: Deploy development
@@ -352,7 +400,10 @@ jobs:
           mask-aws-account-id: true
 
       - name: Verify development AWS identity
-        run: aws sts get-caller-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
 
       - name: Ensure development backend exists
         shell: bash
@@ -446,7 +497,10 @@ jobs:
           mask-aws-account-id: true
 
       - name: Verify production AWS identity
-        run: aws sts get-caller-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
 
       - name: Ensure production backend exists
         shell: bash
