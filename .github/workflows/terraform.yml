@@ -72,29 +72,20 @@ jobs:
         uses: terraform-linters/setup-tflint@v6
 
       - name: Normalize and validate Terraform
-        shell: bash
-        run: |
-          set -euo pipefail
+  shell: bash
+  run: |
+    set -euo pipefail
 
-          terraform -chdir=terraform fmt -check -recursive -diff
+    terraform -chdir=terraform fmt -check -recursive -diff
 
-          terraform -chdir=terraform init \
-            -backend=false \
-            -input=false
+    terraform -chdir=terraform init -backend=false -input=false
+    terraform -chdir=terraform validate
 
-          terraform -chdir=terraform validate
+    terraform -chdir=terraform/global/bootstrap init -backend=false -input=false
+    terraform -chdir=terraform/global/bootstrap validate
 
-          terraform -chdir=terraform/global/bootstrap init \
-            -backend=false \
-            -input=false
-
-          terraform -chdir=terraform/global/bootstrap validate
-
-          terraform -chdir=terraform/global/account init \
-            -backend=false \
-            -input=false
-
-          terraform -chdir=terraform/global/account validate
+    terraform -chdir=terraform/global/account init -backend=false -input=false
+    terraform -chdir=terraform/global/account validate
 
       - name: Validate Terraform helper scripts
         shell: bash
