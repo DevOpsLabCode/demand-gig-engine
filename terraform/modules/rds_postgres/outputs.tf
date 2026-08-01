@@ -15,6 +15,12 @@ output "secret_arn" {
   description = "Secrets Manager ARN containing the database login used by RDS Proxy."
   value       = aws_secretsmanager_secret.db.arn
   sensitive   = true
+
+  # Consumers must not receive the secret ARN until an AWSCURRENT database
+  # credential version exists.
+  depends_on = [
+    aws_secretsmanager_secret_version.db,
+  ]
 }
 
 output "db_arn" {
@@ -31,4 +37,11 @@ output "runtime_secret_arn" {
   description = "Secrets Manager ARN containing DATABASE_URL and the Django SECRET_KEY."
   value       = aws_secretsmanager_secret.runtime.arn
   sensitive   = true
+
+  # The migration task references this output during a targeted bootstrap.
+  # Force Terraform to create the JSON secret value and AWSCURRENT stage before
+  # exposing the ARN to ECS.
+  depends_on = [
+    aws_secretsmanager_secret_version.runtime,
+  ]
 }
