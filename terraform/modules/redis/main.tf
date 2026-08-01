@@ -1,6 +1,10 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Creates authenticated, encrypted, subnet-isolated Redis with mandatory Multi-AZ automatic failover and a protected runtime connection secret.
 
+locals {
+  redis_port = 6379
+}
+
 resource "aws_elasticache_subnet_group" "this" {
   name       = var.name
   subnet_ids = var.subnet_ids
@@ -35,6 +39,7 @@ resource "aws_elasticache_replication_group" "this" {
   engine                     = "redis"
   engine_version             = var.engine_version
   node_type                  = var.node_type
+  port                       = local.redis_port
   num_cache_clusters         = var.replicas + 1
   automatic_failover_enabled = true
   multi_az_enabled           = true
@@ -84,7 +89,8 @@ resource "aws_secretsmanager_secret" "runtime" {
 
 resource "aws_secretsmanager_secret_version" "runtime" {
   secret_id = aws_secretsmanager_secret.runtime.id
+
   secret_string = jsonencode({
-    REDIS_URL = "rediss://:${random_password.auth.result}@${aws_elasticache_replication_group.this.primary_endpoint_address}:${aws_elasticache_replication_group.this.port}/0"
+    REDIS_URL = "rediss://:${random_password.auth.result}@${aws_elasticache_replication_group.this.primary_endpoint_address}:${local.redis_port}/0"
   })
 }
