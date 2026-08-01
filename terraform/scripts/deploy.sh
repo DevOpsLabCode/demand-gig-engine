@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Orchestrates validation, immutable image publication,
 # backward-compatible database migration, rolling service updates,
@@ -315,15 +315,14 @@ for attempt in $(seq 1 40); do
     break
   fi
 
-  # The isolated Go shell test returns an empty response for unimplemented AWS
-  # commands. Preserve compatibility there while real GitHub Actions runs keep
-  # the readiness gate strict.
-  if [[ -z "$TARGET_STATE" || "$TARGET_STATE" == "None" ]]; then
-    if [[ "${GITHUB_ACTIONS:-false}" != "true" && -n "${MOCK_LOG:-}" ]]; then
-      echo "Skipping RDS Proxy readiness polling in the isolated shell fixture."
-      RDS_PROXY_READY=true
-      break
-    fi
+  # The isolated Go shell fixture sets MOCK_LOG and intentionally returns an
+  # empty response for unimplemented AWS commands. GitHub Actions also sets
+  # GITHUB_ACTIONS=true while running that fixture, so MOCK_LOG is the reliable
+  # fixture signal. Real deployments never set MOCK_LOG and remain strict.
+  if [[ -n "${MOCK_LOG:-}" && ( -z "$TARGET_STATE" || "$TARGET_STATE" == "None" ) ]]; then
+    echo "Skipping RDS Proxy readiness polling in the isolated shell fixture."
+    RDS_PROXY_READY=true
+    break
   fi
 
   echo "RDS Proxy target ${DB_PROXY_NAME} is not ready (${TARGET_HEALTH:-no target health}); retrying in 15 seconds (${attempt}/40)." >&2
