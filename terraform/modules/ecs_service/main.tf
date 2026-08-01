@@ -1,7 +1,6 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Creates IAM roles, logs, task definitions, services, autoscaling, secrets, sidecars, and optional load-balancer integration for API or worker workloads.
 # Reading guide: Each comment explains why the following Terraform block exists.
-
 # Read the active region for awslogs configuration inside generated container definitions.
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
@@ -12,6 +11,17 @@ locals {
   secret_arns = distinct([
     for value in values(var.secrets) : replace(value, "/:[^:]+::$/", "")
   ])
+
+  # GuardDuty injects this AWS-owned sidecar into protected ECS Fargate tasks.
+  # The US East (N. Virginia) repository account is published by AWS.
+  guardduty_agent_repository_arn = "arn:${data.aws_partition.current.partition}:ecr:${data.aws_region.current.region}:593207742271:repository/aws-guardduty-agent-fargate"
+
+  # Permit application images plus the exact AWS-owned GuardDuty agent
+  # repository. This avoids granting pull access to unrelated ECR repositories.
+  ecr_pull_repository_arns = distinct(concat(
+    var.ecr_repository_arns,
+    [local.guardduty_agent_repository_arn],
+  ))
 
   object_storage_statements = var.object_storage_bucket_arn == null ? [] : [
     {
@@ -92,12 +102,14 @@ locals {
     privileged             = false
     readonlyRootFilesystem = true
     stopTimeout            = 30
+
     linuxParameters = {
       initProcessEnabled = true
       capabilities = {
         drop = ["ALL"]
       }
     }
+
     mountPoints = [
       {
         sourceVolume  = "tmp"
@@ -105,25 +117,30 @@ locals {
         readOnly      = false
       }
     ]
+
     portMappings = var.expose_port ? [
       {
         containerPort = var.container_port
         protocol      = "tcp"
       }
     ] : []
+
     command = length(var.command) == 0 ? null : var.command
+
     environment = [
       for key, value in var.environment : {
         name  = key
         value = value
       }
     ]
+
     secrets = [
       for key, value in var.secrets : {
         name      = key
         valueFrom = value
       }
     ]
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -153,13 +170,16 @@ locals {
     essential              = false
     readonlyRootFilesystem = true
     user                   = "1337"
+
     portMappings = [
       {
         containerPort = 2000
         protocol      = "udp"
       }
     ]
+
     command = ["-o"]
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -186,6 +206,7 @@ data "aws_iam_policy_document" "assume" {
   # Allow ECS tasks, and no human principal, to assume the execution and application roles.
   statement {
     actions = ["sts:AssumeRole"]
+
     principals {
       type        = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
@@ -204,8 +225,8 @@ resource "aws_iam_role" "execution" {
 # Keep execution permissions project-scoped rather than attaching the AWS-managed
 # policy, which grants pull/log access across all repositories and log groups.
 resource "aws_iam_role_policy" "execution" {
-  #checkov:skip=CKV_AWS_111:ecr:GetAuthorizationToken has no resource-level permission; every pull, log, secret, and KMS action is otherwise exact-resource scoped.
-  #checkov:skip=CKV_AWS_356:ecr:GetAuthorizationToken formally requires Resource "*"; all restrictable actions use declared repository, log-group, secret, or key ARNs.
+  #checkov:skip=CKV_AWS_111:ecr:GetAuthorizationToken and guardduty:SendSecurityTelemetry do not support resource-level permissions; all other actions are exact-resource scoped.
+  #checkov:skip=CKV_AWS_356:Only AWS APIs that require Resource "*" use it; private-image, log, secret, and KMS actions use declared ARNs.
   name = "${var.name}-execution"
   role = aws_iam_role.execution.id
 
@@ -219,14 +240,20 @@ resource "aws_iam_role_policy" "execution" {
         Resource = "*"
       },
       {
-        Sid    = "PullProjectImages"
+        Sid    = "PullApplicationAndGuardDutyImages"
         Effect = "Allow"
         Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:BatchGetImage",
           "ecr:GetDownloadUrlForLayer",
         ]
-        Resource = var.ecr_repository_arns
+        Resource = local.ecr_pull_repository_arns
+      },
+      {
+        Sid      = "SendGuardDutyRuntimeTelemetry"
+        Effect   = "Allow"
+        Action   = ["guardduty:SendSecurityTelemetry"]
+        Resource = "*"
       },
       {
         Sid    = "WriteServiceLogs"
@@ -265,6 +292,7 @@ resource "aws_iam_role_policy" "task" {
   #checkov:skip=CKV_AWS_111:ssmmessages channel APIs and X-Ray ingestion APIs do not support resource-level permissions; all restrictable actions are ARN-scoped.
   #checkov:skip=CKV_AWS_356:Only AWS APIs that formally require Resource "*" use it; every restrictable application permission has an exact ARN.
   role = aws_iam_role.task.id
+
   policy = jsonencode({
     Version   = "2012-10-17"
     Statement = local.application_statements
@@ -326,6 +354,7 @@ resource "aws_ecs_service" "this" {
   # Generates repeated nested configuration from the supplied collection.
   dynamic "load_balancer" {
     for_each = var.target_group_arn == null ? [] : [1]
+
     # Defines the nested block emitted for each item in the dynamic collection.
     content {
       target_group_arn = var.target_group_arn
@@ -371,6 +400,7 @@ resource "aws_appautoscaling_policy" "cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
+
     target_value = var.autoscaling_cpu_target
   }
 }
@@ -389,7 +419,7 @@ resource "aws_appautoscaling_policy" "memory" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageMemoryUtilization"
     }
+
     target_value = var.autoscaling_memory_target
   }
 }
-
