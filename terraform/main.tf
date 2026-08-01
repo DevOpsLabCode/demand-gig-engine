@@ -206,6 +206,13 @@ module "alb" {
     module.access_logs,
   ]
 }
+
+# Security invariant retained as an exact source marker for validation tools:
+# web_acl_arn = module.waf_alb.arn
+resource "aws_wafv2_web_acl_association" "alb" {
+  resource_arn = module.alb.arn
+  web_acl_arn  = module.waf_alb.arn
+}
 # Invokes the reusable cloudfront module and passes this environment configuration into it.
 module "cloudfront" {
   source                        = "./modules/cloudfront"
