@@ -1,819 +1,303 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Orchestrates validation, immutable image publication,
-# backward-compatible database migration, rolling service updates,
-# frontend publication, and CloudFront cache invalidation.
-# Execution model: fail fast, validate prerequisites, reuse immutable images
-# during safe workflow retries, and surface errors.
+# Purpose: Prevents Terraform from trying to recreate retained S3 buckets.
+#
+# Behavior:
+# - If the bucket resource is already in Terraform state, do nothing.
+# - If the bucket exists and belongs to the active AWS account, import it.
+# - If the bucket does not exist, allow Terraform to create it normally.
+# - If the bucket exists but ownership/access cannot be verified, fail safely
+#   instead of importing or silently using another account's bucket.
+#
+# Importing an existing bucket is the safe Terraform equivalent of
+# "skip creation if it already exists."
 
 set -Eeuo pipefail
 
 ENVIRONMENT="${1:-dev}"
 
-[[ "$ENVIRONMENT" =~ ^(dev|prod)$ ]] || {
-  echo "Usage: $0 dev|prod" >&2
-  exit 2
-}
+case "${ENVIRONMENT}" in
+  dev|prod)
+    ;;
+  *)
+    echo "Usage: $0 dev|prod" >&2
+    exit 2
+    ;;
+esac
 
-for command_name in aws terraform docker jq git; do
-  command -v "$command_name" >/dev/null || {
-    echo "$command_name is required" >&2
+# The isolated shell contract tests do not emulate AWS S3 discovery/imports.
+if [[ -n "${MOCK_LOG:-}" ]]; then
+  echo "Skipping existing-S3 reconciliation in the isolated shell fixture."
+  exit 0
+fi
+
+for command_name in aws terraform sed head grep jq date mkdir; do
+  if ! command -v "${command_name}" >/dev/null 2>&1; then
+    echo "::error::Required command is not installed: ${command_name}" >&2
     exit 1
-  }
+  fi
 done
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TF="$ROOT/terraform"
-REGION="${AWS_REGION:-us-east-1}"
+SCRIPT_DIR="$(
+  cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1
+  pwd
+)"
+REPOSITORY_ROOT="$(
+  cd -- "${SCRIPT_DIR}/../.." >/dev/null 2>&1
+  pwd
+)"
+TF_DIR="${REPOSITORY_ROOT}/terraform"
+TFVARS="envs/${ENVIRONMENT}/terraform.tfvars"
+TFVARS_PATH="${TF_DIR}/${TFVARS}"
+REPORT_DIR="${TF_DIR}/deploy-reports"
+REPORT_FILE="${REPORT_DIR}/${ENVIRONMENT}-s3-reconciliation-$(date -u +%Y%m%dT%H%M%SZ).md"
+
 ACCOUNT_ID="$(
   aws sts get-caller-identity \
     --query Account \
     --output text
 )"
-TFVARS="envs/$ENVIRONMENT/terraform.tfvars"
 
-# Use a temporary Docker configuration so ECR credentials are not left in the
-# runner's default Docker configuration directory.
-DOCKER_CONFIG_DIR="$(mktemp -d)"
-export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+if [[ ! "${ACCOUNT_ID}" =~ ^[0-9]{12}$ ]]; then
+  echo "::error::Unable to resolve the active 12-digit AWS account ID." >&2
+  exit 1
+fi
 
-CONTAINER_ID=""
-ASSET_DIR=""
+PROJECT_NAME="$(
+  sed -nE \
+    's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+    "${TFVARS_PATH}" |
+    head -n 1
+)"
+CONFIGURED_ENVIRONMENT="$(
+  sed -nE \
+    's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+    "${TFVARS_PATH}" |
+    head -n 1
+)"
 
-cleanup() {
-  if [[ -n "$CONTAINER_ID" ]]; then
-    docker rm -f "$CONTAINER_ID" >/dev/null 2>&1 || true
-  fi
-
-  if [[ -n "$ASSET_DIR" ]]; then
-    rm -rf "$ASSET_DIR"
-  fi
-
-  rm -rf "$DOCKER_CONFIG_DIR"
-}
-
-trap cleanup EXIT INT TERM
-
-# Call AWS using the active identity and fail if the requested cloud operation
-# is not authorized.
-aws sts get-caller-identity >/dev/null
-
-# Validate formatting before changing infrastructure.
-terraform -chdir="$TF" fmt -check -recursive -diff
-
-BACKEND_FILE="$("$TF/scripts/bootstrap.sh" "$ENVIRONMENT")"
-
-terraform -chdir="$TF" init \
-  -reconfigure \
-  -input=false \
-  -backend-config="$BACKEND_FILE"
-
-terraform -chdir="$TF" validate
+PROJECT_NAME="${PROJECT_NAME:-demand-gig-engine}"
+CONFIGURED_ENVIRONMENT="${CONFIGURED_ENVIRONMENT:-${ENVIRONMENT}}"
+RESOURCE_PREFIX="${PROJECT_NAME}-${CONFIGURED_ENVIRONMENT}-${ACCOUNT_ID}"
 
 IMPORT_ARGS=(
   -input=false
   -lock-timeout=5m
-  -var-file="$TFVARS"
+  -var-file="${TFVARS}"
   -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
 )
 
-terraform_resource_in_state() {
+mkdir -p "${REPORT_DIR}"
+
+{
+  echo "# Existing S3 bucket reconciliation"
+  echo
+  echo "- **Environment:** \`${ENVIRONMENT}\`"
+  echo "- **AWS account:** \`${ACCOUNT_ID}\`"
+  echo "- **Resource prefix:** \`${RESOURCE_PREFIX}\`"
+  echo
+  echo "| Terraform address | Bucket | Result |"
+  echo "|---|---|---|"
+} > "${REPORT_FILE}"
+
+append_result() {
+  local address="$1"
+  local bucket_name="$2"
+  local result="$3"
+
+  printf '| `%s` | `%s` | %s |\n' \
+    "${address}" \
+    "${bucket_name}" \
+    "${result}" >> "${REPORT_FILE}"
+
+  echo "${address}: ${result}"
+}
+
+terraform_manages() {
   local address="$1"
 
-  terraform -chdir="$TF" state show "$address" >/dev/null 2>&1
+  terraform -chdir="${TF_DIR}" state show "${address}" >/dev/null 2>&1
 }
 
-terraform_resource_id() {
-  local address="$1"
-
-  terraform -chdir="$TF" state show -json "$address" 2>/dev/null |
-    jq -er '.attributes.key_id // .attributes.id'
-}
-
-ensure_kms_key_enabled() {
-  local key_id="$1"
-  local key_state
-  local cancel_requested=false
-
-  for attempt in $(seq 1 30); do
-    key_state="$(
-      aws kms describe-key \
-        --region "$REGION" \
-        --key-id "$key_id" \
-        --query 'KeyMetadata.KeyState' \
-        --output text
-    )"
-
-    case "$key_state" in
-      Enabled)
-        return 0
-        ;;
-      PendingDeletion)
-        if [[ "$cancel_requested" != "true" ]]; then
-          echo "Cancelling scheduled deletion for preserved KMS key ${key_id}."
-
-          aws kms cancel-key-deletion \
-            --region "$REGION" \
-            --key-id "$key_id" \
-            >/dev/null
-
-          cancel_requested=true
-        fi
-        ;;
-      Disabled)
-        echo "Enabling preserved KMS key ${key_id}."
-
-        aws kms enable-key \
-          --region "$REGION" \
-          --key-id "$key_id" \
-          >/dev/null
-        ;;
-      Creating|Updating)
-        ;;
-      *)
-        echo "KMS key ${key_id} is in unsupported state ${key_state}." >&2
-        return 1
-        ;;
-    esac
-
-    if [[ "$attempt" -eq 30 ]]; then
-      echo "KMS key ${key_id} did not become Enabled." >&2
-      return 1
-    fi
-
-    echo "Waiting for KMS key ${key_id} to become Enabled (${attempt}/30)."
-    sleep 5
-  done
-}
-
-reconcile_preserved_kms_alias() {
-  # The isolated Go shell fixture does not emulate KMS discovery or Terraform
-  # imports. Real GitHub deployments do not set MOCK_LOG.
-  if [[ -n "${MOCK_LOG:-}" ]]; then
-    return 0
-  fi
-
-  local project_name
-  local configured_environment
-  local resource_name
-  local alias_name
-  local aliases_json
-  local alias_json
-  local alias_target_key_id
-  local state_key_id=""
-
-  project_name="$(
-    sed -nE \
-      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-  configured_environment="$(
-    sed -nE \
-      's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-
-  project_name="${project_name:-demand-gig-engine}"
-  configured_environment="${configured_environment:-$ENVIRONMENT}"
-  resource_name="${project_name}-${configured_environment}"
-  alias_name="alias/${resource_name}"
-
-  aliases_json="$(
-    aws kms list-aliases \
-      --region "$REGION" \
-      --output json
-  )"
-
-  set +e
-  alias_json="$(
-    jq -cer \
-      --arg alias_name "$alias_name" \
-      '.Aliases[]? | select(.AliasName == $alias_name)' \
-      <<<"$aliases_json" |
-      head -n 1
-  )"
-  local alias_lookup_status="$?"
-  set -e
-
-  if [[ "$alias_lookup_status" -ne 0 || -z "$alias_json" ]]; then
-    echo "KMS alias ${alias_name} does not exist; Terraform will create it."
-    return 0
-  fi
-
-  alias_target_key_id="$(jq -er '.TargetKeyId' <<<"$alias_json")"
-  echo "Found existing KMS alias ${alias_name} targeting ${alias_target_key_id}."
-
-  if terraform_resource_in_state "module.kms.aws_kms_key.this"; then
-    state_key_id="$(
-      terraform_resource_id "module.kms.aws_kms_key.this"
-    )"
-
-    if [[ "$state_key_id" != "$alias_target_key_id" ]]; then
-      echo "::warning::Terraform currently tracks KMS key ${state_key_id}, while ${alias_name} targets preserved key ${alias_target_key_id}."
-      echo "::warning::The alias will be imported and Terraform will retarget it to the tracked key. Do not delete the preserved key while retained buckets or Backup recovery points still use it."
-    fi
-  else
-    # No replacement key exists in state, so reuse the preserved key behind the
-    # alias. This keeps retained S3 and AWS Backup data decryptable.
-    ensure_kms_key_enabled "$alias_target_key_id"
-
-    echo "Importing preserved KMS key ${alias_target_key_id}."
-
-    terraform -chdir="$TF" import \
-      "${IMPORT_ARGS[@]}" \
-      "module.kms.aws_kms_key.this" \
-      "$alias_target_key_id"
-  fi
-
-  if ! terraform_resource_in_state "module.kms.aws_kms_alias.this"; then
-    echo "Importing existing KMS alias ${alias_name}."
-
-    terraform -chdir="$TF" import \
-      "${IMPORT_ARGS[@]}" \
-      "module.kms.aws_kms_alias.this" \
-      "$alias_name"
-  fi
-}
-
-# Development teardown intentionally preserves encrypted buckets, Backup
-# recovery points, KMS keys, and aliases. Reconcile any retained KMS alias
-# before the bootstrap apply so CreateAlias cannot fail with AlreadyExists.
-reconcile_preserved_kms_alias
-
-# Create only the application KMS key and ECR repositories before publishing
-# container images.
-terraform -chdir="$TF" apply \
-  -auto-approve \
-  -input=false \
-  -lock-timeout=5m \
-  -var-file="$TFVARS" \
-  -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim" \
-  -target=module.kms \
-  -target=module.ecr
-
-REPOSITORIES="$(
-  terraform -chdir="$TF" output \
-    -json ecr_repository_urls
-)"
-
-BACKEND_REPOSITORY="$(jq -er .backend <<<"$REPOSITORIES")"
-FRONTEND_REPOSITORY="$(jq -er .frontend <<<"$REPOSITORIES")"
-
-aws ecr get-login-password \
-  --region "$REGION" |
-  docker login \
-    --username AWS \
-    --password-stdin \
-    "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-
-# ECR tags are immutable. Include the GitHub run ID and rerun attempt so every
-# workflow execution receives a unique image tag even when the same commit is
-# retried. Outside GitHub Actions, use the commit SHA plus a UTC timestamp.
-COMMIT_SHA="$(
-  if [[ -n "${GITHUB_SHA:-}" ]]; then
-    printf '%s' "$GITHUB_SHA"
-  else
-    git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'local'
-  fi
-)"
-
-if [[ -n "${GITHUB_RUN_ID:-}" ]]; then
-  TAG="${COMMIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
-else
-  TAG="${COMMIT_SHA}-$(date -u +%Y%m%d%H%M%S)-$$"
-fi
-
-# ECR permits letters, numbers, underscores, periods, and hyphens in tags.
-# Replace any unexpected character defensively before using the value.
-TAG="${TAG//[^a-zA-Z0-9_.-]/-}"
-
-ecr_image_exists() {
-  local repository_uri="$1"
-  local repository_name="${repository_uri#*/}"
+bucket_is_owned_and_accessible() {
+  local bucket_name="$1"
   local output
-  local digest
   local status
 
   set +e
   output="$(
-    aws ecr describe-images \
-      --region "$REGION" \
-      --repository-name "$repository_name" \
-      --image-ids "imageTag=$TAG" \
-      --query 'imageDetails[0].imageDigest' \
-      --output text \
+    aws s3api head-bucket \
+      --bucket "${bucket_name}" \
+      --expected-bucket-owner "${ACCOUNT_ID}" \
       2>&1
   )"
   status="$?"
   set -e
 
-  if [[ "$status" -eq 0 ]]; then
-    digest="$(printf '%s' "$output" | tr -d '[:space:]')"
-
-    if [[ -n "$digest" && "$digest" != "None" ]]; then
-      return 0
-    fi
-
-    # A successful command with no digest is not proof that the immutable tag
-    # exists. Treat it as absent. This also keeps the shell-test AWS stub honest.
-    return 1
+  if [[ "${status}" -eq 0 ]]; then
+    return 0
   fi
 
-  if grep -q "ImageNotFoundException" <<<"$output"; then
-    return 1
-  fi
-
-  echo "Unable to check ECR image ${repository_name}:${TAG}." >&2
-  printf '%s\n' "$output" >&2
-  return 2
+  # Preserve the exact AWS response for the caller.
+  printf '%s\n' "${output}"
+  return "${status}"
 }
 
-publish_or_reuse_image() {
-  local repository_uri="$1"
-  local dockerfile="$2"
-  local component="$3"
-  local image_uri="${repository_uri}:${TAG}"
-
-  if ecr_image_exists "$repository_uri"; then
-    echo "Reusing existing immutable ${component} image: ${image_uri}"
-    docker pull "$image_uri"
-    return
-  else
-    local lookup_status="$?"
-
-    if [[ "$lookup_status" -ne 1 ]]; then
-      return "$lookup_status"
-    fi
-  fi
-
-  echo "Building ${component} image: ${image_uri}"
-
-  docker build \
-    -f "$dockerfile" \
-    -t "$image_uri" \
-    "$ROOT"
-
-  # A parallel execution could publish the same immutable tag after the
-  # existence check. Treat that race as success only when ECR confirms the tag.
-  if ! docker push "$image_uri"; then
-    if ecr_image_exists "$repository_uri"; then
-      echo "The immutable ${component} image was published concurrently; reusing it."
-      docker pull "$image_uri"
-      return
-    else
-      local lookup_status="$?"
-
-      if [[ "$lookup_status" -ne 1 ]]; then
-        return "$lookup_status"
-      fi
-    fi
-
-    echo "Failed to publish ${component} image: ${image_uri}" >&2
-    return 1
-  fi
-}
-
-publish_or_reuse_image \
-  "$BACKEND_REPOSITORY" \
-  "$ROOT/Dockerfile.backend" \
-  "backend"
-
-publish_or_reuse_image \
-  "$FRONTEND_REPOSITORY" \
-  "$ROOT/Dockerfile.frontend" \
-  "frontend"
-
-COMMON_ARGS=(
-  -auto-approve
-  -input=false
-  -lock-timeout=5m
-  -var-file="$TFVARS"
-  -var="backend_image=$BACKEND_REPOSITORY:$TAG"
-)
-
-find_secret_metadata() {
-  local secret_name="$1"
-
-  aws secretsmanager list-secrets \
-    --region "$REGION" \
-    --include-planned-deletion \
-    --filters "Key=name,Values=$secret_name" \
-    --output json |
-    jq -cer \
-      --arg name "$secret_name" \
-      '.SecretList[]? | select(.Name == $name)' |
-    head -n 1
-}
-
-restore_and_import_secret() {
-  local resource_address="$1"
-  local secret_name="$2"
-  local version_resource_address="${3:-}"
-  local metadata
-  local secret_arn
-  local deleted_date
-  local version_id
+bucket_absence_is_confirmed() {
+  local bucket_name="$1"
+  local output
+  local status
 
   set +e
-  metadata="$(find_secret_metadata "$secret_name" 2>&1)"
-  local lookup_status="$?"
+  output="$(
+    aws s3api head-bucket \
+      --bucket "${bucket_name}" \
+      --expected-bucket-owner "${ACCOUNT_ID}" \
+      2>&1
+  )"
+  status="$?"
   set -e
 
-  if [[ "$lookup_status" -ne 0 || -z "$metadata" ]]; then
-    if grep -qE 'AccessDenied|UnauthorizedOperation' <<<"$metadata"; then
-      echo "Unable to inspect scheduled Secrets Manager secrets." >&2
-      printf '%s\n' "$metadata" >&2
+  if [[ "${status}" -eq 0 ]]; then
+    return 1
+  fi
+
+  if grep -Eqi \
+    '(^|[^0-9])404([^0-9]|$)|Not Found|NoSuchBucket' \
+    <<<"${output}"; then
+    return 0
+  fi
+
+  return 1
+}
+
+import_existing_bucket() {
+  local address="$1"
+  local bucket_name="$2"
+  local import_output
+  local import_status
+
+  if terraform_manages "${address}"; then
+    append_result \
+      "${address}" \
+      "${bucket_name}" \
+      "already managed; creation skipped"
+    return 0
+  fi
+
+  if bucket_is_owned_and_accessible "${bucket_name}" >/dev/null; then
+    echo "Existing account-owned bucket found: ${bucket_name}"
+    echo "Importing it into ${address} so Terraform skips bucket creation."
+
+    set +e
+    import_output="$(
+      terraform -chdir="${TF_DIR}" import \
+        "${IMPORT_ARGS[@]}" \
+        "${address}" \
+        "${bucket_name}" \
+        2>&1
+    )"
+    import_status="$?"
+    set -e
+
+    if [[ "${import_status}" -ne 0 ]]; then
+      # Another workflow may have imported the resource while this command was
+      # waiting for the remote-state lock. Recheck state before failing.
+      if terraform_manages "${address}"; then
+        append_result \
+          "${address}" \
+          "${bucket_name}" \
+          "imported concurrently; creation skipped"
+        return 0
+      fi
+
+      printf '%s\n' "${import_output}" >&2
+      append_result \
+        "${address}" \
+        "${bucket_name}" \
+        "ERROR: bucket exists but Terraform import failed"
+      return "${import_status}"
+    fi
+
+    if ! terraform_manages "${address}"; then
+      append_result \
+        "${address}" \
+        "${bucket_name}" \
+        "ERROR: import returned success but state entry is missing"
       return 1
     fi
 
-    echo "Secret ${secret_name} does not exist; Terraform will create it."
+    append_result \
+      "${address}" \
+      "${bucket_name}" \
+      "existing bucket imported; creation skipped"
     return 0
   fi
 
-  secret_arn="$(jq -er '.ARN' <<<"$metadata")"
-  deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
-
-  if [[ -n "$deleted_date" ]]; then
-    echo "Restoring scheduled secret ${secret_name}."
-
-    aws secretsmanager restore-secret \
-      --region "$REGION" \
-      --secret-id "$secret_arn" \
-      >/dev/null
-
-    for attempt in $(seq 1 30); do
-      metadata="$(find_secret_metadata "$secret_name")"
-      deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
-
-      if [[ -z "$deleted_date" ]]; then
-        echo "Secret ${secret_name} is restored."
-        break
-      fi
-
-      if [[ "$attempt" -eq 30 ]]; then
-        echo "Secret ${secret_name} remained scheduled for deletion." >&2
-        return 1
-      fi
-
-      echo "Waiting for ${secret_name} restoration (${attempt}/30)."
-      sleep 2
-    done
-  fi
-
-  if ! terraform_resource_in_state "$resource_address"; then
-    echo "Importing ${secret_name} into ${resource_address}."
-
-    terraform -chdir="$TF" import \
-      "${IMPORT_ARGS[@]}" \
-      "$resource_address" \
-      "$secret_arn"
-  else
-    echo "${resource_address} is already present in Terraform state."
-  fi
-
-  # Provider credentials may contain manually populated OAuth and payment
-  # values. Import the existing AWSCURRENT version so the initial blank JSON
-  # resource does not replace those values after a development destroy.
-  if [[ -n "$version_resource_address" ]] &&
-     ! terraform_resource_in_state "$version_resource_address"; then
-    metadata="$(
-      aws secretsmanager describe-secret \
-        --region "$REGION" \
-        --secret-id "$secret_arn" \
-        --output json
-    )"
-
-    version_id="$(
-      jq -r '
-        .VersionIdsToStages
-        | to_entries[]
-        | select(.value | index("AWSCURRENT"))
-        | .key
-      ' <<<"$metadata" |
-        head -n 1
-    )"
-
-    if [[ -n "$version_id" && "$version_id" != "null" ]]; then
-      echo "Importing the existing AWSCURRENT version for ${secret_name}."
-
-      terraform -chdir="$TF" import \
-        "${IMPORT_ARGS[@]}" \
-        "$version_resource_address" \
-        "${secret_arn}|${version_id}"
-    else
-      echo "No AWSCURRENT version exists for ${secret_name}; Terraform will create one."
-    fi
-  fi
-}
-
-reconcile_scheduled_secrets() {
-  # The Go shell fixture intentionally does not emulate Secrets Manager
-  # restoration or Terraform imports.
-  if [[ -n "${MOCK_LOG:-}" ]]; then
+  if bucket_absence_is_confirmed "${bucket_name}"; then
+    append_result \
+      "${address}" \
+      "${bucket_name}" \
+      "not found; Terraform will create it"
     return 0
   fi
 
-  local project_name
-  local secret_prefix
-
-  project_name="$(
-    sed -nE \
-      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-  project_name="${project_name:-demand-gig-engine}"
-  secret_prefix="${project_name}-${ENVIRONMENT}"
-
-  restore_and_import_secret \
-    "module.database.aws_secretsmanager_secret.db" \
-    "${secret_prefix}/database"
-
-  restore_and_import_secret \
-    "module.database.aws_secretsmanager_secret.runtime" \
-    "${secret_prefix}/runtime"
-
-  restore_and_import_secret \
-    "module.redis.aws_secretsmanager_secret.runtime" \
-    "${secret_prefix}/redis"
-
-  restore_and_import_secret \
-    "module.secrets_manager.aws_secretsmanager_secret.social" \
-    "${secret_prefix}/provider-credentials" \
-    "module.secrets_manager.aws_secretsmanager_secret_version.initial"
-}
-
-# Development destroy schedules Secrets Manager deletion. AWS reserves those
-# names during the recovery window, so restore and import them before apply.
-reconcile_scheduled_secrets
-
-# Provision the dedicated zero-capacity migration task and all of its
-# infrastructure dependencies without updating the live API or worker services.
-# Database changes must remain backward-compatible with the currently running
-# application revision.
-terraform -chdir="$TF" apply \
-  "${COMMON_ARGS[@]}" \
-  -target=module.database.aws_secretsmanager_secret_version.db \
-  -target=module.database.aws_secretsmanager_secret_version.runtime \
-  -target=module.database.aws_db_proxy_target.this \
-  -target=module.redis.aws_secretsmanager_secret_version.runtime \
-  -target=module.secrets_manager.aws_secretsmanager_secret_version.initial \
-  -target=module.migration
-
-# Optional non-interactive provider credential injection. The JSON file must
-# contain only the keys documented in terraform/README.md and must not be
-# committed.
-if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]]; then
-  [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || {
-    echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2
-    exit 1
-  }
-
-  jq -e 'type == "object"' "$PROVIDER_CREDENTIALS_FILE" >/dev/null
-
-  PROVIDER_SECRET_ARN="$(
-    terraform -chdir="$TF" output \
-      -raw provider_credentials_secret_arn
-  )"
-
-  aws secretsmanager put-secret-value \
-    --secret-id "$PROVIDER_SECRET_ARN" \
-    --secret-string "file://$PROVIDER_CREDENTIALS_FILE" \
-    >/dev/null
-fi
-
-CLUSTER_ARN="$(
-  terraform -chdir="$TF" output \
-    -raw ecs_cluster_arn
-)"
-
-TASK_DEFINITION="$(
-  terraform -chdir="$TF" output \
-    -raw migration_task_definition_arn
-)"
-
-SERVICE_NAME="$(
-  terraform -chdir="$TF" output \
-    -raw migration_container_name
-)"
-
-SECURITY_GROUP="$(
-  terraform -chdir="$TF" output \
-    -raw app_security_group_id
-)"
-
-SUBNETS="$(
-  terraform -chdir="$TF" output \
-    -json app_subnet_ids |
-    jq -r 'join(",")'
-)"
-
-# The migration service name is <database-proxy-name>-migration. Terraform can
-# finish registering an RDS Proxy target before TargetHealth reaches AVAILABLE.
-# Wait for the proxy-to-database path to become usable before starting Django.
-DB_PROXY_NAME="${SERVICE_NAME%-migration}"
-RDS_PROXY_READY=false
-
-for attempt in $(seq 1 40); do
+  local ownership_error
   set +e
-  TARGET_HEALTH="$(
-    aws rds describe-db-proxy-targets \
-      --region "$REGION" \
-      --db-proxy-name "$DB_PROXY_NAME" \
-      --query 'Targets[0].TargetHealth.[State,Reason,Description]' \
-      --output text \
+  ownership_error="$(
+    aws s3api head-bucket \
+      --bucket "${bucket_name}" \
+      --expected-bucket-owner "${ACCOUNT_ID}" \
       2>&1
   )"
-  TARGET_STATUS="$?"
   set -e
 
-  if [[ "$TARGET_STATUS" -ne 0 ]]; then
-    echo "Unable to inspect RDS Proxy target health on attempt ${attempt}/40:" >&2
-    printf '%s\n' "$TARGET_HEALTH" >&2
-    sleep 15
-    continue
+  append_result \
+    "${address}" \
+    "${bucket_name}" \
+    "ERROR: bucket exists or is inaccessible, but ownership could not be verified"
+
+  echo "::error::S3 bucket ${bucket_name} cannot be reconciled safely." >&2
+  echo "::error::It may belong to another account, or this role may lack s3:ListBucket/s3:GetBucketLocation access." >&2
+  printf '%s\n' "${ownership_error}" >&2
+  return 1
+}
+
+echo "Reconciling existing S3 buckets before Terraform apply."
+
+reconciliation_status=0
+
+import_existing_bucket \
+  "module.access_logs.aws_s3_bucket.this" \
+  "${RESOURCE_PREFIX}-access-logs" ||
+  reconciliation_status=1
+
+import_existing_bucket \
+  "module.static.aws_s3_bucket.this" \
+  "${RESOURCE_PREFIX}-static" ||
+  reconciliation_status=1
+
+import_existing_bucket \
+  "module.media.aws_s3_bucket.this" \
+  "${RESOURCE_PREFIX}-media" ||
+  reconciliation_status=1
+
+{
+  echo
+  if [[ "${reconciliation_status}" -eq 0 ]]; then
+    echo "**Result:** reconciliation completed successfully."
+  else
+    echo "**Result:** reconciliation failed. Terraform apply was stopped to avoid an unsafe or repeated S3 creation attempt."
   fi
+} >> "${REPORT_FILE}"
 
-  TARGET_STATE="$(awk '{print $1}' <<<"$TARGET_HEALTH")"
-
-  if [[ "$TARGET_STATE" == "AVAILABLE" ]]; then
-    echo "RDS Proxy target ${DB_PROXY_NAME} is AVAILABLE."
-    RDS_PROXY_READY=true
-    break
-  fi
-
-  # The isolated Go shell fixture sets MOCK_LOG and intentionally returns an
-  # empty response for unimplemented AWS commands. GitHub Actions also sets
-  # GITHUB_ACTIONS=true while running that fixture, so MOCK_LOG is the reliable
-  # fixture signal. Real deployments never set MOCK_LOG and remain strict.
-  if [[ -n "${MOCK_LOG:-}" && ( -z "$TARGET_STATE" || "$TARGET_STATE" == "None" ) ]]; then
-    echo "Skipping RDS Proxy readiness polling in the isolated shell fixture."
-    RDS_PROXY_READY=true
-    break
-  fi
-
-  echo "RDS Proxy target ${DB_PROXY_NAME} is not ready (${TARGET_HEALTH:-no target health}); retrying in 15 seconds (${attempt}/40)." >&2
-  sleep 15
-done
-
-if [[ "$RDS_PROXY_READY" != "true" ]]; then
-  echo "RDS Proxy target ${DB_PROXY_NAME} did not become AVAILABLE." >&2
-
-  aws rds describe-db-proxy-targets \
-    --region "$REGION" \
-    --db-proxy-name "$DB_PROXY_NAME" \
-    --output json |
-    jq . >&2 || true
-
-  exit 1
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo
+    cat "${REPORT_FILE}"
+  } >> "${GITHUB_STEP_SUMMARY}"
 fi
 
-OVERRIDES="$(
-  jq -cn \
-    --arg name "$SERVICE_NAME" \
-    '{containerOverrides:[{name:$name,command:["python","manage.py","migrate","--noinput"]}]}'
-)"
+echo "S3 reconciliation report: ${REPORT_FILE}"
 
-MIGRATION_TASK="$(
-  aws ecs run-task \
-    --cluster "$CLUSTER_ARN" \
-    --launch-type FARGATE \
-    --task-definition "$TASK_DEFINITION" \
-    --network-configuration \
-      "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
-    --overrides "$OVERRIDES" \
-    --query 'tasks[0].taskArn' \
-    --output text
-)"
-
-[[ "$MIGRATION_TASK" != "None" && -n "$MIGRATION_TASK" ]] || {
-  echo "Failed to start migration task" >&2
-  exit 1
-}
-
-aws ecs wait tasks-stopped \
-  --cluster "$CLUSTER_ARN" \
-  --tasks "$MIGRATION_TASK"
-
-# GuardDuty Runtime Monitoring can inject a sidecar before the application
-# container. Select the migration container by its exact name instead of using
-# containers[0], which can report the sidecar's null exit code.
-MIGRATION_EXIT_CODE="$(
-  aws ecs describe-tasks \
-    --cluster "$CLUSTER_ARN" \
-    --tasks "$MIGRATION_TASK" \
-    --query "tasks[0].containers[?name=='$SERVICE_NAME'].exitCode | [0]" \
-    --output text
-)"
-
-[[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
-  TASK_DETAILS="$(
-    aws ecs describe-tasks \
-      --cluster "$CLUSTER_ARN" \
-      --tasks "$MIGRATION_TASK" \
-      --output json
-  )"
-
-  echo "ECS task details:" >&2
-  jq . <<<"$TASK_DETAILS" >&2
-
-  echo "Container failure reasons:" >&2
-  jq -r \
-    '.tasks[0].containers[]
-     | select(.reason != null)
-     | "- \(.name): \(.reason)"' \
-    <<<"$TASK_DETAILS" >&2 || true
-
-  TASK_ID="${MIGRATION_TASK##*/}"
-  LOG_GROUP="/aws/ecs/$SERVICE_NAME"
-  LOG_STREAM="ecs/$SERVICE_NAME/$TASK_ID"
-
-  echo "Migration logs from ${LOG_GROUP}/${LOG_STREAM}:" >&2
-
-  LOGS_PRINTED=false
-  for attempt in 1 2 3 4 5; do
-    set +e
-    LOG_EVENTS="$(
-      aws logs get-log-events \
-        --region "$REGION" \
-        --log-group-name "$LOG_GROUP" \
-        --log-stream-name "$LOG_STREAM" \
-        --start-from-head \
-        --output json \
-        2>&1
-    )"
-    LOG_STATUS="$?"
-    set -e
-
-    if [[ "$LOG_STATUS" -eq 0 ]]; then
-      jq -r '.events[].message' <<<"$LOG_EVENTS" >&2
-      LOGS_PRINTED=true
-      break
-    fi
-
-    printf '%s\n' "$LOG_EVENTS" >&2
-
-    echo "Migration log stream is not ready; retrying in 5 seconds (${attempt}/5)." >&2
-    sleep 5
-  done
-
-  if [[ "$LOGS_PRINTED" != "true" ]]; then
-    echo "Unable to read the migration CloudWatch log stream." >&2
-  fi
-
-  echo "Database migration task failed with exit code $MIGRATION_EXIT_CODE" >&2
-  exit 1
-}
-
-# Deploy or update the API and worker only after the migration exits
-# successfully.
-terraform -chdir="$TF" apply "${COMMON_ARGS[@]}"
-
-STATIC_BUCKET="$(
-  terraform -chdir="$TF" output \
-    -raw static_bucket_id
-)"
-
-DISTRIBUTION_ID="$(
-  terraform -chdir="$TF" output \
-    -raw cloudfront_distribution_id
-)"
-
-# publish_or_reuse_image pulls an existing frontend image during a retry, so it
-# is guaranteed to be available locally for asset extraction.
-CONTAINER_ID="$(
-  docker create "$FRONTEND_REPOSITORY:$TAG"
-)"
-
-ASSET_DIR="$(mktemp -d)"
-
-docker cp \
-  "$CONTAINER_ID:/usr/share/nginx/html/." \
-  "$ASSET_DIR/"
-
-docker rm "$CONTAINER_ID" >/dev/null
-CONTAINER_ID=""
-
-aws s3 sync \
-  "$ASSET_DIR" \
-  "s3://$STATIC_BUCKET" \
-  --delete \
-  --exclude "index.html" \
-  --cache-control "public,max-age=31536000,immutable" \
-  --only-show-errors
-
-aws s3 cp \
-  "$ASSET_DIR/index.html" \
-  "s3://$STATIC_BUCKET/index.html" \
-  --content-type "text/html; charset=utf-8" \
-  --cache-control "no-cache,no-store,must-revalidate" \
-  --only-show-errors
-
-aws cloudfront create-invalidation \
-  --distribution-id "$DISTRIBUTION_ID" \
-  --paths '/*' \
-  >/dev/null
-
-terraform -chdir="$TF" output
+exit "${reconciliation_status}"
