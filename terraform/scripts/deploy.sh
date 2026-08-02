@@ -503,7 +503,7 @@ reconcile_existing_s3_buckets() {
 
 reconcile_existing_backup_vault() {
   # The Go orchestration fixture sets MOCK_LOG and does not emulate AWS Backup
-  # discovery or Terraform imports.
+  # discovery, KMS recovery, or Terraform imports.
   if [[ -n "${MOCK_LOG:-}" ]]; then
     return 0
   fi
@@ -514,13 +514,9 @@ reconcile_existing_backup_vault() {
   local vault_name
   local describe_output
   local describe_status
+  local vault_kms_key_arn
   local import_output
   local import_status
-
-  if terraform_resource_in_state "$address"; then
-    echo "${address} is already present in Terraform state; creation is skipped."
-    return 0
-  fi
 
   project_name="$(read_tfvar_string project_name demand-gig-engine)"
   configured_environment="$(read_tfvar_string environment "$ENVIRONMENT")"
@@ -538,6 +534,23 @@ reconcile_existing_backup_vault() {
   set -e
 
   if [[ "$describe_status" -eq 0 ]]; then
+    # A Backup vault's KMS key is immutable. Keep the historical key enabled so
+    # existing recovery points remain decryptable after a tolerant teardown.
+    vault_kms_key_arn="$(
+      jq -r '.EncryptionKeyArn // empty' \
+        <<<"$describe_output"
+    )"
+
+    if [[ -n "$vault_kms_key_arn" ]]; then
+      echo "Ensuring retained Backup vault KMS key ${vault_kms_key_arn} is enabled."
+      ensure_kms_key_enabled "$vault_kms_key_arn"
+    fi
+
+    if terraform_resource_in_state "$address"; then
+      echo "${address} is already present in Terraform state; creation is skipped."
+      return 0
+    fi
+
     echo "Existing AWS Backup vault found: ${vault_name}."
     echo "Importing it into ${address} so Terraform skips creation."
 
@@ -582,6 +595,7 @@ reconcile_existing_backup_vault() {
   fi
 
   echo "Unable to reconcile AWS Backup vault ${vault_name} safely." >&2
+  echo "The deployment role may lack backup:DescribeBackupVault, or AWS returned an unexpected error." >&2
   printf '%s\n' "$describe_output" >&2
   return 1
 }
