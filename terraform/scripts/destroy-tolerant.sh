@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Destroys a Terraform environment while preserving durable data
-# resources. S3 buckets, AWS Backup vaults, and the KMS keys protecting them
-# are removed temporarily from state, the remaining environment is destroyed,
-# and the preserved objects are imported back for future management.
+# Purpose: Destroys every Terraform-managed workload resource by trying normal
+# deletion first. When deletion fails, the exact failed resource is retried
+# individually. Only resources that still cannot be deleted are temporarily
+# removed from state, skipped for the rest of the destroy, and imported back
+# so future Terraform runs continue managing them.
+#
+# The remote-state backend and account-foundation stacks are intentionally
+# outside this workload root and are therefore not deleted by this script.
 
 set -Eeuo pipefail
 
@@ -33,7 +37,8 @@ case "${MODE}" in
     ;;
 esac
 
-for command_name in terraform jq awk sed sort comm grep cut tee; do
+for command_name in \
+  terraform jq awk sed sort comm grep cut tee seq head sleep mktemp; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "Required command is not installed: ${command_name}" >&2
     exit 1
@@ -52,13 +57,32 @@ TF_DIR="${REPOSITORY_ROOT}/terraform"
 VAR_FILE="envs/${ENVIRONMENT}/terraform.tfvars"
 PRESERVED_FILE="${TF_DIR}/${ENVIRONMENT}-preserved-destroy-resources.tsv"
 DESTROY_LOG_DIR="${TF_DIR}/destroy-logs"
+
 MAX_PASSES="${DESTROY_MAX_PASSES:-10}"
+DELETE_RETRY_ATTEMPTS="${DESTROY_DELETE_RETRY_ATTEMPTS:-2}"
+DELETE_RETRY_DELAY_SECONDS="${DESTROY_DELETE_RETRY_DELAY_SECONDS:-10}"
+
+if [[ ! "${MAX_PASSES}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "DESTROY_MAX_PASSES must be a positive integer." >&2
+  exit 2
+fi
+
+if [[ ! "${DELETE_RETRY_ATTEMPTS}" =~ ^[0-9]+$ ]]; then
+  echo "DESTROY_DELETE_RETRY_ATTEMPTS must be a non-negative integer." >&2
+  exit 2
+fi
+
+if [[ ! "${DELETE_RETRY_DELAY_SECONDS}" =~ ^[0-9]+$ ]]; then
+  echo "DESTROY_DELETE_RETRY_DELAY_SECONDS must be a non-negative integer." >&2
+  exit 2
+fi
 
 mkdir -p "${DESTROY_LOG_DIR}"
 
 COMMON_DESTROY_ARGS=(
   -input=false
   -auto-approve
+  -no-color
   -lock-timeout=5m
   -var-file="${VAR_FILE}"
   -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
@@ -71,6 +95,8 @@ COMMON_IMPORT_ARGS=(
   -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
 )
 
+REIMPORT_COMPLETED=false
+
 managed_state_list() {
   terraform -chdir="${TF_DIR}" state list 2>/dev/null |
     awk '
@@ -79,6 +105,12 @@ managed_state_list() {
       }
     ' |
     sort -u
+}
+
+state_contains() {
+  local address="$1"
+
+  managed_state_list | grep -Fxq "${address}"
 }
 
 manifest_addresses() {
@@ -115,57 +147,14 @@ resource_id_from_state() {
     head -n 1
 }
 
-durable_resources_from_state() {
-  # Keep durable data and the encryption keys required to read it.
-  #
-  # Import order is significant:
-  #   1. KMS keys
-  #   2. KMS aliases
-  #   3. S3 buckets
-  #   4. AWS Backup vaults
-  terraform -chdir="${TF_DIR}" show -json |
-    jq -r '
-      def modules:
-        ., (.child_modules[]? | modules);
-
-      def preserve_rank:
-        if .type == "aws_kms_key" then 1
-        elif .type == "aws_kms_alias" then 2
-        elif .type == "aws_s3_bucket" then 3
-        elif .type == "aws_backup_vault" then 4
-        else 99
-        end;
-
-      [
-        .values.root_module
-        | modules
-        | .resources[]?
-        | select(.mode == "managed")
-        | select(
-            .type == "aws_kms_key"
-            or .type == "aws_kms_alias"
-            or .type == "aws_s3_bucket"
-            or .type == "aws_backup_vault"
-          )
-        | select(.values.id != null)
-        | {
-            rank: preserve_rank,
-            address: .address,
-            id: (.values.id | tostring)
-          }
-      ]
-      | sort_by(.rank, .address)
-      | .[]
-      | [.address, .id]
-      | @tsv
-    '
-}
-
 failed_resource_addresses() {
   local log_file="$1"
 
   # Terraform provider errors normally identify the failing state address as:
+  #
   #   with module.example.aws_resource.name,
+  #
+  # Keep only addresses still managed by the active workload state.
   sed -nE \
     's/^.*with[[:space:]]+([^,]+),[[:space:]]*$/\1/p' \
     "${log_file}" |
@@ -173,13 +162,57 @@ failed_resource_addresses() {
     sort -u
 }
 
-record_and_forget_resource() {
+retry_failed_resource_delete() {
   local address="$1"
-  local resource_id="${2:-}"
-  local reason="${3:-provider refused deletion}"
+  local parent_pass="$2"
+  local attempt
+  local log_file
+  local destroy_status
 
-  if ! managed_state_list | grep -Fxq "${address}"; then
-    echo "Resource is no longer present in state: ${address}"
+  if ! state_contains "${address}"; then
+    echo "Resource was already deleted: ${address}"
+    return 0
+  fi
+
+  if (( DELETE_RETRY_ATTEMPTS == 0 )); then
+    echo "Individual delete retry is disabled for ${address}."
+    return 1
+  fi
+
+  for attempt in $(seq 1 "${DELETE_RETRY_ATTEMPTS}"); do
+    log_file="${DESTROY_LOG_DIR}/${ENVIRONMENT}-destroy-pass-${parent_pass}-retry-${attempt}.log"
+
+    echo "Retrying deletion of ${address} (${attempt}/${DELETE_RETRY_ATTEMPTS})."
+
+    set +e
+    terraform -chdir="${TF_DIR}" destroy \
+      "${COMMON_DESTROY_ARGS[@]}" \
+      -target="${address}" \
+      2>&1 | tee "${log_file}"
+    destroy_status="${PIPESTATUS[0]}"
+    set -e
+
+    if [[ "${destroy_status}" -eq 0 ]] || ! state_contains "${address}"; then
+      echo "Deletion succeeded for ${address}."
+      return 0
+    fi
+
+    if (( attempt < DELETE_RETRY_ATTEMPTS && DELETE_RETRY_DELAY_SECONDS > 0 )); then
+      echo "Deletion still failed for ${address}; waiting ${DELETE_RETRY_DELAY_SECONDS} seconds before retry."
+      sleep "${DELETE_RETRY_DELAY_SECONDS}"
+    fi
+  done
+
+  echo "::warning::Deletion remained unsuccessful for ${address} after ${DELETE_RETRY_ATTEMPTS} individual attempt(s)."
+  return 1
+}
+
+record_and_forget_failed_resource() {
+  local address="$1"
+  local resource_id
+
+  if ! state_contains "${address}"; then
+    echo "Failed resource is no longer present in state: ${address}"
     return 1
   fi
 
@@ -188,61 +221,27 @@ record_and_forget_resource() {
     return 1
   fi
 
-  if [[ -z "${resource_id}" ]]; then
-    resource_id="$(resource_id_from_state "${address}")"
-  fi
+  resource_id="$(resource_id_from_state "${address}")"
 
   if [[ -z "${resource_id}" || "${resource_id}" == "null" ]]; then
     echo "::error::Unable to determine an import ID for ${address}; refusing to orphan it." >&2
     return 1
   fi
 
+  # Write the recovery manifest before changing state. If the process receives
+  # SIGINT, SIGTERM, or exits unexpectedly, the EXIT trap uses this record to
+  # import the resource back.
   printf '%s\t%s\n' "${address}" "${resource_id}" >> "${PRESERVED_FILE}"
 
-  echo "::warning::Preserving ${address} with import ID ${resource_id}: ${reason}."
-  echo "::warning::The remote object remains in AWS and may continue generating charges."
+  echo "::warning::Skipping ${address} only after normal and individual deletion attempts failed."
+  echo "::warning::Preserving import ID ${resource_id}; the remote object remains in AWS and may continue generating charges."
 
-  terraform -chdir="${TF_DIR}" state rm \
+  if ! terraform -chdir="${TF_DIR}" state rm \
     -lock-timeout=5m \
-    "${address}"
-}
-
-record_and_forget_failed_resource() {
-  local address="$1"
-
-  record_and_forget_resource \
-    "${address}" \
-    "" \
-    "Terraform could not delete the resource"
-}
-
-preserve_durable_resources() {
-  local address
-  local resource_id
-  local preserved_count=0
-
-  echo "Selecting durable resources that must survive ${ENVIRONMENT} destroy."
-
-  while IFS=$'\t' read -r address resource_id; do
-    [[ -n "${address}" && -n "${resource_id}" ]] || continue
-
-    if ! record_and_forget_resource \
-      "${address}" \
-      "${resource_id}" \
-      "durable storage or encryption dependency"; then
-      echo "::error::Unable to preserve required durable resource ${address}." >&2
-      return 1
-    fi
-
-    preserved_count=$((preserved_count + 1))
-  done < <(durable_resources_from_state)
-
-  if (( preserved_count == 0 )); then
-    echo "No S3 buckets, Backup vaults, or KMS resources were found in state."
-    return 0
+    "${address}"; then
+    echo "::error::Unable to remove ${address} from state for tolerant continuation." >&2
+    return 1
   fi
-
-  echo "Preserved ${preserved_count} durable resource(s) before Terraform destroy."
 }
 
 reimport_preserved_resources() {
@@ -252,12 +251,12 @@ reimport_preserved_resources() {
 
   [[ -s "${PRESERVED_FILE}" ]] || return 0
 
-  echo "Re-importing preserved resources so future deployments continue managing them."
+  echo "Re-importing skipped resources so future deployments continue managing them."
 
   while IFS=$'\t' read -r address resource_id; do
     [[ -n "${address}" && -n "${resource_id}" ]] || continue
 
-    if managed_state_list | grep -Fxq "${address}"; then
+    if state_contains "${address}"; then
       echo "Preserved resource is already in state: ${address}"
       continue
     fi
@@ -272,9 +271,34 @@ reimport_preserved_resources() {
   done < "${PRESERVED_FILE}"
 
   if (( import_failures > 0 )); then
-    echo "::error::One or more preserved AWS resources are not managed by Terraform." >&2
-    exit 1
+    echo "::error::One or more skipped AWS resources are not managed by Terraform." >&2
+    return 1
   fi
+
+  return 0
+}
+
+restore_state_on_exit() {
+  local original_status="$?"
+
+  trap - EXIT INT TERM HUP
+
+  if [[ "${MODE}" == "destroy" &&
+        "${REIMPORT_COMPLETED}" != "true" &&
+        -s "${PRESERVED_FILE}" ]]; then
+    echo "::warning::Destroy exited before normal completion; restoring skipped resources to Terraform state."
+
+    set +e
+    reimport_preserved_resources
+    local restore_status="$?"
+    set -e
+
+    if [[ "${restore_status}" -ne 0 ]]; then
+      original_status=1
+    fi
+  fi
+
+  exit "${original_status}"
 }
 
 verify_remaining_state() {
@@ -302,49 +326,63 @@ verify_remaining_state() {
   fi
 
   if [[ -s "${missing_file}" ]]; then
-    echo "::error::Preserved resources were not restored to Terraform state:" >&2
+    echo "::error::Skipped resources were not restored to Terraform state:" >&2
     sed 's/^/- /' "${missing_file}" >&2
     rm -f "${actual_file}" "${expected_file}" "${unexpected_file}" "${missing_file}"
     return 1
   fi
 
+  append_summary ""
+  append_summary "### Terraform destroy behavior"
+  append_summary ""
+  append_summary "- Every workload resource received a normal Terraform delete attempt."
+  append_summary "- Failed resources received up to ${DELETE_RETRY_ATTEMPTS} additional individual delete attempt(s)."
+
   if [[ -s "${expected_file}" ]]; then
-    echo "Infrastructure was destroyed except for these preserved resources:"
+    echo "Infrastructure was destroyed except for resources whose deletion remained unsuccessful:"
     sed 's/^/- /' "${expected_file}"
 
+    append_summary "- Only resources that still failed were skipped and restored to Terraform state."
     append_summary ""
-    append_summary "### Preserved AWS resources"
+    append_summary "### Skipped AWS resources"
     append_summary ""
+
     while IFS= read -r address; do
       append_summary "- \`${address}\`"
     done < "${expected_file}"
+
     append_summary ""
     append_summary "These objects remain in AWS and remain tracked in Terraform state."
   else
-    echo "No workload resources remain in Terraform state."
+    echo "All Terraform-managed workload resources were deleted successfully."
+    append_summary "- No workload resources required skipping."
   fi
 
   rm -f "${actual_file}" "${expected_file}" "${unexpected_file}" "${missing_file}"
 }
 
+trap restore_state_on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
 if [[ "${MODE}" == "verify" ]]; then
+  REIMPORT_COMPLETED=true
   verify_remaining_state
   exit $?
 fi
 
+# A new destroy operation starts with a fresh recovery manifest. Resources are
+# added only after both the normal full destroy and individual retry fail.
 : > "${PRESERVED_FILE}"
-
-# Terraform destroy has no resource-exclusion switch. Remove durable data
-# resources from state before the destroy so non-empty versioned buckets and
-# Backup vaults with recovery points remain in AWS. Re-import them afterward.
-preserve_durable_resources
 
 destroy_succeeded=false
 
 for pass in $(seq 1 "${MAX_PASSES}"); do
   log_file="${DESTROY_LOG_DIR}/${ENVIRONMENT}-destroy-pass-${pass}.log"
 
-  echo "Terraform destroy pass ${pass}/${MAX_PASSES}."
+  echo "Terraform full destroy pass ${pass}/${MAX_PASSES}."
+  echo "Every resource still in state will receive a normal deletion attempt."
 
   set +e
   terraform -chdir="${TF_DIR}" destroy \
@@ -362,32 +400,51 @@ for pass in $(seq 1 "${MAX_PASSES}"); do
 
   if (( ${#failed_addresses[@]} == 0 )); then
     echo "::error::Destroy failed, but no failing Terraform resource address was found." >&2
+    echo "::error::No resource was skipped because deletion failure could not be attributed safely." >&2
     echo "::error::Review ${log_file} for the complete provider error." >&2
     exit "${destroy_status}"
   fi
 
+  deleted_after_retry=0
   skipped_this_pass=0
 
   for address in "${failed_addresses[@]}"; do
+    if ! state_contains "${address}"; then
+      echo "Failed address is no longer managed and needs no action: ${address}"
+      continue
+    fi
+
+    if retry_failed_resource_delete "${address}" "${pass}"; then
+      deleted_after_retry=$((deleted_after_retry + 1))
+      continue
+    fi
+
     if record_and_forget_failed_resource "${address}"; then
       skipped_this_pass=$((skipped_this_pass + 1))
     fi
   done
 
-  if (( skipped_this_pass == 0 )); then
-    echo "::error::Destroy made no progress while preserving failed resources." >&2
+  if (( deleted_after_retry == 0 && skipped_this_pass == 0 )); then
+    echo "::error::Destroy made no progress." >&2
+    echo "::error::No resource was deleted after retry and no failed resource could be skipped safely." >&2
     exit "${destroy_status}"
   fi
 
-  echo "Retrying without ${skipped_this_pass} preserved resource(s)."
+  echo "Pass ${pass} recovery result: ${deleted_after_retry} deleted after retry; ${skipped_this_pass} skipped after unsuccessful deletion."
+  echo "Retrying the full destroy for all remaining managed workload resources."
 done
 
 if [[ "${destroy_succeeded}" != "true" ]]; then
-  echo "::error::Destroy did not complete after ${MAX_PASSES} passes." >&2
+  echo "::error::Destroy did not complete after ${MAX_PASSES} full passes." >&2
   exit 1
 fi
 
-reimport_preserved_resources
+if ! reimport_preserved_resources; then
+  exit 1
+fi
+
+REIMPORT_COMPLETED=true
+
 verify_remaining_state
 
 echo "Tolerant Terraform destroy completed."
