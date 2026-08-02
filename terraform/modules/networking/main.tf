@@ -1,4 +1,3 @@
-
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Builds isolated subnet tiers, resilient routing, encrypted VPC flow logs, and private S3 access.
 
@@ -11,6 +10,17 @@ data "aws_region" "current" {}
 
 locals {
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+
+  # Resource instance keys must be known during planning. Use static numeric
+  # keys derived only from the input az_count; Availability Zone names remain
+  # values and may be resolved during the plan.
+  az_indices = {
+    for index in range(var.az_count) : tostring(index) => index
+  }
+
+  nat_gateway_indices = var.nat_gateway_per_az ? local.az_indices : {
+    "0" = 0
+  }
 }
 
 resource "aws_vpc" "this" {
@@ -32,42 +42,42 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_subnet" "public" {
-  for_each = { for i, az in local.azs : az => i }
+  for_each = local.az_indices
 
   vpc_id                  = aws_vpc.this.id
-  availability_zone       = each.key
+  availability_zone       = local.azs[each.value]
   cidr_block              = cidrsubnet(var.cidr, 4, each.value)
   map_public_ip_on_launch = false
-  tags                    = merge(var.tags, { Name = "${var.name}-public-${each.key}", Tier = "public" })
+  tags                    = merge(var.tags, { Name = "${var.name}-public-${local.azs[each.value]}", Tier = "public" })
 }
 
 resource "aws_subnet" "app" {
-  for_each = { for i, az in local.azs : az => i }
+  for_each = local.az_indices
 
   vpc_id            = aws_vpc.this.id
-  availability_zone = each.key
+  availability_zone = local.azs[each.value]
   cidr_block        = cidrsubnet(var.cidr, 4, each.value + 4)
-  tags              = merge(var.tags, { Name = "${var.name}-app-${each.key}", Tier = "private-app" })
+  tags              = merge(var.tags, { Name = "${var.name}-app-${local.azs[each.value]}", Tier = "private-app" })
 }
 
 resource "aws_subnet" "db" {
-  for_each = { for i, az in local.azs : az => i }
+  for_each = local.az_indices
 
   vpc_id            = aws_vpc.this.id
-  availability_zone = each.key
+  availability_zone = local.azs[each.value]
   cidr_block        = cidrsubnet(var.cidr, 4, each.value + 8)
-  tags              = merge(var.tags, { Name = "${var.name}-db-${each.key}", Tier = "private-db" })
+  tags              = merge(var.tags, { Name = "${var.name}-db-${local.azs[each.value]}", Tier = "private-db" })
 }
 
 resource "aws_eip" "nat" {
-  for_each = var.nat_gateway_per_az ? aws_subnet.public : { (keys(aws_subnet.public)[0]) = values(aws_subnet.public)[0] }
+  for_each = local.nat_gateway_indices
   domain   = "vpc"
   tags     = var.tags
 }
 
 resource "aws_nat_gateway" "this" {
-  for_each      = aws_eip.nat
-  allocation_id = each.value.id
+  for_each      = local.nat_gateway_indices
+  allocation_id = aws_eip.nat[each.key].id
   subnet_id     = aws_subnet.public[each.key].id
   depends_on    = [aws_internet_gateway.this]
   tags          = var.tags
@@ -85,26 +95,26 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  for_each       = aws_subnet.public
-  subnet_id      = each.value.id
+  for_each       = local.az_indices
+  subnet_id      = aws_subnet.public[each.key].id
   route_table_id = aws_route_table.public.id
 }
 
 resource "aws_route_table" "app" {
-  for_each = aws_subnet.app
+  for_each = local.az_indices
   vpc_id   = aws_vpc.this.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = var.nat_gateway_per_az ? aws_nat_gateway.this[each.key].id : values(aws_nat_gateway.this)[0].id
+    nat_gateway_id = aws_nat_gateway.this[var.nat_gateway_per_az ? each.key : "0"].id
   }
 
   tags = var.tags
 }
 
 resource "aws_route_table_association" "app" {
-  for_each       = aws_subnet.app
-  subnet_id      = each.value.id
+  for_each       = local.az_indices
+  subnet_id      = aws_subnet.app[each.key].id
   route_table_id = aws_route_table.app[each.key].id
 }
 
@@ -114,8 +124,8 @@ resource "aws_route_table" "db" {
 }
 
 resource "aws_route_table_association" "db" {
-  for_each       = aws_subnet.db
-  subnet_id      = each.value.id
+  for_each       = local.az_indices
+  subnet_id      = aws_subnet.db[each.key].id
   route_table_id = aws_route_table.db.id
 }
 
