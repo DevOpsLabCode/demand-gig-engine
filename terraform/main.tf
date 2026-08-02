@@ -425,15 +425,24 @@ module "backup" {
 }
 # Invokes the reusable cloudwatch module and passes this environment configuration into it.
 module "cloudwatch" {
-  source                  = "./modules/cloudwatch"
-  name                    = local.name
-  alb_arn_suffix          = split("loadbalancer/", module.alb.arn)[1]
-  target_group_arn_suffix = module.alb.target_group_arn_suffix
-  cluster_name            = module.cluster.cluster_name
+  source                     = "./modules/cloudwatch"
+  name                       = local.name
+  alb_arn_suffix             = split("loadbalancer/", module.alb.arn)[1]
+  target_group_arn_suffix    = module.alb.target_group_arn_suffix
+  cluster_name               = module.cluster.cluster_name
   service_names = {
     api    = module.backend.service_name
     worker = module.worker.service_name
   }
+  db_identifier              = module.database.db_identifier
+  redis_replication_group_id = module.redis.replication_group_id
+  queue_name                 = module.sqs.queue_name
+  dlq_name                   = module.sqs.dlq_name
+  cloudfront_distribution_id = module.cloudfront.distribution_id
+  sns_email                  = var.alarm_email
+  kms_key_arn                = module.kms.key_arn
+  account_root_arn           = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+  tags                       = local.tags
 }
 # Invokes the reusable cloudtrail module and passes this environment configuration into it.
 module "cloudtrail" {
