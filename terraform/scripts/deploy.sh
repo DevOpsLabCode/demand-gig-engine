@@ -66,9 +66,83 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+restore_secret_if_scheduled_for_deletion() {
+  local secret_name="$1"
+  local metadata="$2"
+  local deleted_date
+  local restore_output
+  local restore_status
+
+  deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
+
+  if [[ -z "$deleted_date" ]]; then
+    printf '%s\n' "$metadata"
+    return 0
+  fi
+
+  echo "Restoring Secrets Manager secret ${secret_name}; scheduled deletion date was ${deleted_date}." >&2
+
+  set +e
+  restore_output="$(
+    aws secretsmanager restore-secret \
+      --region "$REGION" \
+      --secret-id "$secret_name" \
+      --output json \
+      2>&1
+  )"
+  restore_status="$?"
+  set -e
+
+  if [[ "$restore_status" -ne 0 ]]; then
+    # A concurrent workflow may have restored the secret after the original
+    # describe call. Re-read it before treating the restore as a hard failure.
+    metadata="$(
+      aws secretsmanager describe-secret \
+        --region "$REGION" \
+        --secret-id "$secret_name" \
+        --output json \
+        2>/dev/null || true
+    )"
+
+    if [[ -z "$metadata" ||
+          -n "$(jq -r '.DeletedDate // empty' <<<"$metadata" 2>/dev/null)" ]]; then
+      echo "Unable to restore Secrets Manager secret ${secret_name}." >&2
+      printf '%s\n' "$restore_output" >&2
+      return "$restore_status"
+    fi
+
+    echo "Secret ${secret_name} was restored concurrently." >&2
+  fi
+
+  for attempt in $(seq 1 30); do
+    metadata="$(
+      aws secretsmanager describe-secret \
+        --region "$REGION" \
+        --secret-id "$secret_name" \
+        --output json
+    )"
+
+    deleted_date="$(jq -r '.DeletedDate // empty' <<<"$metadata")"
+
+    if [[ -z "$deleted_date" ]]; then
+      echo "Verified Secrets Manager deletion was cancelled for ${secret_name}." >&2
+      printf '%s\n' "$metadata"
+      return 0
+    fi
+
+    if [[ "$attempt" -eq 30 ]]; then
+      echo "Secret ${secret_name} is still marked for deletion after restore." >&2
+      return 1
+    fi
+
+    echo "Waiting for ${secret_name} to leave scheduled-deletion state (${attempt}/30)." >&2
+    sleep 2
+  done
+}
+
 recover_secret_kms_keys_preflight() {
   # The Go orchestration fixture sets MOCK_LOG and does not emulate AWS
-  # Secrets Manager or KMS recovery.
+  # Secrets Manager restoration or KMS recovery.
   if [[ -n "${MOCK_LOG:-}" ]]; then
     return 0
   fi
@@ -121,7 +195,7 @@ recover_secret_kms_keys_preflight() {
       if grep -Eqi \
         'ResourceNotFoundException|not found|does not exist' \
         <<<"$metadata"; then
-        echo "Secret ${secret_name} does not exist; no KMS recovery is required."
+        echo "Secret ${secret_name} does not exist; Terraform may create it."
         continue
       fi
 
@@ -130,32 +204,21 @@ recover_secret_kms_keys_preflight() {
       return "$describe_status"
     fi
 
+    # Secret deletion and KMS key deletion are separate AWS state machines.
+    # Restore the secret first; GetSecretValue remains blocked while DeletedDate
+    # is present even when the encryption key has already been recovered.
+    metadata="$(
+      restore_secret_if_scheduled_for_deletion \
+        "$secret_name" \
+        "$metadata"
+    )"
+
     kms_key_id="$(jq -r '.KmsKeyId // empty' <<<"$metadata")"
 
     if [[ -z "$kms_key_id" ||
           "$kms_key_id" == "alias/aws/secretsmanager" ]]; then
       echo "Secret ${secret_name} uses the AWS-managed Secrets Manager key."
-      continue
-    fi
-
-    key_state="$(
-      aws kms describe-key \
-        --region "$REGION" \
-        --key-id "$kms_key_id" \
-        --query 'KeyMetadata.KeyState' \
-        --output text
-    )"
-
-    if [[ "$key_state" == "PendingDeletion" ]]; then
-      echo "Cancelling scheduled deletion for KMS key ${kms_key_id} used by ${secret_name}."
-
-      aws kms cancel-key-deletion \
-        --region "$REGION" \
-        --key-id "$kms_key_id" \
-        >/dev/null
-    fi
-
-    for attempt in $(seq 1 30); do
+    else
       key_state="$(
         aws kms describe-key \
           --region "$REGION" \
@@ -164,34 +227,54 @@ recover_secret_kms_keys_preflight() {
           --output text
       )"
 
-      case "$key_state" in
-        Enabled)
-          break
-          ;;
-        Disabled)
-          echo "Enabling KMS key ${kms_key_id} used by ${secret_name}."
+      if [[ "$key_state" == "PendingDeletion" ]]; then
+        echo "Cancelling scheduled deletion for KMS key ${kms_key_id} used by ${secret_name}."
 
-          aws kms enable-key \
-            --region "$REGION" \
-            --key-id "$kms_key_id" \
-            >/dev/null
-          ;;
-        PendingDeletion|Creating|Updating)
-          ;;
-        *)
-          echo "KMS key ${kms_key_id} is in unsupported state ${key_state}." >&2
-          return 1
-          ;;
-      esac
-
-      if [[ "$attempt" -eq 30 ]]; then
-        echo "KMS key ${kms_key_id} did not become Enabled." >&2
-        return 1
+        aws kms cancel-key-deletion \
+          --region "$REGION" \
+          --key-id "$kms_key_id" \
+          >/dev/null
       fi
 
-      sleep 5
-    done
+      for attempt in $(seq 1 30); do
+        key_state="$(
+          aws kms describe-key \
+            --region "$REGION" \
+            --key-id "$kms_key_id" \
+            --query 'KeyMetadata.KeyState' \
+            --output text
+        )"
 
+        case "$key_state" in
+          Enabled)
+            break
+            ;;
+          Disabled)
+            echo "Enabling KMS key ${kms_key_id} used by ${secret_name}."
+
+            aws kms enable-key \
+              --region "$REGION" \
+              --key-id "$kms_key_id" \
+              >/dev/null
+            ;;
+          PendingDeletion|Creating|Updating)
+            ;;
+          *)
+            echo "KMS key ${kms_key_id} is in unsupported state ${key_state}." >&2
+            return 1
+            ;;
+        esac
+
+        if [[ "$attempt" -eq 30 ]]; then
+          echo "KMS key ${kms_key_id} did not become Enabled." >&2
+          return 1
+        fi
+
+        sleep 5
+      done
+    fi
+
+    # Verify availability without printing the secret value.
     aws secretsmanager get-secret-value \
       --region "$REGION" \
       --secret-id "$secret_name" \
