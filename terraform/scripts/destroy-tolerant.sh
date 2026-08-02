@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Destroys a Terraform environment while preserving resources that
-# the provider refuses to delete. Failed resources are temporarily removed
-# from state, the remaining environment is destroyed, and the preserved
-# objects are imported back so future deployments continue managing them.
+# Purpose: Destroys a Terraform environment while preserving durable data
+# resources. S3 buckets, AWS Backup vaults, and the KMS keys protecting them
+# are removed temporarily from state, the remaining environment is destroyed,
+# and the preserved objects are imported back for future management.
 
 set -Eeuo pipefail
 
@@ -115,6 +115,52 @@ resource_id_from_state() {
     head -n 1
 }
 
+durable_resources_from_state() {
+  # Keep durable data and the encryption keys required to read it.
+  #
+  # Import order is significant:
+  #   1. KMS keys
+  #   2. KMS aliases
+  #   3. S3 buckets
+  #   4. AWS Backup vaults
+  terraform -chdir="${TF_DIR}" show -json |
+    jq -r '
+      def modules:
+        ., (.child_modules[]? | modules);
+
+      def preserve_rank:
+        if .type == "aws_kms_key" then 1
+        elif .type == "aws_kms_alias" then 2
+        elif .type == "aws_s3_bucket" then 3
+        elif .type == "aws_backup_vault" then 4
+        else 99
+        end;
+
+      [
+        .values.root_module
+        | modules
+        | .resources[]?
+        | select(.mode == "managed")
+        | select(
+            .type == "aws_kms_key"
+            or .type == "aws_kms_alias"
+            or .type == "aws_s3_bucket"
+            or .type == "aws_backup_vault"
+          )
+        | select(.values.id != null)
+        | {
+            rank: preserve_rank,
+            address: .address,
+            id: (.values.id | tostring)
+          }
+      ]
+      | sort_by(.rank, .address)
+      | .[]
+      | [.address, .id]
+      | @tsv
+    '
+}
+
 failed_resource_addresses() {
   local log_file="$1"
 
@@ -127,12 +173,13 @@ failed_resource_addresses() {
     sort -u
 }
 
-record_and_forget_failed_resource() {
+record_and_forget_resource() {
   local address="$1"
-  local resource_id
+  local resource_id="${2:-}"
+  local reason="${3:-provider refused deletion}"
 
   if ! managed_state_list | grep -Fxq "${address}"; then
-    echo "Failed resource is no longer present in state: ${address}"
+    echo "Resource is no longer present in state: ${address}"
     return 1
   fi
 
@@ -141,7 +188,9 @@ record_and_forget_failed_resource() {
     return 1
   fi
 
-  resource_id="$(resource_id_from_state "${address}")"
+  if [[ -z "${resource_id}" ]]; then
+    resource_id="$(resource_id_from_state "${address}")"
+  fi
 
   if [[ -z "${resource_id}" || "${resource_id}" == "null" ]]; then
     echo "::error::Unable to determine an import ID for ${address}; refusing to orphan it." >&2
@@ -150,12 +199,50 @@ record_and_forget_failed_resource() {
 
   printf '%s\t%s\n' "${address}" "${resource_id}" >> "${PRESERVED_FILE}"
 
-  echo "::warning::Preserving ${address} with import ID ${resource_id}."
+  echo "::warning::Preserving ${address} with import ID ${resource_id}: ${reason}."
   echo "::warning::The remote object remains in AWS and may continue generating charges."
 
   terraform -chdir="${TF_DIR}" state rm \
     -lock-timeout=5m \
     "${address}"
+}
+
+record_and_forget_failed_resource() {
+  local address="$1"
+
+  record_and_forget_resource \
+    "${address}" \
+    "" \
+    "Terraform could not delete the resource"
+}
+
+preserve_durable_resources() {
+  local address
+  local resource_id
+  local preserved_count=0
+
+  echo "Selecting durable resources that must survive ${ENVIRONMENT} destroy."
+
+  while IFS=$'\t' read -r address resource_id; do
+    [[ -n "${address}" && -n "${resource_id}" ]] || continue
+
+    if ! record_and_forget_resource \
+      "${address}" \
+      "${resource_id}" \
+      "durable storage or encryption dependency"; then
+      echo "::error::Unable to preserve required durable resource ${address}." >&2
+      return 1
+    fi
+
+    preserved_count=$((preserved_count + 1))
+  done < <(durable_resources_from_state)
+
+  if (( preserved_count == 0 )); then
+    echo "No S3 buckets, Backup vaults, or KMS resources were found in state."
+    return 0
+  fi
+
+  echo "Preserved ${preserved_count} durable resource(s) before Terraform destroy."
 }
 
 reimport_preserved_resources() {
@@ -246,6 +333,12 @@ if [[ "${MODE}" == "verify" ]]; then
 fi
 
 : > "${PRESERVED_FILE}"
+
+# Terraform destroy has no resource-exclusion switch. Remove durable data
+# resources from state before the destroy so non-empty versioned buckets and
+# Backup vaults with recovery points remain in AWS. Re-import them afterward.
+preserve_durable_resources
+
 destroy_succeeded=false
 
 for pass in $(seq 1 "${MAX_PASSES}"); do
