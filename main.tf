@@ -395,15 +395,6 @@ module "migration" {
   secrets                   = local.common_secrets
   permissions_boundary_arn  = local.permissions_boundary_arn
   tags                      = local.tags
-
-  # deploy.sh initially applies only module.migration. Wait for the complete
-  # database, Redis, and provider-credentials modules so their Secrets Manager
-  # versions exist with the AWSCURRENT staging label before ECS starts.
-  depends_on = [
-    module.database,
-    module.redis,
-    module.secrets_manager,
-  ]
 }
 
 # Invokes the reusable github oidc module and passes this environment configuration into it.
@@ -434,12 +425,15 @@ module "backup" {
 }
 # Invokes the reusable cloudwatch module and passes this environment configuration into it.
 module "cloudwatch" {
-  source                     = "./modules/cloudwatch"
-  name                       = local.name
-  alb_arn_suffix             = split("loadbalancer/", module.alb.arn)[1]
-  target_group_arn_suffix    = module.alb.target_group_arn_suffix
-  cluster_name               = module.cluster.cluster_name
-  service_names              = [module.backend.service_name, module.worker.service_name]
+  source                  = "./modules/cloudwatch"
+  name                    = local.name
+  alb_arn_suffix          = split("loadbalancer/", module.alb.arn)[1]
+  target_group_arn_suffix = module.alb.target_group_arn_suffix
+  cluster_name            = module.cluster.cluster_name
+  service_names = {
+    api    = module.backend.service_name
+    worker = module.worker.service_name
+  }
   db_identifier              = module.database.db_identifier
   redis_replication_group_id = module.redis.replication_group_id
   queue_name                 = module.sqs.queue_name
