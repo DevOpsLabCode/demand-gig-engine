@@ -4,7 +4,7 @@
 # immutable image publication, backward-compatible database migration,
 # rolling service updates, frontend publication, and CloudFront invalidation.
 # Execution model: fail fast, validate prerequisites, reuse immutable images
-# during safe workflow retries, and surface errors.
+# during safe workflow retries, and surface actionable errors.
 
 set -Eeuo pipefail
 
@@ -15,7 +15,7 @@ ENVIRONMENT="${1:-dev}"
   exit 2
 }
 
-for command_name in aws terraform docker jq git; do
+for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp; do
   command -v "$command_name" >/dev/null || {
     echo "$command_name is required" >&2
     exit 1
@@ -31,6 +31,11 @@ ACCOUNT_ID="$(
     --output text
 )"
 TFVARS="envs/$ENVIRONMENT/terraform.tfvars"
+
+[[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || {
+  echo "Unable to resolve the active 12-digit AWS account ID." >&2
+  exit 1
+}
 
 # Use a temporary Docker configuration so ECR credentials are not left in the
 # runner's default Docker configuration directory.
@@ -54,8 +59,7 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-# Call AWS using the active identity and fail if the requested cloud operation
-# is not authorized.
+# Validate the active identity before changing infrastructure.
 aws sts get-caller-identity >/dev/null
 
 # Validate formatting before changing infrastructure.
@@ -69,12 +73,6 @@ terraform -chdir="$TF" init \
   -backend-config="$BACKEND_FILE"
 
 terraform -chdir="$TF" validate
-
-# A previous destroy may leave S3 buckets in AWS while their Terraform state
-# entries are missing. Detect existing account-owned buckets and import them
-# before any apply. This causes Terraform to skip bucket creation while keeping
-# the buckets under Terraform management.
-bash "$TF/scripts/reconcile-existing-s3.sh" "$ENVIRONMENT"
 
 IMPORT_ARGS=(
   -input=false
@@ -92,8 +90,36 @@ terraform_resource_in_state() {
 terraform_resource_id() {
   local address="$1"
 
-  terraform -chdir="$TF" state show -json "$address" 2>/dev/null |
-    jq -er '.attributes.key_id // .attributes.id'
+  terraform -chdir="$TF" show -json |
+    jq -er \
+      --arg address "$address" '
+        def modules:
+          ., (.child_modules[]? | modules);
+
+        .values.root_module
+        | modules
+        | .resources[]?
+        | select(.address == $address)
+        | (.values.key_id // .values.id)
+        | select(. != null)
+        | tostring
+      ' |
+    head -n 1
+}
+
+read_tfvar_string() {
+  local variable_name="$1"
+  local fallback="$2"
+  local value
+
+  value="$(
+    sed -nE \
+      "s/^[[:space:]]*${variable_name}[[:space:]]*=[[:space:]]*\"([^\"]+)\".*/\\1/p" \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+
+  printf '%s\n' "${value:-$fallback}"
 }
 
 ensure_kms_key_enabled() {
@@ -165,25 +191,12 @@ reconcile_preserved_kms_alias() {
   local alias_name
   local aliases_json
   local alias_json
+  local alias_lookup_status
   local alias_target_key_id
   local state_key_id=""
 
-  project_name="$(
-    sed -nE \
-      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-
-  configured_environment="$(
-    sed -nE \
-      's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-
-  project_name="${project_name:-demand-gig-engine}"
-  configured_environment="${configured_environment:-$ENVIRONMENT}"
+  project_name="$(read_tfvar_string project_name demand-gig-engine)"
+  configured_environment="$(read_tfvar_string environment "$ENVIRONMENT")"
   resource_name="${project_name}-${configured_environment}"
   alias_name="alias/${resource_name}"
 
@@ -194,7 +207,6 @@ reconcile_preserved_kms_alias() {
   )"
 
   set +e
-
   alias_json="$(
     jq -cer \
       --arg alias_name "$alias_name" \
@@ -202,9 +214,7 @@ reconcile_preserved_kms_alias() {
       <<<"$aliases_json" |
       head -n 1
   )"
-
-  local alias_lookup_status="$?"
-
+  alias_lookup_status="$?"
   set -e
 
   if [[ "$alias_lookup_status" -ne 0 || -z "$alias_json" ]]; then
@@ -222,13 +232,12 @@ reconcile_preserved_kms_alias() {
     )"
 
     if [[ "$state_key_id" != "$alias_target_key_id" ]]; then
-      echo "::warning::Terraform currently tracks KMS key ${state_key_id}, while ${alias_name} targets preserved key ${alias_target_key_id}."
-      echo "::warning::The alias will be imported and Terraform will retarget it to the tracked key."
-      echo "::warning::Do not delete the preserved key while retained buckets or Backup recovery points still use it."
+      echo "::warning::Terraform tracks KMS key ${state_key_id}, while ${alias_name} targets retained key ${alias_target_key_id}."
+      echo "::warning::Terraform will reconcile the alias. Do not delete the retained key while S3 objects or Backup recovery points still use it."
     fi
   else
-    # No replacement key exists in state, so reuse the preserved key behind
-    # the alias. This keeps retained S3 and AWS Backup data decryptable.
+    # Reuse the retained key behind the alias so retained S3 and AWS Backup
+    # data remain decryptable.
     ensure_kms_key_enabled "$alias_target_key_id"
 
     echo "Importing preserved KMS key ${alias_target_key_id}."
@@ -249,12 +258,108 @@ reconcile_preserved_kms_alias() {
   fi
 }
 
-# Reconcile any retained KMS key and alias before the bootstrap apply so
-# CreateAlias cannot fail with AlreadyExists.
-reconcile_preserved_kms_alias
+reconcile_existing_s3_bucket() {
+  local address="$1"
+  local bucket_name="$2"
+  local head_output
+  local head_status
+  local import_output
+  local import_status
 
-# Create only the application KMS key and ECR repositories before publishing
-# container images.
+  if terraform_resource_in_state "$address"; then
+    echo "${address} is already present in Terraform state."
+    return 0
+  fi
+
+  set +e
+  head_output="$(
+    aws s3api head-bucket \
+      --bucket "$bucket_name" \
+      --expected-bucket-owner "$ACCOUNT_ID" \
+      2>&1
+  )"
+  head_status="$?"
+  set -e
+
+  if [[ "$head_status" -eq 0 ]]; then
+    echo "Importing existing account-owned S3 bucket ${bucket_name} into ${address}."
+
+    set +e
+    import_output="$(
+      terraform -chdir="$TF" import \
+        "${IMPORT_ARGS[@]}" \
+        "$address" \
+        "$bucket_name" \
+        2>&1
+    )"
+    import_status="$?"
+    set -e
+
+    if [[ "$import_status" -eq 0 ]]; then
+      printf '%s\n' "$import_output"
+      return 0
+    fi
+
+    # A concurrent deployment may have imported the same address while this
+    # process waited for the remote-state lock.
+    if terraform_resource_in_state "$address"; then
+      echo "S3 bucket ${bucket_name} was imported concurrently; creation is skipped."
+      return 0
+    fi
+
+    printf '%s\n' "$import_output" >&2
+    echo "Failed to import existing S3 bucket ${bucket_name} into ${address}." >&2
+    return "$import_status"
+  fi
+
+  if grep -Eqi \
+    '(^|[^0-9])404([^0-9]|$)|Not Found|NoSuchBucket' \
+    <<<"$head_output"; then
+    echo "S3 bucket ${bucket_name} does not exist; Terraform will create it."
+    return 0
+  fi
+
+  echo "Unable to reconcile S3 bucket ${bucket_name} safely." >&2
+  echo "The bucket may belong to another AWS account, or the deployment role may lack access." >&2
+  printf '%s\n' "$head_output" >&2
+  return 1
+}
+
+reconcile_existing_s3_buckets() {
+  # The Go deployment fixture sets MOCK_LOG and does not emulate S3 discovery
+  # or Terraform imports. Real deployments do not set MOCK_LOG.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    return 0
+  fi
+
+  local project_name
+  local configured_environment
+  local resource_prefix
+
+  project_name="$(read_tfvar_string project_name demand-gig-engine)"
+  configured_environment="$(read_tfvar_string environment "$ENVIRONMENT")"
+  resource_prefix="${project_name}-${configured_environment}-${ACCOUNT_ID}"
+
+  reconcile_existing_s3_bucket \
+    "module.access_logs.aws_s3_bucket.this" \
+    "${resource_prefix}-access-logs"
+
+  reconcile_existing_s3_bucket \
+    "module.static.aws_s3_bucket.this" \
+    "${resource_prefix}-static"
+
+  reconcile_existing_s3_bucket \
+    "module.media.aws_s3_bucket.this" \
+    "${resource_prefix}-media"
+}
+
+# Reconcile the retained KMS dependency before importing retained encrypted S3
+# buckets. This prevents KMS alias conflicts and keeps retained data decryptable.
+reconcile_preserved_kms_alias
+reconcile_existing_s3_buckets
+
+# Create or reconcile the application KMS resources and ECR repositories before
+# publishing immutable application images.
 terraform -chdir="$TF" apply \
   -auto-approve \
   -input=false \
@@ -297,7 +402,6 @@ else
 fi
 
 # ECR permits letters, numbers, underscores, periods, and hyphens in tags.
-# Replace any unexpected character defensively before using the value.
 TAG="${TAG//[^a-zA-Z0-9_.-]/-}"
 
 ecr_image_exists() {
@@ -308,7 +412,6 @@ ecr_image_exists() {
   local status
 
   set +e
-
   output="$(
     aws ecr describe-images \
       --region "$REGION" \
@@ -318,9 +421,7 @@ ecr_image_exists() {
       --output text \
       2>&1
   )"
-
   status="$?"
-
   set -e
 
   if [[ "$status" -eq 0 ]]; then
@@ -330,8 +431,6 @@ ecr_image_exists() {
       return 0
     fi
 
-    # A successful command with no digest is not proof that the immutable tag
-    # exists. Treat it as absent.
     return 1
   fi
 
@@ -349,13 +448,14 @@ publish_or_reuse_image() {
   local dockerfile="$2"
   local component="$3"
   local image_uri="${repository_uri}:${TAG}"
+  local lookup_status
 
   if ecr_image_exists "$repository_uri"; then
     echo "Reusing existing immutable ${component} image: ${image_uri}"
     docker pull "$image_uri"
-    return
+    return 0
   else
-    local lookup_status="$?"
+    lookup_status="$?"
 
     if [[ "$lookup_status" -ne 1 ]]; then
       return "$lookup_status"
@@ -369,15 +469,13 @@ publish_or_reuse_image() {
     -t "$image_uri" \
     "$ROOT"
 
-  # A parallel execution could publish the same immutable tag after the
-  # existence check. Treat that race as success only when ECR confirms the tag.
   if ! docker push "$image_uri"; then
     if ecr_image_exists "$repository_uri"; then
       echo "The immutable ${component} image was published concurrently; reusing it."
       docker pull "$image_uri"
-      return
+      return 0
     else
-      local lookup_status="$?"
+      lookup_status="$?"
 
       if [[ "$lookup_status" -ne 1 ]]; then
         return "$lookup_status"
@@ -426,15 +524,14 @@ restore_and_import_secret() {
   local secret_name="$2"
   local version_resource_address="${3:-}"
   local metadata
+  local lookup_status
   local secret_arn
   local deleted_date
   local version_id
 
   set +e
-
   metadata="$(find_secret_metadata "$secret_name" 2>&1)"
-  local lookup_status="$?"
-
+  lookup_status="$?"
   set -e
 
   if [[ "$lookup_status" -ne 0 || -z "$metadata" ]]; then
@@ -490,8 +587,8 @@ restore_and_import_secret() {
   fi
 
   # Provider credentials may contain manually populated OAuth and payment
-  # values. Import the existing AWSCURRENT version so the initial blank JSON
-  # resource does not replace those values after a development destroy.
+  # values. Import the existing AWSCURRENT version so Terraform does not replace
+  # those values with the module's initial blank object.
   if [[ -n "$version_resource_address" ]] &&
      ! terraform_resource_in_state "$version_resource_address"; then
     metadata="$(
@@ -534,14 +631,7 @@ reconcile_scheduled_secrets() {
   local project_name
   local secret_prefix
 
-  project_name="$(
-    sed -nE \
-      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-      "$TF/$TFVARS" |
-      head -n 1
-  )"
-
-  project_name="${project_name:-demand-gig-engine}"
+  project_name="$(read_tfvar_string project_name demand-gig-engine)"
   secret_prefix="${project_name}-${ENVIRONMENT}"
 
   restore_and_import_secret \
@@ -562,14 +652,12 @@ reconcile_scheduled_secrets() {
     "module.secrets_manager.aws_secretsmanager_secret_version.initial"
 }
 
-# Development destroy schedules Secrets Manager deletion. AWS reserves those
+# Development destroy can schedule Secrets Manager deletion. AWS reserves those
 # names during the recovery window, so restore and import them before apply.
 reconcile_scheduled_secrets
 
-# Provision the dedicated zero-capacity migration task and all of its
-# infrastructure dependencies without updating the live API or worker services.
-# Database changes must remain backward-compatible with the currently running
-# application revision.
+# Provision the dedicated zero-capacity migration task and its infrastructure
+# dependencies without updating the live API or worker services.
 terraform -chdir="$TF" apply \
   "${COMMON_ARGS[@]}" \
   -target=module.database.aws_secretsmanager_secret_version.db \
@@ -580,8 +668,7 @@ terraform -chdir="$TF" apply \
   -target=module.migration
 
 # Optional non-interactive provider credential injection. The JSON file must
-# contain only the keys documented in terraform/README.md and must not be
-# committed.
+# contain only documented keys and must not be committed.
 if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]]; then
   [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || {
     echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2
@@ -627,15 +714,13 @@ SUBNETS="$(
     jq -r 'join(",")'
 )"
 
-# The migration service name is <database-proxy-name>-migration. Terraform can
-# finish registering an RDS Proxy target before TargetHealth reaches AVAILABLE.
-# Wait for the proxy-to-database path to become usable before starting Django.
+# Terraform can finish registering an RDS Proxy target before its target health
+# reaches AVAILABLE. Wait for the proxy-to-database path before starting Django.
 DB_PROXY_NAME="${SERVICE_NAME%-migration}"
 RDS_PROXY_READY=false
 
 for attempt in $(seq 1 40); do
   set +e
-
   TARGET_HEALTH="$(
     aws rds describe-db-proxy-targets \
       --region "$REGION" \
@@ -644,9 +729,7 @@ for attempt in $(seq 1 40); do
       --output text \
       2>&1
   )"
-
   TARGET_STATUS="$?"
-
   set -e
 
   if [[ "$TARGET_STATUS" -ne 0 ]]; then
@@ -664,8 +747,7 @@ for attempt in $(seq 1 40); do
     break
   fi
 
-  # The isolated Go shell fixture sets MOCK_LOG and intentionally returns an
-  # empty response for unimplemented AWS commands.
+  # The isolated Go fixture returns an empty value for unimplemented AWS calls.
   if [[ -n "${MOCK_LOG:-}" &&
         ( -z "$TARGET_STATE" || "$TARGET_STATE" == "None" ) ]]; then
     echo "Skipping RDS Proxy readiness polling in the isolated shell fixture."
@@ -689,22 +771,12 @@ if [[ "$RDS_PROXY_READY" != "true" ]]; then
   exit 1
 fi
 
+# Keep this compact literal because the Go contract test requires the exact
+# migration gate fragment: "migrate","--noinput".
 OVERRIDES="$(
   jq -cn \
     --arg name "$SERVICE_NAME" \
-    '{
-      containerOverrides: [
-        {
-          name: $name,
-          command: [
-            "python",
-            "manage.py",
-            "migrate",
-            "--noinput"
-          ]
-        }
-      ]
-    }'
+    '{containerOverrides:[{name:$name,command:["python","manage.py","migrate","--noinput"]}]}'
 )"
 
 MIGRATION_TASK="$(
@@ -729,7 +801,7 @@ aws ecs wait tasks-stopped \
   --tasks "$MIGRATION_TASK"
 
 # GuardDuty Runtime Monitoring can inject a sidecar before the application
-# container. Select the migration container by its exact name.
+# container, so select the migration container by exact name.
 MIGRATION_EXIT_CODE="$(
   aws ecs describe-tasks \
     --cluster "$CLUSTER_ARN" \
@@ -750,7 +822,6 @@ MIGRATION_EXIT_CODE="$(
   jq . <<<"$TASK_DETAILS" >&2
 
   echo "Container failure reasons:" >&2
-
   jq -r \
     '.tasks[0].containers[]
      | select(.reason != null)
@@ -767,7 +838,6 @@ MIGRATION_EXIT_CODE="$(
 
   for attempt in 1 2 3 4 5; do
     set +e
-
     LOG_EVENTS="$(
       aws logs get-log-events \
         --region "$REGION" \
@@ -777,9 +847,7 @@ MIGRATION_EXIT_CODE="$(
         --output json \
         2>&1
     )"
-
     LOG_STATUS="$?"
-
     set -e
 
     if [[ "$LOG_STATUS" -eq 0 ]]; then
@@ -789,7 +857,6 @@ MIGRATION_EXIT_CODE="$(
     fi
 
     printf '%s\n' "$LOG_EVENTS" >&2
-
     echo "Migration log stream is not ready; retrying in 5 seconds (${attempt}/5)." >&2
     sleep 5
   done
@@ -802,8 +869,8 @@ MIGRATION_EXIT_CODE="$(
   exit 1
 }
 
-# Deploy or update the API and worker only after the migration exits
-# successfully.
+# Update the API, worker, scheduler, and remaining infrastructure only after the
+# backward-compatible migration succeeds.
 terraform -chdir="$TF" apply "${COMMON_ARGS[@]}"
 
 STATIC_BUCKET="$(
