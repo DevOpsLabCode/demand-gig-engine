@@ -56,11 +56,13 @@ REPOSITORY_ROOT="$(
 TF_DIR="${REPOSITORY_ROOT}/terraform"
 VAR_FILE="envs/${ENVIRONMENT}/terraform.tfvars"
 PRESERVED_FILE="${TF_DIR}/${ENVIRONMENT}-preserved-destroy-resources.tsv"
+PRESERVED_REASON_FILE="${TF_DIR}/${ENVIRONMENT}-preserved-destroy-reasons.tsv"
 DESTROY_LOG_DIR="${TF_DIR}/destroy-logs"
 
 MAX_PASSES="${DESTROY_MAX_PASSES:-10}"
 DELETE_RETRY_ATTEMPTS="${DESTROY_DELETE_RETRY_ATTEMPTS:-2}"
 DELETE_RETRY_DELAY_SECONDS="${DESTROY_DELETE_RETRY_DELAY_SECONDS:-10}"
+PRESERVE_RETAINED_RESOURCES="${DESTROY_PRESERVE_RETAINED_RESOURCES:-true}"
 
 if [[ ! "${MAX_PASSES}" =~ ^[1-9][0-9]*$ ]]; then
   echo "DESTROY_MAX_PASSES must be a positive integer." >&2
@@ -76,6 +78,15 @@ if [[ ! "${DELETE_RETRY_DELAY_SECONDS}" =~ ^[0-9]+$ ]]; then
   echo "DESTROY_DELETE_RETRY_DELAY_SECONDS must be a non-negative integer." >&2
   exit 2
 fi
+
+case "${PRESERVE_RETAINED_RESOURCES,,}" in
+  true|false)
+    ;;
+  *)
+    echo "DESTROY_PRESERVE_RETAINED_RESOURCES must be true or false." >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "${DESTROY_LOG_DIR}"
 
@@ -147,19 +158,164 @@ resource_id_from_state() {
     head -n 1
 }
 
+state_addresses_for_identifier() {
+  local identifier="$1"
+
+  terraform -chdir="${TF_DIR}" show -json |
+    jq -r \
+      --arg identifier "${identifier}" '
+        def modules:
+          ., (.child_modules[]? | modules);
+
+        .values.root_module
+        | modules
+        | .resources[]?
+        | select(.mode == "managed")
+        | select(
+            ((.values.id? // "") | tostring) == $identifier
+            or ((.values.name? // "") | tostring) == $identifier
+            or ((.values.arn? // "") | tostring) == $identifier
+          )
+        | .address
+      '
+}
+
+known_address_for_delete_error() {
+  local resource_type="$1"
+  local identifier="$2"
+  local address=""
+
+  case "${resource_type}" in
+    "Backup Vault")
+      address="module.backup.aws_backup_vault.this"
+      ;;
+    "S3 Bucket")
+      # The retained CloudTrail bucket is intentionally not emptied during
+      # teardown because it contains audit records and versioned objects.
+      if [[ "${identifier}" == *-cloudtrail ]]; then
+        address="module.cloudtrail.aws_s3_bucket.logs"
+      fi
+      ;;
+  esac
+
+  if [[ -n "${address}" ]] && state_contains "${address}"; then
+    printf '%s\n' "${address}"
+  fi
+}
+
 failed_resource_addresses() {
   local log_file="$1"
+  local resource_type
+  local identifier
+  local mapped_address
 
-  # Terraform provider errors normally identify the failing state address as:
-  #
-  #   with module.example.aws_resource.name,
-  #
-  # Keep only addresses still managed by the active workload state.
-  sed -nE \
-    's/^.*with[[:space:]]+([^,]+),[[:space:]]*$/\1/p' \
-    "${log_file}" |
+  {
+    # Most Terraform provider errors include the exact state address:
+    #
+    #   with module.example.aws_resource.name,
+    sed -nE \
+      's/^.*with[[:space:]]+([^,]+),[[:space:]]*$/\1/p' \
+      "${log_file}"
+
+    # Some provider delete errors omit the "with ..." line. Parse both the AWS
+    # resource type and identifier, then resolve them through state. When state
+    # JSON cannot be matched reliably after a partial destroy, use the
+    # configuration's known retained-resource addresses as a safe fallback.
+    while IFS=$'\t' read -r resource_type identifier; do
+      [[ -n "${resource_type}" && -n "${identifier}" ]] || continue
+
+      mapped_address="$(
+        state_addresses_for_identifier "${identifier}" |
+          head -n 1
+      )"
+
+      if [[ -n "${mapped_address}" ]]; then
+        printf '%s\n' "${mapped_address}"
+        continue
+      fi
+
+      known_address_for_delete_error \
+        "${resource_type}" \
+        "${identifier}"
+    done < <(
+      sed -nE \
+        's/^.*Error: deleting ([^(]+) \((.*)\):.*$/\1\t\2/p' \
+        "${log_file}" |
+        awk 'NF' |
+        sort -u
+    )
+
+    # Last-resort exact signatures. These are deliberately narrow so the
+    # tolerant destroy never skips an unrelated resource.
+    if grep -Fq \
+      "Backup vault cannot be deleted because it contains recovery points" \
+      "${log_file}"; then
+      if state_contains "module.backup.aws_backup_vault.this"; then
+        printf '%s\n' "module.backup.aws_backup_vault.this"
+      fi
+    fi
+
+    if grep -Fq "api error BucketNotEmpty" "${log_file}" &&
+       grep -Eq 'Error: deleting S3 Bucket \([^)]*-cloudtrail\)' "${log_file}"; then
+      if state_contains "module.cloudtrail.aws_s3_bucket.logs"; then
+        printf '%s\n' "module.cloudtrail.aws_s3_bucket.logs"
+      fi
+    fi
+  } |
     awk 'NF' |
     sort -u
+}
+
+failure_reason_for_address() {
+  local address="$1"
+  local log_file="$2"
+  local reason=""
+
+  if [[ "${address}" == "module.backup.aws_backup_vault.this" ]] &&
+     grep -Fq \
+       "Backup vault cannot be deleted because it contains recovery points" \
+       "${log_file}"; then
+    reason="Backup vault contains recovery points"
+  elif [[ "${address}" == "module.cloudtrail.aws_s3_bucket.logs" ]] &&
+       grep -Fq "api error BucketNotEmpty" "${log_file}"; then
+    reason="CloudTrail bucket contains audit objects or object versions"
+  else
+    reason="$(
+      sed -nE \
+        's/^.*Error:[[:space:]]*(.*)$/\1/p' \
+        "${log_file}" |
+        head -n 1
+    )"
+  fi
+
+  reason="${reason//$'\t'/ }"
+  reason="${reason//$'\r'/ }"
+  reason="${reason//$'\n'/ }"
+
+  printf '%s\n' "${reason:-Terraform provider refused deletion}"
+}
+
+failure_is_non_retryable() {
+  local address="$1"
+  local log_file="$2"
+
+  # A Backup vault with recovery points will continue to fail until the
+  # recovery points expire or are explicitly deleted.
+  if [[ "${address}" == "module.backup.aws_backup_vault.this" ]] &&
+     grep -Fq \
+       "Backup vault cannot be deleted because it contains recovery points" \
+       "${log_file}"; then
+    return 0
+  fi
+
+  # The CloudTrail bucket intentionally retains audit data and versions. Do not
+  # empty it during an environment teardown merely to make DeleteBucket pass.
+  if [[ "${address}" == "module.cloudtrail.aws_s3_bucket.logs" ]] &&
+     grep -Fq "api error BucketNotEmpty" "${log_file}"; then
+    return 0
+  fi
+
+  return 1
 }
 
 retry_failed_resource_delete() {
@@ -168,6 +324,7 @@ retry_failed_resource_delete() {
   local attempt
   local log_file
   local destroy_status
+  local safe_address
 
   if ! state_contains "${address}"; then
     echo "Resource was already deleted: ${address}"
@@ -179,8 +336,13 @@ retry_failed_resource_delete() {
     return 1
   fi
 
+  safe_address="$(
+    printf '%s' "${address}" |
+      sed -E 's/[^A-Za-z0-9_.-]+/_/g'
+  )"
+
   for attempt in $(seq 1 "${DELETE_RETRY_ATTEMPTS}"); do
-    log_file="${DESTROY_LOG_DIR}/${ENVIRONMENT}-destroy-pass-${parent_pass}-retry-${attempt}.log"
+    log_file="${DESTROY_LOG_DIR}/${ENVIRONMENT}-destroy-pass-${parent_pass}-retry-${safe_address}-${attempt}.log"
 
     echo "Retrying deletion of ${address} (${attempt}/${DELETE_RETRY_ATTEMPTS})."
 
@@ -207,8 +369,9 @@ retry_failed_resource_delete() {
   return 1
 }
 
-record_and_forget_failed_resource() {
+record_and_forget_resource() {
   local address="$1"
+  local reason="${2:-Terraform provider refused deletion}"
   local resource_id
 
   if ! state_contains "${address}"; then
@@ -232,8 +395,10 @@ record_and_forget_failed_resource() {
   # SIGINT, SIGTERM, or exits unexpectedly, the EXIT trap uses this record to
   # import the resource back.
   printf '%s\t%s\n' "${address}" "${resource_id}" >> "${PRESERVED_FILE}"
+  printf '%s\t%s\n' "${address}" "${reason}" >> "${PRESERVED_REASON_FILE}"
 
-  echo "::warning::Skipping ${address} only after normal and individual deletion attempts failed."
+  echo "::warning::Temporarily removing ${address} from state so teardown can continue."
+  echo "::warning::Reason: ${reason}."
   echo "::warning::Preserving import ID ${resource_id}; the remote object remains in AWS and may continue generating charges."
 
   if ! terraform -chdir="${TF_DIR}" state rm \
@@ -242,6 +407,37 @@ record_and_forget_failed_resource() {
     echo "::error::Unable to remove ${address} from state for tolerant continuation." >&2
     return 1
   fi
+}
+
+preserve_known_retained_resources() {
+  local address
+  local reason
+  local preserved_count=0
+
+  if [[ "${PRESERVE_RETAINED_RESOURCES,,}" != "true" ]]; then
+    echo "Proactive retained-resource preservation is disabled."
+    return 0
+  fi
+
+  echo "Preserving retained data resources before Terraform destroy."
+
+  while IFS=$'\t' read -r address reason; do
+    [[ -n "${address}" ]] || continue
+
+    if ! state_contains "${address}"; then
+      echo "Retained resource is not currently in state: ${address}"
+      continue
+    fi
+
+    if record_and_forget_resource "${address}" "${reason}"; then
+      preserved_count=$((preserved_count + 1))
+    fi
+  done <<'EOF'
+module.backup.aws_backup_vault.this	Retained AWS Backup vault; recovery points may exist
+module.cloudtrail.aws_s3_bucket.logs	Retained CloudTrail audit bucket; objects or object versions may exist
+EOF
+
+  echo "Proactively preserved ${preserved_count} retained resource(s)."
 }
 
 reimport_preserved_resources() {
@@ -306,6 +502,8 @@ verify_remaining_state() {
   local expected_file
   local unexpected_file
   local missing_file
+  local address
+  local reason
 
   actual_file="$(mktemp)"
   expected_file="$(mktemp)"
@@ -335,20 +533,37 @@ verify_remaining_state() {
   append_summary ""
   append_summary "### Terraform destroy behavior"
   append_summary ""
-  append_summary "- Every workload resource received a normal Terraform delete attempt."
-  append_summary "- Failed resources received up to ${DELETE_RETRY_ATTEMPTS} additional individual delete attempt(s)."
+  append_summary "- Retained Backup and CloudTrail data resources were preserved before deletion when present."
+  append_summary "- Every other workload resource received a normal Terraform delete attempt."
+  append_summary "- Other failed resources received up to ${DELETE_RETRY_ATTEMPTS} additional individual delete attempt(s)."
 
   if [[ -s "${expected_file}" ]]; then
     echo "Infrastructure was destroyed except for resources whose deletion remained unsuccessful:"
     sed 's/^/- /' "${expected_file}"
 
-    append_summary "- Only resources that still failed were skipped and restored to Terraform state."
+    append_summary "- Preserved resources were restored to Terraform state after teardown."
     append_summary ""
     append_summary "### Skipped AWS resources"
     append_summary ""
 
     while IFS= read -r address; do
-      append_summary "- \`${address}\`"
+      reason="$(
+        awk -F '\t' \
+          -v address="${address}" \
+          '$1 == address {
+             $1 = ""
+             sub(/^\t/, "")
+             print
+             exit
+           }' \
+          "${PRESERVED_REASON_FILE}" 2>/dev/null
+      )"
+
+      if [[ -n "${reason}" ]]; then
+        append_summary "- \`${address}\`: ${reason}"
+      else
+        append_summary "- \`${address}\`"
+      fi
     done < "${expected_file}"
 
     append_summary ""
@@ -375,6 +590,12 @@ fi
 # A new destroy operation starts with a fresh recovery manifest. Resources are
 # added only after both the normal full destroy and individual retry fail.
 : > "${PRESERVED_FILE}"
+: > "${PRESERVED_REASON_FILE}"
+
+# These data-retention resources are intentionally kept across ephemeral
+# environment teardowns. Removing them from state before `terraform destroy`
+# prevents predictable BucketNotEmpty and recovery-point deletion failures.
+preserve_known_retained_resources
 
 destroy_succeeded=false
 
@@ -414,12 +635,23 @@ for pass in $(seq 1 "${MAX_PASSES}"); do
       continue
     fi
 
-    if retry_failed_resource_delete "${address}" "${pass}"; then
+    failure_reason="$(
+      failure_reason_for_address \
+        "${address}" \
+        "${log_file}"
+    )"
+
+    if failure_is_non_retryable "${address}" "${log_file}"; then
+      echo "::warning::Deletion already failed for ${address} with a non-retryable condition."
+      echo "::warning::Skipping targeted retries: ${failure_reason}."
+    elif retry_failed_resource_delete "${address}" "${pass}"; then
       deleted_after_retry=$((deleted_after_retry + 1))
       continue
     fi
 
-    if record_and_forget_failed_resource "${address}"; then
+    if record_and_forget_resource \
+      "${address}" \
+      "${failure_reason}"; then
       skipped_this_pass=$((skipped_this_pass + 1))
     fi
   done
