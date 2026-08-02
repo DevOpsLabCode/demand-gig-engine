@@ -59,8 +59,145 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-# Validate the active identity before changing infrastructure.
+recover_secret_kms_keys_preflight() {
+  # The Go orchestration fixture sets MOCK_LOG and does not emulate AWS
+  # Secrets Manager or KMS recovery.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    return 0
+  fi
+
+  local project_name
+  local configured_environment
+  local secret_prefix
+  local secret_name
+  local metadata
+  local describe_status
+  local kms_key_id
+  local key_state
+
+  project_name="$(
+    sed -nE \
+      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+
+  configured_environment="$(
+    sed -nE \
+      's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+
+  project_name="${project_name:-demand-gig-engine}"
+  configured_environment="${configured_environment:-$ENVIRONMENT}"
+  secret_prefix="${project_name}-${configured_environment}"
+
+  for secret_name in \
+    "${secret_prefix}/database" \
+    "${secret_prefix}/runtime" \
+    "${secret_prefix}/redis" \
+    "${secret_prefix}/provider-credentials"; do
+
+    set +e
+    metadata="$(
+      aws secretsmanager describe-secret \
+        --region "$REGION" \
+        --secret-id "$secret_name" \
+        --output json \
+        2>&1
+    )"
+    describe_status="$?"
+    set -e
+
+    if [[ "$describe_status" -ne 0 ]]; then
+      if grep -Eqi \
+        'ResourceNotFoundException|not found|does not exist' \
+        <<<"$metadata"; then
+        echo "Secret ${secret_name} does not exist; no KMS recovery is required."
+        continue
+      fi
+
+      echo "Unable to inspect secret ${secret_name} before Terraform starts." >&2
+      printf '%s\n' "$metadata" >&2
+      return "$describe_status"
+    fi
+
+    kms_key_id="$(jq -r '.KmsKeyId // empty' <<<"$metadata")"
+
+    if [[ -z "$kms_key_id" ||
+          "$kms_key_id" == "alias/aws/secretsmanager" ]]; then
+      echo "Secret ${secret_name} uses the AWS-managed Secrets Manager key."
+      continue
+    fi
+
+    key_state="$(
+      aws kms describe-key \
+        --region "$REGION" \
+        --key-id "$kms_key_id" \
+        --query 'KeyMetadata.KeyState' \
+        --output text
+    )"
+
+    if [[ "$key_state" == "PendingDeletion" ]]; then
+      echo "Cancelling scheduled deletion for KMS key ${kms_key_id} used by ${secret_name}."
+
+      aws kms cancel-key-deletion \
+        --region "$REGION" \
+        --key-id "$kms_key_id" \
+        >/dev/null
+    fi
+
+    for attempt in $(seq 1 30); do
+      key_state="$(
+        aws kms describe-key \
+          --region "$REGION" \
+          --key-id "$kms_key_id" \
+          --query 'KeyMetadata.KeyState' \
+          --output text
+      )"
+
+      case "$key_state" in
+        Enabled)
+          break
+          ;;
+        Disabled)
+          echo "Enabling KMS key ${kms_key_id} used by ${secret_name}."
+
+          aws kms enable-key \
+            --region "$REGION" \
+            --key-id "$kms_key_id" \
+            >/dev/null
+          ;;
+        PendingDeletion|Creating|Updating)
+          ;;
+        *)
+          echo "KMS key ${kms_key_id} is in unsupported state ${key_state}." >&2
+          return 1
+          ;;
+      esac
+
+      if [[ "$attempt" -eq 30 ]]; then
+        echo "KMS key ${kms_key_id} did not become Enabled." >&2
+        return 1
+      fi
+
+      sleep 5
+    done
+
+    aws secretsmanager get-secret-value \
+      --region "$REGION" \
+      --secret-id "$secret_name" \
+      --query 'VersionId' \
+      --output text \
+      >/dev/null
+
+    echo "Verified Secrets Manager can decrypt ${secret_name}."
+  done
+}
+
 aws sts get-caller-identity >/dev/null
+recover_secret_kms_keys_preflight
 
 # Validate formatting before changing infrastructure.
 terraform -chdir="$TF" fmt -check -recursive -diff
@@ -297,6 +434,13 @@ reconcile_existing_s3_bucket() {
 
     if [[ "$import_status" -eq 0 ]]; then
       printf '%s\n' "$import_output"
+
+      if ! terraform_resource_in_state "$address"; then
+        echo "Terraform import returned success, but ${address} is still missing from state." >&2
+        return 1
+      fi
+
+      echo "Verified ${address} is managed in Terraform state."
       return 0
     fi
 
@@ -351,12 +495,110 @@ reconcile_existing_s3_buckets() {
   reconcile_existing_s3_bucket \
     "module.media.aws_s3_bucket.this" \
     "${resource_prefix}-media"
+
+  reconcile_existing_s3_bucket \
+    "module.cloudtrail.aws_s3_bucket.logs" \
+    "${resource_prefix}-cloudtrail"
+}
+
+reconcile_existing_backup_vault() {
+  # The Go orchestration fixture sets MOCK_LOG and does not emulate AWS Backup
+  # discovery or Terraform imports.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    return 0
+  fi
+
+  local address="module.backup.aws_backup_vault.this"
+  local project_name
+  local configured_environment
+  local vault_name
+  local describe_output
+  local describe_status
+  local import_output
+  local import_status
+
+  if terraform_resource_in_state "$address"; then
+    echo "${address} is already present in Terraform state; creation is skipped."
+    return 0
+  fi
+
+  project_name="$(read_tfvar_string project_name demand-gig-engine)"
+  configured_environment="$(read_tfvar_string environment "$ENVIRONMENT")"
+  vault_name="${project_name}-${configured_environment}"
+
+  set +e
+  describe_output="$(
+    aws backup describe-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$vault_name" \
+      --output json \
+      2>&1
+  )"
+  describe_status="$?"
+  set -e
+
+  if [[ "$describe_status" -eq 0 ]]; then
+    echo "Existing AWS Backup vault found: ${vault_name}."
+    echo "Importing it into ${address} so Terraform skips creation."
+
+    set +e
+    import_output="$(
+      terraform -chdir="$TF" import \
+        "${IMPORT_ARGS[@]}" \
+        "$address" \
+        "$vault_name" \
+        2>&1
+    )"
+    import_status="$?"
+    set -e
+
+    if [[ "$import_status" -eq 0 ]]; then
+      printf '%s\n' "$import_output"
+
+      if ! terraform_resource_in_state "$address"; then
+        echo "Terraform import returned success, but ${address} is still missing from state." >&2
+        return 1
+      fi
+
+      echo "Verified ${address} is managed in Terraform state; creation is skipped."
+      return 0
+    fi
+
+    if terraform_resource_in_state "$address"; then
+      echo "AWS Backup vault ${vault_name} was imported concurrently; creation is skipped."
+      return 0
+    fi
+
+    printf '%s\n' "$import_output" >&2
+    echo "Failed to import existing AWS Backup vault ${vault_name} into ${address}." >&2
+    return "$import_status"
+  fi
+
+  if grep -Eqi \
+    'ResourceNotFoundException|not found|does not exist' \
+    <<<"$describe_output"; then
+    echo "AWS Backup vault ${vault_name} does not exist; Terraform will create it."
+    return 0
+  fi
+
+  echo "Unable to reconcile AWS Backup vault ${vault_name} safely." >&2
+  printf '%s\n' "$describe_output" >&2
+  return 1
+}
+
+reconcile_existing_retained_resources() {
+  echo "Reconciling retained S3 buckets and AWS Backup vault."
+
+  reconcile_existing_s3_buckets
+  reconcile_existing_backup_vault
+
+  echo "Retained-resource reconciliation completed."
 }
 
 # Reconcile the retained KMS dependency before importing retained encrypted S3
-# buckets. This prevents KMS alias conflicts and keeps retained data decryptable.
+# buckets and the Backup vault.
 reconcile_preserved_kms_alias
-reconcile_existing_s3_buckets
+reconcile_existing_retained_resources
 
 # Create or reconcile the application KMS resources and ECR repositories before
 # publishing immutable application images.
@@ -868,6 +1110,11 @@ MIGRATION_EXIT_CODE="$(
   echo "Database migration task failed with exit code $MIGRATION_EXIT_CODE" >&2
   exit 1
 }
+
+# Re-run retained-resource reconciliation immediately before the complete
+# apply. Existing resources are imported into state, so Terraform skips their
+# CreateBucket and CreateBackupVault operations.
+reconcile_existing_retained_resources
 
 # Update the API, worker, scheduler, and remaining infrastructure only after the
 # backward-compatible migration succeeds.
