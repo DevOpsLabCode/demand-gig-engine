@@ -44,6 +44,8 @@ export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
 
 CONTAINER_ID=""
 ASSET_DIR=""
+BACKUP_OVERRIDE_FILE="$TF/zz_deploy_backup_vault_override.tf"
+FINAL_PLAN_FILE=""
 
 cleanup() {
   if [[ -n "$CONTAINER_ID" ]]; then
@@ -54,6 +56,11 @@ cleanup() {
     rm -rf "$ASSET_DIR"
   fi
 
+  if [[ -n "$FINAL_PLAN_FILE" ]]; then
+    rm -f "$FINAL_PLAN_FILE"
+  fi
+
+  rm -f "$BACKUP_OVERRIDE_FILE"
   rm -rf "$DOCKER_CONFIG_DIR"
 }
 
@@ -313,6 +320,75 @@ ensure_kms_key_enabled() {
     echo "Waiting for KMS key ${key_id} to become Enabled (${attempt}/30)."
     sleep 5
   done
+}
+
+configure_existing_backup_vault_override() {
+  # The Go orchestration fixture does not emulate AWS Backup discovery.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    rm -f "$BACKUP_OVERRIDE_FILE"
+    return 0
+  fi
+
+  local project_name
+  local configured_environment
+  local vault_name
+  local describe_output
+  local describe_status
+  local vault_kms_key_arn
+
+  project_name="$(read_tfvar_string project_name demand-gig-engine)"
+  configured_environment="$(read_tfvar_string environment "$ENVIRONMENT")"
+  vault_name="${project_name}-${configured_environment}"
+
+  set +e
+  describe_output="$(
+    aws backup describe-backup-vault \
+      --region "$REGION" \
+      --backup-vault-name "$vault_name" \
+      --output json \
+      2>&1
+  )"
+  describe_status="$?"
+  set -e
+
+  if [[ "$describe_status" -ne 0 ]]; then
+    rm -f "$BACKUP_OVERRIDE_FILE"
+
+    if grep -Eqi \
+      'ResourceNotFoundException|not found|does not exist' \
+      <<<"$describe_output"; then
+      echo "AWS Backup vault ${vault_name} does not exist; current KMS configuration will be used."
+      return 0
+    fi
+
+    echo "Unable to inspect AWS Backup vault ${vault_name} before Terraform planning." >&2
+    printf '%s\n' "$describe_output" >&2
+    return "$describe_status"
+  fi
+
+  vault_kms_key_arn="$(
+    jq -er '.EncryptionKeyArn' \
+      <<<"$describe_output"
+  )"
+
+  ensure_kms_key_enabled "$vault_kms_key_arn"
+
+  # Terraform override files are merged with the existing root module block.
+  # Supplying the vault's real immutable key makes configuration match AWS and
+  # prevents a forced replacement of a vault containing recovery points.
+  cat > "$BACKUP_OVERRIDE_FILE" <<EOF
+# Generated temporarily by terraform/scripts/deploy.sh.
+# Do not commit this file.
+module "backup" {
+  kms_key_arn = "${vault_kms_key_arn}"
+}
+EOF
+
+  terraform -chdir="$TF" fmt \
+    "$(basename "$BACKUP_OVERRIDE_FILE")" \
+    >/dev/null
+
+  echo "Configured temporary Backup override with retained key ${vault_kms_key_arn}."
 }
 
 reconcile_preserved_kms_alias() {
@@ -608,6 +684,10 @@ reconcile_existing_retained_resources() {
 
   echo "Retained-resource reconciliation completed."
 }
+
+# Match the root Backup module to the immutable key of an existing retained
+# vault before any Terraform import or apply operation.
+configure_existing_backup_vault_override
 
 # Reconcile the retained KMS dependency before importing retained encrypted S3
 # buckets and the Backup vault.
@@ -1125,14 +1205,45 @@ MIGRATION_EXIT_CODE="$(
   exit 1
 }
 
-# Re-run retained-resource reconciliation immediately before the complete
-# apply. Existing resources are imported into state, so Terraform skips their
-# CreateBucket and CreateBackupVault operations.
+# Re-read the existing vault and regenerate its immutable-key override before
+# the complete plan. This handles workflow retries and state reconciliation.
+configure_existing_backup_vault_override
 reconcile_existing_retained_resources
 
+# Build a saved final plan, inspect it, and refuse to run any plan that contains
+# a delete action for the retained Backup vault.
+FINAL_PLAN_FILE="$(mktemp)"
+rm -f "$FINAL_PLAN_FILE"
+
+terraform -chdir="$TF" plan \
+  -input=false \
+  -lock-timeout=5m \
+  -var-file="$TFVARS" \
+  -var="backend_image=$BACKEND_REPOSITORY:$TAG" \
+  -out="$FINAL_PLAN_FILE"
+
+if terraform -chdir="$TF" show -json "$FINAL_PLAN_FILE" |
+  jq -e '
+    any(
+      .resource_changes[]?;
+      .address == "module.backup.aws_backup_vault.this"
+      and (.change.actions | index("delete")) != null
+    )
+  ' >/dev/null; then
+  echo "Refusing to apply: Terraform still plans to delete or replace the retained AWS Backup vault." >&2
+  echo "Expected temporary override file: ${BACKUP_OVERRIDE_FILE}" >&2
+  terraform -chdir="$TF" show "$FINAL_PLAN_FILE" >&2
+  exit 1
+fi
+
+echo "Final plan verified: retained Backup vault has no delete action."
+
 # Update the API, worker, scheduler, and remaining infrastructure only after the
-# backward-compatible migration succeeds.
-terraform -chdir="$TF" apply "${COMMON_ARGS[@]}"
+# backward-compatible migration succeeds and the vault safety gate passes.
+terraform -chdir="$TF" apply \
+  -input=false \
+  -lock-timeout=5m \
+  "$FINAL_PLAN_FILE"
 
 STATIC_BUCKET="$(
   terraform -chdir="$TF" output \
