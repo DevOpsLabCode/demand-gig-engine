@@ -70,6 +70,178 @@ terraform -chdir="$TF" init \
 
 terraform -chdir="$TF" validate
 
+IMPORT_ARGS=(
+  -input=false
+  -lock-timeout=5m
+  -var-file="$TFVARS"
+  -var="backend_image=public.ecr.aws/docker/library/python:3.12-slim"
+)
+
+terraform_resource_in_state() {
+  local address="$1"
+
+  terraform -chdir="$TF" state show "$address" >/dev/null 2>&1
+}
+
+terraform_resource_id() {
+  local address="$1"
+
+  terraform -chdir="$TF" state show -json "$address" 2>/dev/null |
+    jq -er '.attributes.key_id // .attributes.id'
+}
+
+ensure_kms_key_enabled() {
+  local key_id="$1"
+  local key_state
+  local cancel_requested=false
+
+  for attempt in $(seq 1 30); do
+    key_state="$(
+      aws kms describe-key \
+        --region "$REGION" \
+        --key-id "$key_id" \
+        --query 'KeyMetadata.KeyState' \
+        --output text
+    )"
+
+    case "$key_state" in
+      Enabled)
+        return 0
+        ;;
+      PendingDeletion)
+        if [[ "$cancel_requested" != "true" ]]; then
+          echo "Cancelling scheduled deletion for preserved KMS key ${key_id}."
+
+          aws kms cancel-key-deletion \
+            --region "$REGION" \
+            --key-id "$key_id" \
+            >/dev/null
+
+          cancel_requested=true
+        fi
+        ;;
+      Disabled)
+        echo "Enabling preserved KMS key ${key_id}."
+
+        aws kms enable-key \
+          --region "$REGION" \
+          --key-id "$key_id" \
+          >/dev/null
+        ;;
+      Creating|Updating)
+        ;;
+      *)
+        echo "KMS key ${key_id} is in unsupported state ${key_state}." >&2
+        return 1
+        ;;
+    esac
+
+    if [[ "$attempt" -eq 30 ]]; then
+      echo "KMS key ${key_id} did not become Enabled." >&2
+      return 1
+    fi
+
+    echo "Waiting for KMS key ${key_id} to become Enabled (${attempt}/30)."
+    sleep 5
+  done
+}
+
+reconcile_preserved_kms_alias() {
+  # The isolated Go shell fixture does not emulate KMS discovery or Terraform
+  # imports. Real GitHub deployments do not set MOCK_LOG.
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    return 0
+  fi
+
+  local project_name
+  local configured_environment
+  local resource_name
+  local alias_name
+  local aliases_json
+  local alias_json
+  local alias_target_key_id
+  local state_key_id=""
+
+  project_name="$(
+    sed -nE \
+      's/^[[:space:]]*project_name[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+  configured_environment="$(
+    sed -nE \
+      's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$TF/$TFVARS" |
+      head -n 1
+  )"
+
+  project_name="${project_name:-demand-gig-engine}"
+  configured_environment="${configured_environment:-$ENVIRONMENT}"
+  resource_name="${project_name}-${configured_environment}"
+  alias_name="alias/${resource_name}"
+
+  aliases_json="$(
+    aws kms list-aliases \
+      --region "$REGION" \
+      --output json
+  )"
+
+  set +e
+  alias_json="$(
+    jq -cer \
+      --arg alias_name "$alias_name" \
+      '.Aliases[]? | select(.AliasName == $alias_name)' \
+      <<<"$aliases_json" |
+      head -n 1
+  )"
+  local alias_lookup_status="$?"
+  set -e
+
+  if [[ "$alias_lookup_status" -ne 0 || -z "$alias_json" ]]; then
+    echo "KMS alias ${alias_name} does not exist; Terraform will create it."
+    return 0
+  fi
+
+  alias_target_key_id="$(jq -er '.TargetKeyId' <<<"$alias_json")"
+  echo "Found existing KMS alias ${alias_name} targeting ${alias_target_key_id}."
+
+  if terraform_resource_in_state "module.kms.aws_kms_key.this"; then
+    state_key_id="$(
+      terraform_resource_id "module.kms.aws_kms_key.this"
+    )"
+
+    if [[ "$state_key_id" != "$alias_target_key_id" ]]; then
+      echo "::warning::Terraform currently tracks KMS key ${state_key_id}, while ${alias_name} targets preserved key ${alias_target_key_id}."
+      echo "::warning::The alias will be imported and Terraform will retarget it to the tracked key. Do not delete the preserved key while retained buckets or Backup recovery points still use it."
+    fi
+  else
+    # No replacement key exists in state, so reuse the preserved key behind the
+    # alias. This keeps retained S3 and AWS Backup data decryptable.
+    ensure_kms_key_enabled "$alias_target_key_id"
+
+    echo "Importing preserved KMS key ${alias_target_key_id}."
+
+    terraform -chdir="$TF" import \
+      "${IMPORT_ARGS[@]}" \
+      "module.kms.aws_kms_key.this" \
+      "$alias_target_key_id"
+  fi
+
+  if ! terraform_resource_in_state "module.kms.aws_kms_alias.this"; then
+    echo "Importing existing KMS alias ${alias_name}."
+
+    terraform -chdir="$TF" import \
+      "${IMPORT_ARGS[@]}" \
+      "module.kms.aws_kms_alias.this" \
+      "$alias_name"
+  fi
+}
+
+# Development teardown intentionally preserves encrypted buckets, Backup
+# recovery points, KMS keys, and aliases. Reconcile any retained KMS alias
+# before the bootstrap apply so CreateAlias cannot fail with AlreadyExists.
+reconcile_preserved_kms_alias
+
 # Create only the application KMS key and ECR repositories before publishing
 # container images.
 terraform -chdir="$TF" apply \
@@ -220,19 +392,6 @@ COMMON_ARGS=(
   -var-file="$TFVARS"
   -var="backend_image=$BACKEND_REPOSITORY:$TAG"
 )
-
-IMPORT_ARGS=(
-  -input=false
-  -lock-timeout=5m
-  -var-file="$TFVARS"
-  -var="backend_image=$BACKEND_REPOSITORY:$TAG"
-)
-
-terraform_resource_in_state() {
-  local address="$1"
-
-  terraform -chdir="$TF" state show "$address" >/dev/null 2>&1
-}
 
 find_secret_metadata() {
   local secret_name="$1"
