@@ -36,6 +36,7 @@ locals {
     PAYMENT_PROVIDER             = var.payment_provider,
     AWS_XRAY_DAEMON_ADDRESS      = "127.0.0.1:2000",
     AWS_XRAY_ENABLED             = "true",
+    AWS_XRAY_TRACING_NAME        = "${local.name}-api",
   }
   common_secrets = merge(local.provider_secrets, {
     DATABASE_URL = "${module.database.runtime_secret_arn}:DATABASE_URL::",

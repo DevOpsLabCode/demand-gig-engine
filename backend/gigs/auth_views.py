@@ -163,6 +163,7 @@ def auth_logout(request):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def health(request):
     """Provide a dependency-light liveness endpoint."""

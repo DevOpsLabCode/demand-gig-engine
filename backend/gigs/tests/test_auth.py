@@ -74,6 +74,20 @@ class TestSocialAuth:
         assert response.status_code == 200
         assert response.data == {"status": "ok", "service": "demand-gig-backend"}
 
+    @patch(
+        "rest_framework.authentication.SessionAuthentication.authenticate",
+        side_effect=OperationalError("session database unavailable"),
+    )
+    def test_health_endpoint_does_not_load_session(self, _authenticate):
+        """Keep the ALB liveness check independent from the session database."""
+        response = APIClient().get(
+            "/api/health/",
+            HTTP_COOKIE="sessionid=00000000000000000000000000000000",
+        )
+
+        assert response.status_code == 200
+        assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+
     def test_readiness_endpoint_checks_database(self, db):
         """Verify that deployment readiness includes the database used by login sessions."""
         response = APIClient().get("/api/readiness/")
