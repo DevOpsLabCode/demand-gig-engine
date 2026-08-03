@@ -15,7 +15,7 @@ ENVIRONMENT="${1:-dev}"
   exit 2
 }
 
-for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp; do
+for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp curl; do
   command -v "$command_name" >/dev/null || {
     echo "$command_name is required" >&2
     exit 1
@@ -1368,9 +1368,81 @@ aws s3 cp \
   --cache-control "no-cache,no-store,must-revalidate" \
   --only-show-errors
 
-aws cloudfront create-invalidation \
+INVALIDATION_ID="$(
+  aws cloudfront create-invalidation \
+    --distribution-id "$DISTRIBUTION_ID" \
+    --paths '/*' \
+    --query 'Invalidation.Id' \
+    --output text
+)"
+
+[[ -n "$INVALIDATION_ID" && "$INVALIDATION_ID" != "None" ]] || {
+  echo "CloudFront did not return an invalidation ID." >&2
+  exit 1
+}
+
+aws cloudfront wait invalidation-completed \
   --distribution-id "$DISTRIBUTION_ID" \
-  --paths '/*' \
-  >/dev/null
+  --id "$INVALIDATION_ID"
+
+CLOUDFRONT_URL="$(
+  terraform -chdir="$TF" output \
+    -raw cloudfront_url
+)"
+
+smoke_test_json() {
+  local path="$1"
+  local jq_filter="$2"
+  local cookie="${3:-}"
+  local response=""
+  local response_status=1
+  local -a curl_arguments=(
+    --fail
+    --silent
+    --show-error
+    --connect-timeout 10
+    --max-time 20
+    --header "Accept: application/json"
+  )
+
+  if [[ -n "$cookie" ]]; then
+    curl_arguments+=(--cookie "$cookie")
+  fi
+
+  for attempt in $(seq 1 12); do
+    set +e
+    response="$(curl "${curl_arguments[@]}" "${CLOUDFRONT_URL}${path}" 2>&1)"
+    response_status="$?"
+    set -e
+
+    if [[ "$response_status" -eq 0 ]] &&
+      jq -e "$jq_filter" <<<"$response" >/dev/null 2>&1; then
+      echo "Deployment smoke test passed: ${path}"
+      return 0
+    fi
+
+    echo "Deployment smoke test is not ready for ${path}; retrying in 10 seconds (${attempt}/12)." >&2
+
+    if [[ "$attempt" -lt 12 ]]; then
+      sleep 10
+    fi
+  done
+
+  echo "Deployment smoke test failed for ${CLOUDFRONT_URL}${path}." >&2
+  printf '%s\n' "$response" >&2
+  return 1
+}
+
+# Readiness proves the running API task can reach the session database. The
+# invalid session exercises the exact browser failure that previously caused
+# DRF to return 500 before the public authentication view could execute.
+smoke_test_json \
+  "/api/readiness/" \
+  '.status == "ready" and .service == "demand-gig-backend"'
+
+smoke_test_json \
+  "/api/auth/config/" \
+  '.authenticated == false and (.providers | type == "array") and (.csrf_token | type == "string")' \
+  "sessionid=00000000000000000000000000000000"
 
 terraform -chdir="$TF" output

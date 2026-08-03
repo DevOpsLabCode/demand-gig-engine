@@ -187,6 +187,7 @@ case "$*" in
   *"output -json app_subnet_ids"*) echo '["subnet-a","subnet-b"]' ;;
   *"output -raw static_bucket_id"*) echo 'static-bucket' ;;
   *"output -raw cloudfront_distribution_id"*) echo 'E123456789' ;;
+  *"output -raw cloudfront_url"*) echo 'https://example.cloudfront.net' ;;
   *" output"*) echo 'deployment outputs' ;;
   *) : ;;
 esac
@@ -202,6 +203,7 @@ if [[ "$1 $2" == "kms describe-key" ]]; then echo arn:aws:kms:us-east-1:12345678
 if [[ "$1 $2" == "ecr get-login-password" ]]; then echo password; exit 0; fi
 if [[ "$1 $2" == "ecs run-task" ]]; then echo 'arn:aws:ecs:us-east-1:123456789012:task/migration-task'; exit 0; fi
 if [[ "$1 $2" == "ecs describe-tasks" && "$*" == *"exitCode"* ]]; then echo 0; exit 0; fi
+if [[ "$1 $2" == "cloudfront create-invalidation" ]]; then echo 'I123456789'; exit 0; fi
 exit 0
 `)
 	writeExecutable(t, filepath.Join(fakeBin, "docker"), `#!/usr/bin/env bash
@@ -222,6 +224,15 @@ esac
 set -eu
 echo "git $*" >> "$MOCK_LOG"
 echo deadbeef
+`)
+	writeExecutable(t, filepath.Join(fakeBin, "curl"), `#!/usr/bin/env bash
+set -eu
+echo "curl $*" >> "$MOCK_LOG"
+case "$*" in
+  *"/api/readiness/"*) echo '{"status":"ready","service":"demand-gig-backend"}' ;;
+  *"/api/auth/config/"*) echo '{"authenticated":false,"providers":[],"csrf_token":"test-token"}' ;;
+  *) exit 1 ;;
+esac
 `)
 
 	environment := append(os.Environ(),
@@ -254,6 +265,10 @@ echo deadbeef
 		"aws ecs wait tasks-stopped",
 		"aws s3 sync",
 		"aws cloudfront create-invalidation",
+		"aws cloudfront wait invalidation-completed",
+		"curl --fail --silent --show-error",
+		"/api/readiness/",
+		"/api/auth/config/",
 	} {
 		if !strings.Contains(commands, expected) {
 			t.Errorf("deployment orchestration missing %q", expected)

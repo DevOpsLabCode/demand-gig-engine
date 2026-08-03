@@ -255,6 +255,9 @@ func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 		`"migrate","--noinput"`,
 		`aws ecs wait tasks-stopped`,
 		`MIGRATION_EXIT_CODE`,
+		`aws cloudfront wait invalidation-completed`,
+		`/api/readiness/`,
+		`sessionid=00000000000000000000000000000000`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("deployment migration gate is missing %q", expected)
@@ -264,6 +267,14 @@ func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("deployment must not scale live services to zero before migration: %s", forbidden)
 		}
+	}
+}
+
+// Verify Terraform waits for the API service to stabilize before edge smoke tests run.
+func TestECSDeploymentWaitsForSteadyState(t *testing.T) {
+	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
+	if !hclContains(ecs, "wait_for_steady_state = true") {
+		t.Error("ECS deployment can finish before the replacement tasks are stable")
 	}
 }
 
@@ -600,6 +611,7 @@ func TestStaticAssetDeploymentUsesSafeCacheHeaders(t *testing.T) {
 		`--exclude "index.html"`,
 		`--cache-control "no-cache,no-store,must-revalidate"`,
 		`aws cloudfront create-invalidation`,
+		`aws cloudfront wait invalidation-completed`,
 	} {
 		if !strings.Contains(deploy, expected) {
 			t.Errorf("static deployment is missing %q", expected)

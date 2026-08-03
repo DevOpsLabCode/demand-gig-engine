@@ -8,7 +8,7 @@ Maps application API paths to view sets, authentication endpoints, payment webho
 Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 """
 
-from .auth_views import auth_config, auth_logout, auth_profile, health
+from .auth_views import auth_config, auth_logout, auth_profile, health, readiness
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -26,6 +26,7 @@ router.register("campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
     path("health/", health, name="health"),
+    path("readiness/", readiness, name="readiness"),
     path("", include(router.urls)),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/profile/", auth_profile, name="auth-profile"),
