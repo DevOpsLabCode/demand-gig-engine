@@ -332,6 +332,7 @@ module "backend" {
   cpu                       = var.backend_cpu
   memory                    = var.backend_memory
   desired_count             = var.backend_desired_count
+  rollback_enabled          = var.backend_rollback_enabled
   target_group_arn          = module.alb.target_group_arn
   kms_key_arn               = module.kms.key_arn
   queue_arn                 = module.sqs.queue_arn
@@ -355,6 +356,7 @@ module "worker" {
   cpu                       = var.worker_cpu
   memory                    = var.worker_memory
   desired_count             = var.worker_desired_count
+  rollback_enabled          = var.worker_rollback_enabled
   command                   = ["python", "manage.py", "process_tasks"]
   expose_port               = false
   enable_health_check       = false

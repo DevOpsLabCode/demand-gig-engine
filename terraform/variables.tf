@@ -92,6 +92,11 @@ variable "backend_desired_count" {
   type    = number
   default = 1
 }
+# Input `backend_rollback_enabled`: Allow API rollback only after the deploy script verifies a completed ECS deployment.
+variable "backend_rollback_enabled" {
+  type    = bool
+  default = false
+}
 # Input `allow_zero_capacity`: Permit services to start at zero tasks during staged image publication and database migration.
 variable "allow_zero_capacity" {
   type    = bool
@@ -111,6 +116,11 @@ variable "worker_memory" {
 variable "worker_desired_count" {
   type    = number
   default = 1
+}
+# Input `worker_rollback_enabled`: Allow worker rollback only after the deploy script verifies a completed ECS deployment.
+variable "worker_rollback_enabled" {
+  type    = bool
+  default = false
 }
 # Input `db_instance_class`: RDS PostgreSQL compute and memory class.
 variable "db_instance_class" {

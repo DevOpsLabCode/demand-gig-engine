@@ -182,6 +182,12 @@ func TestDeployScriptOrchestratesMigrationBeforeScaleUp(t *testing.T) {
 	writeExecutable(t, filepath.Join(fakeBin, "terraform"), `#!/usr/bin/env bash
 set -eu
 echo "terraform $*" >> "$MOCK_LOG"
+if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "service_failure" &&
+      "$*" == *" apply "* &&
+      "$*" != *"-auto-approve"* ]]; then
+  echo 'simulated ECS service deployment failure' >&2
+  exit 1
+fi
 case "$*" in
   *"state list"*) echo 'aws_s3_bucket.state' ;;
   *"output -raw kms_key_arn"*) echo 'arn:aws:kms:us-east-1:123456789012:key/bootstrap-key' ;;
@@ -226,6 +232,14 @@ if [[ "$1 $2" == "ecs describe-tasks" ]]; then
     echo '{"tasks":[{"stopCode":"TaskFailedToStart","stoppedReason":"ResourceInitializationError: retrieved secret did not contain json key FACEBOOK_OAUTH_CLIENT_ID","containers":[{"name":"demand-gig-engine-dev-migration"}]}]}'
   else
     echo '{"tasks":[{"stopCode":"EssentialContainerExited","containers":[{"name":"demand-gig-engine-dev-migration","exitCode":0}]}]}'
+  fi
+  exit 0
+fi
+if [[ "$1 $2" == "ecs describe-services" ]]; then
+  if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "service_failure" ]]; then
+    echo '{"services":[{"serviceName":"demand-gig-engine-dev-api","status":"ACTIVE","desiredCount":1,"runningCount":0,"pendingCount":0,"deployments":[{"status":"PRIMARY","rolloutState":"FAILED","rolloutStateReason":"ECS deployment circuit breaker was triggered"}],"events":[{"createdAt":"2026-08-03T17:00:00Z","message":"service demand-gig-engine-dev-api was unable to consistently start tasks because the essential container exited"}]},{"serviceName":"demand-gig-engine-dev-worker","status":"ACTIVE","desiredCount":1,"runningCount":0,"pendingCount":0,"deployments":[{"status":"PRIMARY","rolloutState":"FAILED","rolloutStateReason":"ECS deployment circuit breaker was triggered"}],"events":[]}]}'
+  else
+    echo '{"services":[{"serviceName":"demand-gig-engine-dev-api","deployments":[{"rolloutState":"COMPLETED"}]},{"serviceName":"demand-gig-engine-dev-worker","deployments":[{"rolloutState":"COMPLETED"}]}]}'
   fi
   exit 0
 fi
@@ -284,6 +298,14 @@ esac
 	for _, forbidden := range []string{"backend_desired_count=0", "worker_desired_count=0"} {
 		if strings.Contains(commands, forbidden) {
 			t.Fatalf("deployment unexpectedly scaled a live service to zero: %s\n%s", forbidden, commands)
+		}
+	}
+	for _, expected := range []string{
+		"backend_rollback_enabled=true",
+		"worker_rollback_enabled=true",
+	} {
+		if !strings.Contains(commands, expected) {
+			t.Errorf("deployment did not enable verified rollback candidate %q", expected)
 		}
 	}
 	for _, expected := range []string{
@@ -349,6 +371,38 @@ esac
 	}
 	if commands := read(t, logFile); strings.Contains(commands, "logs get-log-events") {
 		t.Fatalf("deployment polled a CloudWatch log stream for a container that never started:\n%s", commands)
+	}
+
+	if err := os.WriteFile(logFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(migrationModeFile, []byte("service_failure"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	serviceOutput, serviceErr := runCommand(t, "bash", []string{"terraform/scripts/deploy.sh", "dev"}, environment, fixture)
+	if serviceErr == nil {
+		t.Fatalf("ECS service deployment failure unexpectedly succeeded:\n%s", serviceOutput)
+	}
+	for _, expected := range []string{
+		"ECS service diagnostics",
+		"rolloutState=FAILED",
+		"essential container exited",
+	} {
+		if !strings.Contains(serviceOutput, expected) {
+			t.Errorf("ECS service failure did not report %q:\n%s", expected, serviceOutput)
+		}
+	}
+	serviceCommands := read(t, logFile)
+	for _, expected := range []string{
+		"backend_rollback_enabled=false",
+		"worker_rollback_enabled=false",
+	} {
+		if !strings.Contains(serviceCommands, expected) {
+			t.Errorf("bootstrap deployment did not disable unavailable rollback candidate %q:\n%s", expected, serviceCommands)
+		}
+	}
+	if strings.Contains(serviceCommands, "cloudfront create-invalidation") {
+		t.Fatalf("frontend publication continued after ECS service deployment failure:\n%s", serviceCommands)
 	}
 }
 

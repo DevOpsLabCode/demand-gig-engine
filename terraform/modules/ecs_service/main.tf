@@ -367,10 +367,11 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  # Rolls back an unhealthy ECS deployment instead of leaving it partially active.
+  # Stop unhealthy deployments. Rollback is enabled by deployment orchestration
+  # only after ECS has a COMPLETED deployment that can be restored.
   deployment_circuit_breaker {
     enable   = true
-    rollback = true
+    rollback = var.rollback_enabled
   }
 
   depends_on = [

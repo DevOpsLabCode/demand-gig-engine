@@ -280,6 +280,29 @@ func TestECSDeploymentWaitsForSteadyState(t *testing.T) {
 	}
 }
 
+// Verify automatic rollback is requested only when ECS has a completed deployment to restore.
+func TestECSRollbackRequiresCompletedDeployment(t *testing.T) {
+	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
+	variables := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
+	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
+
+	for _, expected := range []string{
+		`rollback = var.rollback_enabled`,
+		`variable "rollback_enabled"`,
+		`.rolloutState == "COMPLETED"`,
+		`backend_rollback_enabled=$BACKEND_ROLLBACK_ENABLED`,
+		`worker_rollback_enabled=$WORKER_ROLLBACK_ENABLED`,
+		`ECS service diagnostics`,
+	} {
+		if !strings.Contains(ecs+variables+deploy, expected) {
+			t.Errorf("first-deployment-safe ECS rollback is missing %q", expected)
+		}
+	}
+	if hclContains(ecs, "rollback = true") {
+		t.Error("ECS rollback is unconditionally enabled without a completed deployment candidate")
+	}
+}
+
 // Verify that the frontend image uses a build stage and serves only compiled assets from unprivileged Nginx.
 func TestFrontendImageContainsProductionAssets(t *testing.T) {
 	body := read(t, filepath.Join(repositoryRoot(t), "Dockerfile.frontend"))

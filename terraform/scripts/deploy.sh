@@ -127,6 +127,67 @@ normalize_provider_credentials() {
   fi
 }
 
+ecs_service_has_completed_deployment() {
+  local service_name="$1"
+  local service_state="$2"
+
+  jq -e \
+    --arg service_name "$service_name" \
+    'any(
+       .services[]?
+       | select(.serviceName == $service_name)
+       | .deployments[]?;
+       .rolloutState == "COMPLETED"
+     )' \
+    <<<"$service_state" \
+    >/dev/null
+}
+
+report_ecs_service_diagnostics() {
+  local cluster_arn="$1"
+  shift
+
+  local service_state
+  local describe_status
+
+  set +e
+  service_state="$(
+    aws ecs describe-services \
+      --region "$REGION" \
+      --cluster "$cluster_arn" \
+      --services "$@" \
+      --output json \
+      2>&1
+  )"
+  describe_status="$?"
+  set -e
+
+  echo "ECS service diagnostics:" >&2
+
+  if [[ "$describe_status" -ne 0 ]]; then
+    echo "Unable to describe failed ECS services." >&2
+    printf '%s\n' "$service_state" >&2
+    return 0
+  fi
+
+  jq -r '
+    .failures[]?
+    | "Service lookup failure: \(.arn // \"unknown\") - \(.reason // \"unknown\")"
+  ' <<<"$service_state" >&2
+
+  jq -r '
+    .services[]?
+    | "Service: \(.serviceName)",
+      "  Status/counts: status=\(.status), desired=\(.desiredCount), running=\(.runningCount), pending=\(.pendingCount)",
+      "  Deployments:",
+      (.deployments[]?
+       | "    - status=\(.status), rolloutState=\(.rolloutState // \"unknown\"), reason=\(.rolloutStateReason // \"not provided\")"),
+      "  Recent events:",
+      (.events[:10][]?
+       | "    - \(.createdAt): \(.message)")
+  ' <<<"$service_state" >&2
+}
+
 restore_secret_if_scheduled_for_deletion() {
   local secret_name="$1"
   local metadata="$2"
@@ -1389,6 +1450,34 @@ MIGRATION_EXIT_CODE="$(
   exit 1
 }
 
+API_SERVICE_NAME="${SERVICE_NAME%-migration}-api"
+WORKER_SERVICE_NAME="${SERVICE_NAME%-migration}-worker"
+
+ECS_SERVICE_STATE="$(
+  aws ecs describe-services \
+    --region "$REGION" \
+    --cluster "$CLUSTER_ARN" \
+    --services "$API_SERVICE_NAME" "$WORKER_SERVICE_NAME" \
+    --output json
+)"
+
+BACKEND_ROLLBACK_ENABLED=false
+WORKER_ROLLBACK_ENABLED=false
+
+if ecs_service_has_completed_deployment "$API_SERVICE_NAME" "$ECS_SERVICE_STATE"; then
+  BACKEND_ROLLBACK_ENABLED=true
+  echo "A completed API deployment is available; automatic rollback is enabled."
+else
+  echo "No completed API deployment exists; automatic rollback is disabled for this bootstrap deployment."
+fi
+
+if ecs_service_has_completed_deployment "$WORKER_SERVICE_NAME" "$ECS_SERVICE_STATE"; then
+  WORKER_ROLLBACK_ENABLED=true
+  echo "A completed worker deployment is available; automatic rollback is enabled."
+else
+  echo "No completed worker deployment exists; automatic rollback is disabled for this bootstrap deployment."
+fi
+
 # Re-read the existing vault and regenerate its immutable-key override before
 # the complete plan. This handles workflow retries and state reconciliation.
 configure_existing_backup_vault_override
@@ -1404,6 +1493,8 @@ terraform -chdir="$TF" plan \
   -lock-timeout=5m \
   -var-file="$TFVARS" \
   -var="backend_image=$BACKEND_REPOSITORY:$TAG" \
+  -var="backend_rollback_enabled=$BACKEND_ROLLBACK_ENABLED" \
+  -var="worker_rollback_enabled=$WORKER_ROLLBACK_ENABLED" \
   -out="$FINAL_PLAN_FILE"
 
 if terraform -chdir="$TF" show -json "$FINAL_PLAN_FILE" |
@@ -1424,10 +1515,21 @@ echo "Final plan verified: retained Backup vault has no delete action."
 
 # Update the API, worker, scheduler, and remaining infrastructure only after the
 # backward-compatible migration succeeds and the vault safety gate passes.
+set +e
 terraform -chdir="$TF" apply \
   -input=false \
   -lock-timeout=5m \
   "$FINAL_PLAN_FILE"
+FINAL_APPLY_STATUS="$?"
+set -e
+
+if [[ "$FINAL_APPLY_STATUS" -ne 0 ]]; then
+  report_ecs_service_diagnostics \
+    "$CLUSTER_ARN" \
+    "$API_SERVICE_NAME" \
+    "$WORKER_SERVICE_NAME"
+  exit "$FINAL_APPLY_STATUS"
+fi
 
 STATIC_BUCKET="$(
   terraform -chdir="$TF" output \
