@@ -14,7 +14,7 @@ from unittest.mock import patch
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.db import OperationalError
-from django.test import override_settings
+from django.test import Client, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -72,7 +72,21 @@ class TestSocialAuth:
         """
         response = APIClient().get("/api/health/")
         assert response.status_code == 200
-        assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+        assert response.json() == {"status": "ok", "service": "demand-gig-backend"}
+
+    @override_settings(ALLOWED_HOSTS=["example.com"])
+    def test_health_endpoint_accepts_alb_private_ip_host(self):
+        """Serve ALB probes without allowing private-IP hosts on application routes."""
+        response = Client().get(
+            "/api/health/",
+            HTTP_HOST="10.0.1.23:8000",
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "ok",
+            "service": "demand-gig-backend",
+        }
 
     @patch(
         "rest_framework.authentication.SessionAuthentication.authenticate",
@@ -86,7 +100,7 @@ class TestSocialAuth:
         )
 
         assert response.status_code == 200
-        assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+        assert response.json() == {"status": "ok", "service": "demand-gig-backend"}
 
     def test_readiness_endpoint_checks_database(self, db):
         """Verify that deployment readiness includes the database used by login sessions."""

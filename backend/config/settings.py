@@ -57,6 +57,7 @@ if AWS_XRAY_ENABLED:
     INSTALLED_APPS.append("aws_xray_sdk.ext.django")
 
 MIDDLEWARE = [
+    "config.middleware.LivenessMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -70,7 +71,9 @@ MIDDLEWARE = [
 ]
 # Register X-Ray middleware and instrumentation only when tracing is enabled for this environment.
 if AWS_XRAY_ENABLED:
-    MIDDLEWARE.insert(0, "aws_xray_sdk.ext.django.middleware.XRayMiddleware")
+    # Liveness must remain first because ALB probes use a private-IP Host value
+    # that intentionally is not trusted for normal application requests.
+    MIDDLEWARE.insert(1, "aws_xray_sdk.ext.django.middleware.XRayMiddleware")
     XRAY_RECORDER = {
         "AUTO_INSTRUMENT": True,
         "AWS_XRAY_DAEMON_ADDRESS": os.getenv(
