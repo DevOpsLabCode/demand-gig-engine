@@ -347,8 +347,7 @@ jobs:
           django.setup()
           response = Client().get(
               "/api/health/",
-              HTTP_HOST="example.com",
-              secure=True,
+              HTTP_HOST="10.0.1.23:8000",
           )
           if response.status_code != 200:
               raise SystemExit(
