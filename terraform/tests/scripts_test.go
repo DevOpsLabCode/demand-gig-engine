@@ -5,6 +5,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -172,10 +173,21 @@ exit 0
 // Execute the deployment script in a fixture and verify migration success gates service scale-up and publication steps.
 func TestDeployScriptOrchestratesMigrationBeforeScaleUp(t *testing.T) {
 	fixture, fakeBin, logFile := prepareScriptFixture(t)
+	capturedSecretFile := filepath.Join(fixture, "normalized-provider-secret.json")
+	migrationModeFile := filepath.Join(fixture, "migration-mode")
+	if err := os.WriteFile(migrationModeFile, []byte("success"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	writeExecutable(t, filepath.Join(fakeBin, "terraform"), `#!/usr/bin/env bash
 set -eu
 echo "terraform $*" >> "$MOCK_LOG"
+if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "service_failure" &&
+      "$*" == *" apply "* &&
+      "$*" != *"-auto-approve"* ]]; then
+  echo 'simulated ECS service deployment failure' >&2
+  exit 1
+fi
 case "$*" in
   *"state list"*) echo 'aws_s3_bucket.state' ;;
   *"output -raw kms_key_arn"*) echo 'arn:aws:kms:us-east-1:123456789012:key/bootstrap-key' ;;
@@ -183,10 +195,12 @@ case "$*" in
   *"output -raw ecs_cluster_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:cluster/demand-gig-engine-dev' ;;
   *"output -raw migration_task_definition_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:task-definition/migration:1' ;;
   *"output -raw migration_container_name"*) echo 'demand-gig-engine-dev-migration' ;;
+  *"output -raw provider_credentials_secret_arn"*) echo 'arn:aws:secretsmanager:us-east-1:123456789012:secret:provider-credentials' ;;
   *"output -raw app_security_group_id"*) echo 'sg-1234567890' ;;
   *"output -json app_subnet_ids"*) echo '["subnet-a","subnet-b"]' ;;
   *"output -raw static_bucket_id"*) echo 'static-bucket' ;;
   *"output -raw cloudfront_distribution_id"*) echo 'E123456789' ;;
+  *"output -raw cloudfront_url"*) echo 'https://example.cloudfront.net' ;;
   *" output"*) echo 'deployment outputs' ;;
   *) : ;;
 esac
@@ -200,8 +214,36 @@ if [[ "$1 $2" == "s3api get-bucket-versioning" ]]; then echo Enabled; exit 0; fi
 if [[ "$1 $2" == "s3api get-bucket-encryption" ]]; then echo aws:kms; exit 0; fi
 if [[ "$1 $2" == "kms describe-key" ]]; then echo arn:aws:kms:us-east-1:123456789012:key/bootstrap-key; exit 0; fi
 if [[ "$1 $2" == "ecr get-login-password" ]]; then echo password; exit 0; fi
+if [[ "$1 $2" == "secretsmanager get-secret-value" ]]; then
+  echo '{"GOOGLE_OAUTH_CLIENT_ID":"existing-google-client","CUSTOM_PROVIDER_SETTING":"preserved"}'
+  exit 0
+fi
+if [[ "$1 $2" == "secretsmanager put-secret-value" ]]; then
+  for argument in "$@"; do
+    if [[ "$argument" == file://* ]]; then
+      cp "${argument#file://}" "$CAPTURED_SECRET_FILE"
+    fi
+  done
+  exit 0
+fi
 if [[ "$1 $2" == "ecs run-task" ]]; then echo 'arn:aws:ecs:us-east-1:123456789012:task/migration-task'; exit 0; fi
-if [[ "$1 $2" == "ecs describe-tasks" && "$*" == *"exitCode"* ]]; then echo 0; exit 0; fi
+if [[ "$1 $2" == "ecs describe-tasks" ]]; then
+  if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "start_failure" ]]; then
+    echo '{"tasks":[{"stopCode":"TaskFailedToStart","stoppedReason":"ResourceInitializationError: retrieved secret did not contain json key FACEBOOK_OAUTH_CLIENT_ID","containers":[{"name":"demand-gig-engine-dev-migration"}]}]}'
+  else
+    echo '{"tasks":[{"stopCode":"EssentialContainerExited","containers":[{"name":"demand-gig-engine-dev-migration","exitCode":0}]}]}'
+  fi
+  exit 0
+fi
+if [[ "$1 $2" == "ecs describe-services" ]]; then
+  if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "service_failure" ]]; then
+    echo '{"services":[{"serviceName":"demand-gig-engine-dev-api","status":"ACTIVE","desiredCount":1,"runningCount":0,"pendingCount":0,"deployments":[{"status":"PRIMARY","rolloutState":"FAILED","rolloutStateReason":"ECS deployment circuit breaker was triggered"}],"events":[{"createdAt":"2026-08-03T17:00:00Z","message":"service demand-gig-engine-dev-api was unable to consistently start tasks because the essential container exited"}]},{"serviceName":"demand-gig-engine-dev-worker","status":"ACTIVE","desiredCount":1,"runningCount":0,"pendingCount":0,"deployments":[{"status":"PRIMARY","rolloutState":"FAILED","rolloutStateReason":"ECS deployment circuit breaker was triggered"}],"events":[]}]}'
+  else
+    echo '{"services":[{"serviceName":"demand-gig-engine-dev-api","deployments":[{"rolloutState":"COMPLETED"}]},{"serviceName":"demand-gig-engine-dev-worker","deployments":[{"rolloutState":"COMPLETED"}]}]}'
+  fi
+  exit 0
+fi
+if [[ "$1 $2" == "cloudfront create-invalidation" ]]; then echo 'I123456789'; exit 0; fi
 exit 0
 `)
 	writeExecutable(t, filepath.Join(fakeBin, "docker"), `#!/usr/bin/env bash
@@ -223,10 +265,21 @@ set -eu
 echo "git $*" >> "$MOCK_LOG"
 echo deadbeef
 `)
+	writeExecutable(t, filepath.Join(fakeBin, "curl"), `#!/usr/bin/env bash
+set -eu
+echo "curl $*" >> "$MOCK_LOG"
+case "$*" in
+  *"/api/readiness/"*) echo '{"status":"ready","service":"demand-gig-backend"}' ;;
+  *"/api/auth/config/"*) echo '{"authenticated":false,"providers":[],"csrf_token":"test-token"}' ;;
+  *) exit 1 ;;
+esac
+`)
 
 	environment := append(os.Environ(),
 		"PATH="+fakeBin+":"+os.Getenv("PATH"),
 		"MOCK_LOG="+logFile,
+		"CAPTURED_SECRET_FILE="+capturedSecretFile,
+		"MOCK_MIGRATION_MODE_FILE="+migrationModeFile,
 		"AWS_REGION=us-east-1",
 		"CREATE_BACKEND=true",
 	)
@@ -248,16 +301,108 @@ echo deadbeef
 		}
 	}
 	for _, expected := range []string{
+		"backend_rollback_enabled=true",
+		"worker_rollback_enabled=true",
+	} {
+		if !strings.Contains(commands, expected) {
+			t.Errorf("deployment did not enable verified rollback candidate %q", expected)
+		}
+	}
+	for _, expected := range []string{
 		"migration_task_definition_arn",
 		"docker build -f",
 		"docker push",
 		"aws ecs wait tasks-stopped",
 		"aws s3 sync",
 		"aws cloudfront create-invalidation",
+		"aws cloudfront wait invalidation-completed",
+		"curl --fail --silent --show-error",
+		"/api/readiness/",
+		"/api/auth/config/",
 	} {
 		if !strings.Contains(commands, expected) {
 			t.Errorf("deployment orchestration missing %q", expected)
 		}
+	}
+
+	secretBody := read(t, capturedSecretFile)
+	var credentials map[string]interface{}
+	if err := json.Unmarshal([]byte(secretBody), &credentials); err != nil {
+		t.Fatalf("normalized provider secret is not valid JSON: %v", err)
+	}
+	for _, key := range []string{
+		"GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+		"FACEBOOK_OAUTH_CLIENT_ID", "FACEBOOK_OAUTH_CLIENT_SECRET",
+		"INSTAGRAM_OAUTH_CLIENT_ID", "INSTAGRAM_OAUTH_CLIENT_SECRET",
+		"TIKTOK_OAUTH_CLIENT_KEY", "TIKTOK_OAUTH_CLIENT_SECRET",
+		"STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
+		"META_APP_ID", "META_APP_SECRET", "META_PIXEL_ID",
+		"META_CONVERSIONS_API_TOKEN", "VIBESMEET_ACCESS_TOKEN",
+		"VIBESMEET_WEBHOOK_SECRET",
+	} {
+		if _, ok := credentials[key].(string); !ok {
+			t.Errorf("normalized provider secret is missing string key %s", key)
+		}
+	}
+	if credentials["GOOGLE_OAUTH_CLIENT_ID"] != "existing-google-client" {
+		t.Error("provider secret normalization did not preserve an existing credential")
+	}
+	if credentials["CUSTOM_PROVIDER_SETTING"] != "preserved" {
+		t.Error("provider secret normalization did not preserve an additional existing key")
+	}
+	if credentials["FACEBOOK_OAUTH_CLIENT_ID"] != "" {
+		t.Error("provider secret normalization did not add a missing required key with an empty value")
+	}
+
+	if err := os.WriteFile(logFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(migrationModeFile, []byte("start_failure"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	failureOutput, failureErr := runCommand(t, "bash", []string{"terraform/scripts/deploy.sh", "dev"}, environment, fixture)
+	if failureErr == nil {
+		t.Fatalf("migration start failure unexpectedly succeeded:\n%s", failureOutput)
+	}
+	for _, expected := range []string{"TaskFailedToStart", "FACEBOOK_OAUTH_CLIENT_ID", "container never started"} {
+		if !strings.Contains(failureOutput, expected) {
+			t.Errorf("migration start failure did not report %q:\n%s", expected, failureOutput)
+		}
+	}
+	if commands := read(t, logFile); strings.Contains(commands, "logs get-log-events") {
+		t.Fatalf("deployment polled a CloudWatch log stream for a container that never started:\n%s", commands)
+	}
+
+	if err := os.WriteFile(logFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(migrationModeFile, []byte("service_failure"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	serviceOutput, serviceErr := runCommand(t, "bash", []string{"terraform/scripts/deploy.sh", "dev"}, environment, fixture)
+	if serviceErr == nil {
+		t.Fatalf("ECS service deployment failure unexpectedly succeeded:\n%s", serviceOutput)
+	}
+	for _, expected := range []string{
+		"ECS service diagnostics",
+		"rolloutState=FAILED",
+		"essential container exited",
+	} {
+		if !strings.Contains(serviceOutput, expected) {
+			t.Errorf("ECS service failure did not report %q:\n%s", expected, serviceOutput)
+		}
+	}
+	serviceCommands := read(t, logFile)
+	for _, expected := range []string{
+		"backend_rollback_enabled=false",
+		"worker_rollback_enabled=false",
+	} {
+		if !strings.Contains(serviceCommands, expected) {
+			t.Errorf("bootstrap deployment did not disable unavailable rollback candidate %q:\n%s", expected, serviceCommands)
+		}
+	}
+	if strings.Contains(serviceCommands, "cloudfront create-invalidation") {
+		t.Fatalf("frontend publication continued after ECS service deployment failure:\n%s", serviceCommands)
 	}
 }
 

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
+from django.db import OperationalError
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -72,6 +73,39 @@ class TestSocialAuth:
         response = APIClient().get("/api/health/")
         assert response.status_code == 200
         assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+
+    @patch(
+        "rest_framework.authentication.SessionAuthentication.authenticate",
+        side_effect=OperationalError("session database unavailable"),
+    )
+    def test_health_endpoint_does_not_load_session(self, _authenticate):
+        """Keep the ALB liveness check independent from the session database."""
+        response = APIClient().get(
+            "/api/health/",
+            HTTP_COOKIE="sessionid=00000000000000000000000000000000",
+        )
+
+        assert response.status_code == 200
+        assert response.data == {"status": "ok", "service": "demand-gig-backend"}
+
+    def test_readiness_endpoint_checks_database(self, db):
+        """Verify that deployment readiness includes the database used by login sessions."""
+        response = APIClient().get("/api/readiness/")
+        assert response.status_code == 200
+        assert response.data == {"status": "ready", "service": "demand-gig-backend"}
+
+    @patch(
+        "gigs.auth_views.connection.cursor",
+        side_effect=OperationalError("database unavailable"),
+    )
+    def test_readiness_endpoint_reports_database_failure(self, _cursor):
+        """Return 503 when the running API task cannot reach its session database."""
+        response = APIClient().get("/api/readiness/")
+        assert response.status_code == 503
+        assert response.data == {
+            "status": "unavailable",
+            "service": "demand-gig-backend",
+        }
 
     def test_avatar_extraction(self):
         """
@@ -178,6 +212,22 @@ class TestSocialAuth:
 
         logout = client.post("/api/auth/logout/")
         assert logout.status_code == 204
+
+    @patch(
+        "rest_framework.authentication.SessionAuthentication.authenticate",
+        side_effect=OperationalError("session database unavailable"),
+    )
+    def test_auth_config_survives_session_database_failure(self, _authenticate):
+        """Keep public sign-in discovery available when a stale session cannot be loaded."""
+        response = APIClient().get(
+            "/api/auth/config/",
+            HTTP_COOKIE="sessionid=00000000000000000000000000000000",
+        )
+
+        assert response.status_code == 200
+        assert response.data["authenticated"] is False
+        assert len(response.data["providers"]) == 4
+        assert response.data["csrf_token"]
 
     def test_auth_config_serializes_social_account_and_avatar(self, db):
         """

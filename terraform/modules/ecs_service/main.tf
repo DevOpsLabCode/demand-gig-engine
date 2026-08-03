@@ -343,6 +343,7 @@ resource "aws_ecs_service" "this" {
   enable_execute_command             = true
   enable_ecs_managed_tags            = true
   propagate_tags                     = "SERVICE"
+  wait_for_steady_state              = true
   deployment_minimum_healthy_percent = var.desired_count == 0 ? 0 : 100
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = var.target_group_arn == null ? null : 60
@@ -366,10 +367,11 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  # Rolls back an unhealthy ECS deployment instead of leaving it partially active.
+  # Stop unhealthy deployments. Rollback is enabled by deployment orchestration
+  # only after ECS has a COMPLETED deployment that can be restored.
   deployment_circuit_breaker {
     enable   = true
-    rollback = true
+    rollback = var.rollback_enabled
   }
 
   depends_on = [

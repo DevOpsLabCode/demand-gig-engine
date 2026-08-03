@@ -50,6 +50,11 @@ INSTALLED_APPS = [
 AWS_XRAY_ENABLED = os.getenv("AWS_XRAY_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "on"
 }
+if AWS_XRAY_ENABLED:
+    # The Django app config initializes the global recorder before middleware
+    # handles requests. Registering only the middleware leaves the recorder
+    # without a segment name and causes every request to return HTTP 500.
+    INSTALLED_APPS.append("aws_xray_sdk.ext.django")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -71,8 +76,11 @@ if AWS_XRAY_ENABLED:
         "AWS_XRAY_DAEMON_ADDRESS": os.getenv(
             "AWS_XRAY_DAEMON_ADDRESS", "127.0.0.1:2000"
         ),
+        "AWS_XRAY_TRACING_NAME": (
+            os.getenv("AWS_XRAY_TRACING_NAME", "demand-gig-backend").strip()
+            or "demand-gig-backend"
+        ),
         "PLUGINS": ("ECSPlugin",),
-        "SEGMENT_NAMING": "dynamic",
     }
 
 ROOT_URLCONF = "config.urls"

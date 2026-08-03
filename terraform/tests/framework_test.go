@@ -255,6 +255,11 @@ func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 		`"migrate","--noinput"`,
 		`aws ecs wait tasks-stopped`,
 		`MIGRATION_EXIT_CODE`,
+		`.tasks[0].stoppedReason`,
+		`Database migration container never started`,
+		`aws cloudfront wait invalidation-completed`,
+		`/api/readiness/`,
+		`sessionid=00000000000000000000000000000000`,
 	} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("deployment migration gate is missing %q", expected)
@@ -264,6 +269,37 @@ func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("deployment must not scale live services to zero before migration: %s", forbidden)
 		}
+	}
+}
+
+// Verify Terraform waits for the API service to stabilize before edge smoke tests run.
+func TestECSDeploymentWaitsForSteadyState(t *testing.T) {
+	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
+	if !hclContains(ecs, "wait_for_steady_state = true") {
+		t.Error("ECS deployment can finish before the replacement tasks are stable")
+	}
+}
+
+// Verify automatic rollback is requested only when ECS has a completed deployment to restore.
+func TestECSRollbackRequiresCompletedDeployment(t *testing.T) {
+	ecs := read(t, filepath.Join(root(t), "modules", "ecs_service", "main.tf"))
+	variables := read(t, filepath.Join(root(t), "modules", "ecs_service", "variables.tf"))
+	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
+
+	for _, expected := range []string{
+		`rollback = var.rollback_enabled`,
+		`variable "rollback_enabled"`,
+		`.rolloutState == "COMPLETED"`,
+		`backend_rollback_enabled=$BACKEND_ROLLBACK_ENABLED`,
+		`worker_rollback_enabled=$WORKER_ROLLBACK_ENABLED`,
+		`ECS service diagnostics`,
+	} {
+		if !strings.Contains(ecs+variables+deploy, expected) {
+			t.Errorf("first-deployment-safe ECS rollback is missing %q", expected)
+		}
+	}
+	if hclContains(ecs, "rollback = true") {
+		t.Error("ECS rollback is unconditionally enabled without a completed deployment candidate")
 	}
 }
 
@@ -600,6 +636,7 @@ func TestStaticAssetDeploymentUsesSafeCacheHeaders(t *testing.T) {
 		`--exclude "index.html"`,
 		`--cache-control "no-cache,no-store,must-revalidate"`,
 		`aws cloudfront create-invalidation`,
+		`aws cloudfront wait invalidation-completed`,
 	} {
 		if !strings.Contains(deploy, expected) {
 			t.Errorf("static deployment is missing %q", expected)
@@ -612,8 +649,11 @@ func TestDeploySupportsNonInteractiveProviderSecretInjection(t *testing.T) {
 	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
 		"PROVIDER_CREDENTIALS_FILE",
+		"PROVIDER_CREDENTIAL_DEFAULTS",
 		"provider_credentials_secret_arn",
+		"aws secretsmanager get-secret-value",
 		"aws secretsmanager put-secret-value",
+		"FACEBOOK_OAUTH_CLIENT_ID",
 		`jq -e 'type == "object"'`,
 	} {
 		if !strings.Contains(deploy, expected) {

@@ -15,7 +15,7 @@ ENVIRONMENT="${1:-dev}"
   exit 2
 }
 
-for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp; do
+for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp curl cp; do
   command -v "$command_name" >/dev/null || {
     echo "$command_name is required" >&2
     exit 1
@@ -46,6 +46,8 @@ CONTAINER_ID=""
 ASSET_DIR=""
 BACKUP_OVERRIDE_FILE="$TF/zz_deploy_backup_vault_override.tf"
 FINAL_PLAN_FILE=""
+PROVIDER_SECRET_SOURCE_FILE=""
+PROVIDER_SECRET_NORMALIZED_FILE=""
 
 cleanup() {
   if [[ -n "$CONTAINER_ID" ]]; then
@@ -60,11 +62,137 @@ cleanup() {
     rm -f "$FINAL_PLAN_FILE"
   fi
 
+  if [[ -n "$PROVIDER_SECRET_SOURCE_FILE" ]]; then
+    rm -f "$PROVIDER_SECRET_SOURCE_FILE"
+  fi
+
+  if [[ -n "$PROVIDER_SECRET_NORMALIZED_FILE" ]]; then
+    rm -f "$PROVIDER_SECRET_NORMALIZED_FILE"
+  fi
+
   rm -f "$BACKUP_OVERRIDE_FILE"
   rm -rf "$DOCKER_CONFIG_DIR"
 }
 
 trap cleanup EXIT INT TERM
+
+# ECS resolves each configured Secrets Manager JSON key before starting a
+# container. Keep this schema complete even when credentials are rotated with a
+# partial JSON document. Empty strings intentionally disable unconfigured
+# providers, matching the secret's Terraform-created initial value.
+PROVIDER_CREDENTIAL_DEFAULTS='{"GOOGLE_OAUTH_CLIENT_ID":"","GOOGLE_OAUTH_CLIENT_SECRET":"","FACEBOOK_OAUTH_CLIENT_ID":"","FACEBOOK_OAUTH_CLIENT_SECRET":"","INSTAGRAM_OAUTH_CLIENT_ID":"","INSTAGRAM_OAUTH_CLIENT_SECRET":"","TIKTOK_OAUTH_CLIENT_KEY":"","TIKTOK_OAUTH_CLIENT_SECRET":"","STRIPE_SECRET_KEY":"","STRIPE_WEBHOOK_SECRET":"","META_APP_ID":"","META_APP_SECRET":"","META_PIXEL_ID":"","META_CONVERSIONS_API_TOKEN":"","VIBESMEET_ACCESS_TOKEN":"","VIBESMEET_WEBHOOK_SECRET":""}'
+
+normalize_provider_credentials() {
+  local source_file="$1"
+  local destination_file="$2"
+  local missing_keys
+
+  jq -e 'type == "object"' "$source_file" >/dev/null || {
+    echo "Provider credentials must be a JSON object." >&2
+    return 1
+  }
+
+  missing_keys="$(
+    jq -r \
+      --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+      '[($defaults | keys[]) as $key
+        | select(has($key) | not)
+        | $key]
+       | join(", ")' \
+      "$source_file"
+  )"
+
+  jq \
+    --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+    '$defaults + .' \
+    "$source_file" \
+    >"$destination_file"
+
+  jq -e \
+    --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+    'type == "object"
+     and (. as $credentials
+          | all($defaults | keys[];
+                . as $key
+                | $credentials[$key]
+                | type == "string"))' \
+    "$destination_file" \
+    >/dev/null || {
+      echo "Every required provider credential must be a JSON string." >&2
+      return 1
+    }
+
+  if [[ -n "$missing_keys" ]]; then
+    echo "Adding missing provider credential keys with empty values: ${missing_keys}."
+  fi
+}
+
+ecs_service_has_completed_deployment() {
+  local service_name="$1"
+  local service_state="$2"
+
+  jq -e \
+    --arg service_name "$service_name" \
+    'any(
+       .services[]?
+       | select(.serviceName == $service_name)
+       | .deployments[]?;
+       .rolloutState == "COMPLETED"
+     )' \
+    <<<"$service_state" \
+    >/dev/null
+}
+
+report_ecs_service_diagnostics() {
+  local cluster_arn="$1"
+  shift
+
+  local service_state
+  local describe_status
+
+  set +e
+  service_state="$(
+    aws ecs describe-services \
+      --region "$REGION" \
+      --cluster "$cluster_arn" \
+      --services "$@" \
+      --output json \
+      2>&1
+  )"
+  describe_status="$?"
+  set -e
+
+  echo "ECS service diagnostics:" >&2
+
+  if [[ "$describe_status" -ne 0 ]]; then
+    echo "Unable to describe failed ECS services." >&2
+    printf '%s\n' "$service_state" >&2
+    return 0
+  fi
+
+  jq -r '
+    .failures[]?
+    | "Service lookup failure: "
+      + (.arn // "unknown")
+      + " - "
+      + (.reason // "unknown")
+  ' <<<"$service_state" >&2
+
+  jq -r '
+    .services[]?
+    | "Service: \(.serviceName)",
+      "  Status/counts: status=\(.status), desired=\(.desiredCount), running=\(.runningCount), pending=\(.pendingCount)",
+      "  Deployments:",
+      (.deployments[]?
+       | "    - status=\(.status), rolloutState="
+         + (.rolloutState // "unknown")
+         + ", reason="
+         + (.rolloutStateReason // "not provided")),
+      "  Recent events:",
+      (.events[:10][]?
+       | "    - \(.createdAt): \(.message)")
+  ' <<<"$service_state" >&2
+}
 
 restore_secret_if_scheduled_for_deletion() {
   local secret_name="$1"
@@ -1086,25 +1214,50 @@ terraform -chdir="$TF" apply \
   -target=module.secrets_manager.aws_secretsmanager_secret_version.initial \
   -target=module.migration
 
-# Optional non-interactive provider credential injection. The JSON file must
-# contain only documented keys and must not be committed.
+# Normalize the provider secret before ECS resolves its required JSON keys. An
+# optional file can replace the current document non-interactively; otherwise
+# the current document is repaired in place without exposing credential values.
+PROVIDER_SECRET_ARN="$(
+  terraform -chdir="$TF" output \
+    -raw provider_credentials_secret_arn
+)"
+
+PROVIDER_SECRET_SOURCE_FILE="$(mktemp)"
+PROVIDER_SECRET_NORMALIZED_FILE="$(mktemp)"
+chmod 600 "$PROVIDER_SECRET_SOURCE_FILE" "$PROVIDER_SECRET_NORMALIZED_FILE"
+
 if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]]; then
   [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || {
     echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2
     exit 1
   }
 
-  jq -e 'type == "object"' "$PROVIDER_CREDENTIALS_FILE" >/dev/null
-
-  PROVIDER_SECRET_ARN="$(
-    terraform -chdir="$TF" output \
-      -raw provider_credentials_secret_arn
-  )"
-
-  aws secretsmanager put-secret-value \
+  cp "$PROVIDER_CREDENTIALS_FILE" "$PROVIDER_SECRET_SOURCE_FILE"
+else
+  aws secretsmanager get-secret-value \
+    --region "$REGION" \
     --secret-id "$PROVIDER_SECRET_ARN" \
-    --secret-string "file://$PROVIDER_CREDENTIALS_FILE" \
+    --query SecretString \
+    --output text \
+    >"$PROVIDER_SECRET_SOURCE_FILE"
+fi
+
+normalize_provider_credentials \
+  "$PROVIDER_SECRET_SOURCE_FILE" \
+  "$PROVIDER_SECRET_NORMALIZED_FILE"
+
+if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]] ||
+   ! jq -s -e '.[0] == .[1]' \
+     "$PROVIDER_SECRET_SOURCE_FILE" \
+     "$PROVIDER_SECRET_NORMALIZED_FILE" \
+     >/dev/null; then
+  aws secretsmanager put-secret-value \
+    --region "$REGION" \
+    --secret-id "$PROVIDER_SECRET_ARN" \
+    --secret-string "file://$PROVIDER_SECRET_NORMALIZED_FILE" \
     >/dev/null
+else
+  echo "Provider credential secret already contains every required JSON key."
 fi
 
 CLUSTER_ARN="$(
@@ -1219,33 +1372,48 @@ aws ecs wait tasks-stopped \
   --cluster "$CLUSTER_ARN" \
   --tasks "$MIGRATION_TASK"
 
-# GuardDuty Runtime Monitoring can inject a sidecar before the application
-# container, so select the migration container by exact name.
-MIGRATION_EXIT_CODE="$(
+TASK_DETAILS="$(
   aws ecs describe-tasks \
     --cluster "$CLUSTER_ARN" \
     --tasks "$MIGRATION_TASK" \
-    --query "tasks[0].containers[?name=='$SERVICE_NAME'].exitCode | [0]" \
-    --output text
+    --output json
 )"
 
-[[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
-  TASK_DETAILS="$(
-    aws ecs describe-tasks \
-      --cluster "$CLUSTER_ARN" \
-      --tasks "$MIGRATION_TASK" \
-      --output json
-  )"
+# GuardDuty Runtime Monitoring can inject a sidecar before the application
+# container, so select the migration container by exact name.
+MIGRATION_EXIT_CODE="$(
+  jq -r \
+    --arg container_name "$SERVICE_NAME" \
+    '.tasks[0].containers[]?
+     | select(.name == $container_name)
+     | .exitCode // empty' \
+    <<<"$TASK_DETAILS" |
+    head -n 1
+)"
 
+[[ "$MIGRATION_EXIT_CODE" != "None" ]] || MIGRATION_EXIT_CODE=""
+
+[[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
   echo "ECS task details:" >&2
   jq . <<<"$TASK_DETAILS" >&2
 
+  TASK_STOP_CODE="$(jq -r '.tasks[0].stopCode // empty' <<<"$TASK_DETAILS")"
+  TASK_STOP_REASON="$(jq -r '.tasks[0].stoppedReason // empty' <<<"$TASK_DETAILS")"
+
+  [[ -z "$TASK_STOP_CODE" ]] || echo "ECS stop code: $TASK_STOP_CODE" >&2
+  [[ -z "$TASK_STOP_REASON" ]] || echo "ECS stopped reason: $TASK_STOP_REASON" >&2
+
   echo "Container failure reasons:" >&2
   jq -r \
-    '.tasks[0].containers[]
+    '.tasks[0].containers[]?
      | select(.reason != null)
      | "- \(.name): \(.reason)"' \
     <<<"$TASK_DETAILS" >&2 || true
+
+  if [[ -z "$MIGRATION_EXIT_CODE" ]]; then
+    echo "Database migration container never started; CloudWatch logs are unavailable." >&2
+    exit 1
+  fi
 
   TASK_ID="${MIGRATION_TASK##*/}"
   LOG_GROUP="/aws/ecs/$SERVICE_NAME"
@@ -1288,6 +1456,34 @@ MIGRATION_EXIT_CODE="$(
   exit 1
 }
 
+API_SERVICE_NAME="${SERVICE_NAME%-migration}-api"
+WORKER_SERVICE_NAME="${SERVICE_NAME%-migration}-worker"
+
+ECS_SERVICE_STATE="$(
+  aws ecs describe-services \
+    --region "$REGION" \
+    --cluster "$CLUSTER_ARN" \
+    --services "$API_SERVICE_NAME" "$WORKER_SERVICE_NAME" \
+    --output json
+)"
+
+BACKEND_ROLLBACK_ENABLED=false
+WORKER_ROLLBACK_ENABLED=false
+
+if ecs_service_has_completed_deployment "$API_SERVICE_NAME" "$ECS_SERVICE_STATE"; then
+  BACKEND_ROLLBACK_ENABLED=true
+  echo "A completed API deployment is available; automatic rollback is enabled."
+else
+  echo "No completed API deployment exists; automatic rollback is disabled for this bootstrap deployment."
+fi
+
+if ecs_service_has_completed_deployment "$WORKER_SERVICE_NAME" "$ECS_SERVICE_STATE"; then
+  WORKER_ROLLBACK_ENABLED=true
+  echo "A completed worker deployment is available; automatic rollback is enabled."
+else
+  echo "No completed worker deployment exists; automatic rollback is disabled for this bootstrap deployment."
+fi
+
 # Re-read the existing vault and regenerate its immutable-key override before
 # the complete plan. This handles workflow retries and state reconciliation.
 configure_existing_backup_vault_override
@@ -1303,6 +1499,8 @@ terraform -chdir="$TF" plan \
   -lock-timeout=5m \
   -var-file="$TFVARS" \
   -var="backend_image=$BACKEND_REPOSITORY:$TAG" \
+  -var="backend_rollback_enabled=$BACKEND_ROLLBACK_ENABLED" \
+  -var="worker_rollback_enabled=$WORKER_ROLLBACK_ENABLED" \
   -out="$FINAL_PLAN_FILE"
 
 if terraform -chdir="$TF" show -json "$FINAL_PLAN_FILE" |
@@ -1323,10 +1521,21 @@ echo "Final plan verified: retained Backup vault has no delete action."
 
 # Update the API, worker, scheduler, and remaining infrastructure only after the
 # backward-compatible migration succeeds and the vault safety gate passes.
+set +e
 terraform -chdir="$TF" apply \
   -input=false \
   -lock-timeout=5m \
   "$FINAL_PLAN_FILE"
+FINAL_APPLY_STATUS="$?"
+set -e
+
+if [[ "$FINAL_APPLY_STATUS" -ne 0 ]]; then
+  report_ecs_service_diagnostics \
+    "$CLUSTER_ARN" \
+    "$API_SERVICE_NAME" \
+    "$WORKER_SERVICE_NAME"
+  exit "$FINAL_APPLY_STATUS"
+fi
 
 STATIC_BUCKET="$(
   terraform -chdir="$TF" output \
@@ -1368,9 +1577,81 @@ aws s3 cp \
   --cache-control "no-cache,no-store,must-revalidate" \
   --only-show-errors
 
-aws cloudfront create-invalidation \
+INVALIDATION_ID="$(
+  aws cloudfront create-invalidation \
+    --distribution-id "$DISTRIBUTION_ID" \
+    --paths '/*' \
+    --query 'Invalidation.Id' \
+    --output text
+)"
+
+[[ -n "$INVALIDATION_ID" && "$INVALIDATION_ID" != "None" ]] || {
+  echo "CloudFront did not return an invalidation ID." >&2
+  exit 1
+}
+
+aws cloudfront wait invalidation-completed \
   --distribution-id "$DISTRIBUTION_ID" \
-  --paths '/*' \
-  >/dev/null
+  --id "$INVALIDATION_ID"
+
+CLOUDFRONT_URL="$(
+  terraform -chdir="$TF" output \
+    -raw cloudfront_url
+)"
+
+smoke_test_json() {
+  local path="$1"
+  local jq_filter="$2"
+  local cookie="${3:-}"
+  local response=""
+  local response_status=1
+  local -a curl_arguments=(
+    --fail
+    --silent
+    --show-error
+    --connect-timeout 10
+    --max-time 20
+    --header "Accept: application/json"
+  )
+
+  if [[ -n "$cookie" ]]; then
+    curl_arguments+=(--cookie "$cookie")
+  fi
+
+  for attempt in $(seq 1 12); do
+    set +e
+    response="$(curl "${curl_arguments[@]}" "${CLOUDFRONT_URL}${path}" 2>&1)"
+    response_status="$?"
+    set -e
+
+    if [[ "$response_status" -eq 0 ]] &&
+      jq -e "$jq_filter" <<<"$response" >/dev/null 2>&1; then
+      echo "Deployment smoke test passed: ${path}"
+      return 0
+    fi
+
+    echo "Deployment smoke test is not ready for ${path}; retrying in 10 seconds (${attempt}/12)." >&2
+
+    if [[ "$attempt" -lt 12 ]]; then
+      sleep 10
+    fi
+  done
+
+  echo "Deployment smoke test failed for ${CLOUDFRONT_URL}${path}." >&2
+  printf '%s\n' "$response" >&2
+  return 1
+}
+
+# Readiness proves the running API task can reach the session database. The
+# invalid session exercises the exact browser failure that previously caused
+# DRF to return 500 before the public authentication view could execute.
+smoke_test_json \
+  "/api/readiness/" \
+  '.status == "ready" and .service == "demand-gig-backend"'
+
+smoke_test_json \
+  "/api/auth/config/" \
+  '.authenticated == false and (.providers | type == "array") and (.csrf_token | type == "string")' \
+  "sessionid=00000000000000000000000000000000"
 
 terraform -chdir="$TF" output

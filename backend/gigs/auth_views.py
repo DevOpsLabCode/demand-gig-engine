@@ -13,10 +13,17 @@ from __future__ import annotations
 import logging
 
 from django.contrib.auth import logout
+from django.db import DatabaseError, connection
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
+from redis.exceptions import RedisError
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -25,6 +32,18 @@ from .serializers import GigUserProfileUpdateSerializer
 from .social_auth import extract_avatar, provider_payload
 
 logger = logging.getLogger(__name__)
+
+
+class ResilientSessionAuthentication(SessionAuthentication):
+    """Treat an unavailable optional session as anonymous on public discovery endpoints."""
+
+    def authenticate(self, request):
+        """Load a session when possible without allowing a backend outage to hide sign-in options."""
+        try:
+            return super().authenticate(request)
+        except (DatabaseError, RedisError):
+            logger.exception("Unable to load the optional authentication session")
+            return None
 
 
 def _serialize_user(user):
@@ -67,6 +86,7 @@ def _safe_provider_payload():
 
 
 @api_view(["GET"])
+@authentication_classes([ResilientSessionAuthentication])
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
 def auth_config(request):
@@ -143,7 +163,27 @@ def auth_logout(request):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def health(request):
     """Provide a dependency-light liveness endpoint."""
     return Response({"status": "ok", "service": "demand-gig-backend"})
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def readiness(request):
+    """Verify that the API task can reach the database required for login sessions."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except DatabaseError:
+        logger.exception("Database readiness check failed")
+        return Response(
+            {"status": "unavailable", "service": "demand-gig-backend"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    return Response({"status": "ready", "service": "demand-gig-backend"})

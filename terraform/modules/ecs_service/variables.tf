@@ -108,6 +108,12 @@ variable "desired_count" {
   }
 }
 
+variable "rollback_enabled" {
+  type        = bool
+  description = "Roll back a failed deployment only when orchestration has verified that a COMPLETED ECS deployment exists."
+  default     = false
+}
+
 variable "target_group_arn" {
   type        = string
   description = "Optional ALB target-group ARN used by an exposed service."
