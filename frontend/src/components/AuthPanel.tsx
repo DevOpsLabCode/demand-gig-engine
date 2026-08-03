@@ -1,15 +1,48 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Displays authentication state, starts OAuth login/link flows,
- * edits account type, and ends the current session.
+ * Purpose: Presents the login-first gateway, self-service registration, social login, and post-login marketplace-profile controls.
  */
 
-import { useEffect, useState } from "react";
-import { LogIn, LogOut, RefreshCw, ShieldCheck, UserCircle2 } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LogIn,
+  LogOut,
+  Mail,
+  Music2,
+  PackageCheck,
+  RefreshCw,
+  ShieldCheck,
+  Store,
+  UserCircle2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import {
+  type FormEvent,
+  useEffect,
+  useState,
+} from "react";
 import { api } from "../api";
-import type { AccountType, AuthConfig, AuthProvider } from "../types";
+import type {
+  AccountType,
+  AuthConfig,
+  AuthProvider,
+} from "../types";
 
-const BACKEND_BASE = (import.meta.env.VITE_API_BASE ?? "/api").replace(/\/api\/?$/, "");
+const BACKEND_BASE = (import.meta.env.VITE_API_BASE ?? "/api").replace(
+  /\/api\/?$/,
+  "",
+);
+
+export type AuthState = "loading" | "anonymous" | "authenticated";
+
+interface AuthPanelProps {
+  onAuthStateChange?: (state: AuthState) => void;
+}
 
 function startProviderLogin(
   provider: AuthProvider,
@@ -43,18 +76,40 @@ function startProviderLogin(
   form.submit();
 }
 
-export function AuthPanel() {
+function accountTypeLabel(
+  value: AccountType,
+  fallback: string,
+): string {
+  if (value === "fan") return "Community member";
+  if (value === "rental") return "Equipment vendor / rental";
+  return fallback;
+}
+
+export function AuthPanel({ onAuthStateChange }: AuthPanelProps) {
   const [auth, setAuth] = useState<AuthConfig | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [identifier, setIdentifier] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   async function load() {
     setLoading(true);
+    onAuthStateChange?.("loading");
 
     try {
       const config = await api.authConfig();
       setAuth(config);
       setError("");
+      onAuthStateChange?.(
+        config.authenticated ? "authenticated" : "anonymous",
+      );
     } catch (err) {
       setAuth(null);
       setError(
@@ -62,6 +117,7 @@ export function AuthPanel() {
           ? err.message
           : "Authentication service is unavailable",
       );
+      onAuthStateChange?.("anonymous");
     } finally {
       setLoading(false);
     }
@@ -71,24 +127,87 @@ export function AuthPanel() {
     void load();
   }, []);
 
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await api.login({
+        identifier: identifier.trim(),
+        password,
+      });
+      setPassword("");
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Sign-in failed",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    if (password !== passwordConfirm) {
+      setError("Passwords do not match.");
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      await api.register({
+        display_name: displayName.trim(),
+        email: email.trim(),
+        password,
+        password_confirm: passwordConfirm,
+      });
+      setIdentifier(email.trim());
+      setPassword("");
+      setPasswordConfirm("");
+      setMessage("Account created. Welcome to Open Concert Network.");
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Registration failed",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (loading) {
     return (
-      <div className="auth-panel">
-        <span>Loading sign-in…</span>
-      </div>
+      <section className="auth-loading-card" aria-live="polite">
+        <div className="auth-loading-mark">
+          <Music2 />
+        </div>
+        <strong>Opening Open Concert Network…</strong>
+        <span>Checking your secure session.</span>
+      </section>
     );
   }
 
   if (!auth) {
     return (
-      <div className="auth-panel auth-error" role="alert">
+      <section className="auth-service-error" role="alert">
         <div className="auth-heading">
-          <LogIn size={18} />
+          <LogIn size={20} />
           <strong>Sign-in is temporarily unavailable</strong>
         </div>
-
-        <span className="error">{error || "Authentication API returned an invalid response."}</span>
-
+        <span className="error">
+          {error || "Authentication API returned an invalid response."}
+        </span>
         <button
           className="auth-link"
           type="button"
@@ -97,53 +216,76 @@ export function AuthPanel() {
           <RefreshCw size={16} />
           Retry
         </button>
-      </div>
+      </section>
     );
   }
 
   if (auth.authenticated && auth.user) {
     return (
-      <div className="auth-panel authenticated">
+      <section className="auth-panel authenticated">
         <div className="auth-user">
-          {auth.user.avatar_url
-            ? <img src={auth.user.avatar_url} alt="" />
-            : <UserCircle2 />}
-
+          {auth.user.avatar_url ? (
+            <img src={auth.user.avatar_url} alt="" />
+          ) : (
+            <UserCircle2 />
+          )}
           <div>
+            <span className="member-status">
+              <BadgeCheck size={14} />
+              User account
+            </span>
             <strong>{auth.user.display_name}</strong>
-            <span>{auth.user.email || `@${auth.user.username}`}</span>
+            <span>
+              {auth.user.email || `@${auth.user.username}`}
+            </span>
           </div>
         </div>
 
-        <select
-          aria-label="Account type"
-          value={auth.user.account_type}
-          onChange={async (event) => {
-            try {
-              const user = await api.updateAuthProfile({
-                account_type: event.target.value as AccountType,
-              });
-              setAuth({ ...auth, user });
-              setError("");
-            } catch (err) {
-              setError(
-                err instanceof Error
-                  ? err.message
-                  : "Profile update failed",
-              );
-            }
-          }}
-        >
-          {auth.account_types.map((type) => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
+        <div className="professional-profile">
+          <label htmlFor="account-type">
+            Professional profile
+            <select
+              id="account-type"
+              value={auth.user.account_type}
+              onChange={async (event) => {
+                try {
+                  const user = await api.updateAuthProfile({
+                    account_type: event.target.value as AccountType,
+                  });
+                  setAuth({ ...auth, user });
+                  setError("");
+                  setMessage(
+                    user.account_type === "fan"
+                      ? "Community-member profile active."
+                      : "Professional profile added to your user account.",
+                  );
+                } catch (err) {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : "Profile update failed",
+                  );
+                }
+              }}
+            >
+              {auth.account_types.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {accountTypeLabel(type.value, type.label)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <small>
+            You always remain a platform user. Select Venue, Equipment
+            Vendor, Band, Organizer, or Sponsor to add marketplace
+            capabilities.
+          </small>
+        </div>
 
         <div className="linked-providers">
           <ShieldCheck size={15} />
-          {auth.user.linked_providers.join(", ") || "Social account"}
+          {auth.user.linked_providers.join(", ") ||
+            "Password-protected account"}
         </div>
 
         <div className="auth-connect">
@@ -163,14 +305,19 @@ export function AuthPanel() {
                     provider,
                     auth.csrf_token,
                     "connect",
-                  )}
+                  )
+                }
               >
                 Link {provider.label}
               </button>
             ))}
         </div>
 
-        {error && <span className="error">{error}</span>}
+        {(error || message) && (
+          <span className={error ? "error" : "message"}>
+            {error || message}
+          </span>
+        )}
 
         <button
           className="auth-logout"
@@ -178,6 +325,8 @@ export function AuthPanel() {
           onClick={async () => {
             try {
               await api.logout();
+              setMessage("");
+              setMode("login");
               await load();
             } catch (err) {
               setError(
@@ -191,48 +340,310 @@ export function AuthPanel() {
           <LogOut size={16} />
           Sign out
         </button>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="auth-panel">
-      <div className="auth-heading">
-        <LogIn size={18} />
-        <strong>Sign in to organize, support, or sponsor gigs</strong>
+    <section className="auth-gateway">
+      <div className="auth-story">
+        <span className="network-kicker">
+          <Music2 size={17} />
+          Open Concert Network
+        </span>
+        <h1>
+          One account.
+          <br />
+          Every way to make live music happen.
+        </h1>
+        <p>
+          Join first as a community member. Support gigs, build demand,
+          and later add a professional profile as a venue, equipment
+          vendor, artist, organizer, or sponsor.
+        </p>
+
+        <div className="role-preview">
+          <article>
+            <Users />
+            <div>
+              <strong>Community member</strong>
+              <span>Discover, support, reserve, and share gigs.</span>
+            </div>
+          </article>
+          <article>
+            <Building2 />
+            <div>
+              <strong>Venue</strong>
+              <span>List spaces and respond to proven demand.</span>
+            </div>
+          </article>
+          <article>
+            <PackageCheck />
+            <div>
+              <strong>Equipment vendor</strong>
+              <span>Offer sound, lighting, staging, and rentals.</span>
+            </div>
+          </article>
+          <article>
+            <Store />
+            <div>
+              <strong>Open marketplace</strong>
+              <span>Match fans, bands, venues, vendors, and sponsors.</span>
+            </div>
+          </article>
+        </div>
+
+        <div className="auth-trust-row">
+          <span>
+            <ShieldCheck size={16} />
+            Secure server session
+          </span>
+          <span>
+            <BadgeCheck size={16} />
+            Upgrade roles later
+          </span>
+        </div>
       </div>
 
-      <div className="auth-providers">
-        {auth.providers.map((provider) => {
-          const available = provider.enabled && Boolean(auth.csrf_token);
+      <div className="auth-card">
+        <div className="auth-card-header">
+          <span className="auth-card-icon">
+            {mode === "login" ? <KeyRound /> : <UserPlus />}
+          </span>
+          <div>
+            <span>
+              {mode === "login"
+                ? "Welcome back"
+                : "Join the network"}
+            </span>
+            <h2>
+              {mode === "login"
+                ? "Sign in to continue"
+                : "Create your user account"}
+            </h2>
+          </div>
+        </div>
 
-          return (
+        <div className="auth-tabs" role="tablist" aria-label="Account access">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "login"}
+            className={mode === "login" ? "active" : ""}
+            onClick={() => {
+              setMode("login");
+              setError("");
+              setMessage("");
+            }}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "register"}
+            className={mode === "register" ? "active" : ""}
+            onClick={() => {
+              setMode("register");
+              setError("");
+              setMessage("");
+            }}
+          >
+            Create account
+          </button>
+        </div>
+
+        {mode === "login" ? (
+          <form className="credential-form" onSubmit={submitLogin}>
+            <label>
+              Email or username
+              <span className="input-with-icon">
+                <Mail size={18} />
+                <input
+                  type="text"
+                  autoComplete="username"
+                  required
+                  value={identifier}
+                  onChange={(event) =>
+                    setIdentifier(event.target.value)
+                  }
+                  placeholder="you@example.com"
+                />
+              </span>
+            </label>
+
+            <label>
+              Password
+              <span className="input-with-icon password-input">
+                <KeyRound size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </span>
+            </label>
+
             <button
-              key={provider.id}
-              className={`social-login ${provider.id}`}
-              type="button"
-              disabled={!available}
-              title={
-                available
-                  ? `Continue with ${provider.label}`
-                  : `${provider.label} credentials are not configured`
-              }
-              onClick={() =>
-                startProviderLogin(provider, auth.csrf_token)
-              }
+              className="auth-submit"
+              type="submit"
+              disabled={submitting}
             >
-              {provider.label}
+              <LogIn size={18} />
+              {submitting ? "Signing in…" : "Sign in"}
             </button>
-          );
-        })}
+          </form>
+        ) : (
+          <form className="credential-form" onSubmit={submitRegistration}>
+            <label>
+              Your name
+              <span className="input-with-icon">
+                <UserCircle2 size={18} />
+                <input
+                  type="text"
+                  autoComplete="name"
+                  required
+                  value={displayName}
+                  onChange={(event) =>
+                    setDisplayName(event.target.value)
+                  }
+                  placeholder="How the community will know you"
+                />
+              </span>
+            </label>
+
+            <label>
+              Email
+              <span className="input-with-icon">
+                <Mail size={18} />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                />
+              </span>
+            </label>
+
+            <label>
+              Password
+              <span className="input-with-icon password-input">
+                <KeyRound size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  value={password}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
+                  placeholder="At least 8 characters"
+                />
+                <button
+                  type="button"
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </span>
+            </label>
+
+            <label>
+              Confirm password
+              <span className="input-with-icon">
+                <KeyRound size={18} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  value={passwordConfirm}
+                  onChange={(event) =>
+                    setPasswordConfirm(event.target.value)
+                  }
+                  placeholder="Repeat your password"
+                />
+              </span>
+            </label>
+
+            <button
+              className="auth-submit"
+              type="submit"
+              disabled={submitting}
+            >
+              <UserPlus size={18} />
+              {submitting
+                ? "Creating account…"
+                : "Create free user account"}
+            </button>
+          </form>
+        )}
+
+        {(error || message) && (
+          <div
+            className={`auth-feedback ${error ? "error" : "message"}`}
+            role={error ? "alert" : "status"}
+          >
+            {error || message}
+          </div>
+        )}
+
+        <div className="auth-divider">
+          <span>or continue with</span>
+        </div>
+
+        <div className="auth-providers">
+          {auth.providers.map((provider) => {
+            const available =
+              provider.enabled && Boolean(auth.csrf_token);
+
+            return (
+              <button
+                key={provider.id}
+                className={`social-login ${provider.id}`}
+                type="button"
+                disabled={!available}
+                title={
+                  available
+                    ? `Continue with ${provider.label}`
+                    : `${provider.label} login is not configured yet`
+                }
+                onClick={() =>
+                  startProviderLogin(provider, auth.csrf_token)
+                }
+              >
+                {provider.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <small className="registration-note">
+          Registration creates a standard user account. Venue and vendor
+          capabilities are added after login from the professional-profile
+          selector.
+        </small>
       </div>
-
-      {error && <span className="error">{error}</span>}
-
-      <small>
-        OAuth credentials stay on the server. TikTok production login requires
-        an approved app and HTTPS callback.
-      </small>
-    </div>
+    </section>
   );
 }
