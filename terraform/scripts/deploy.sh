@@ -15,7 +15,7 @@ ENVIRONMENT="${1:-dev}"
   exit 2
 }
 
-for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp curl; do
+for command_name in aws terraform docker jq git sed grep awk seq head tr date mktemp curl cp; do
   command -v "$command_name" >/dev/null || {
     echo "$command_name is required" >&2
     exit 1
@@ -46,6 +46,8 @@ CONTAINER_ID=""
 ASSET_DIR=""
 BACKUP_OVERRIDE_FILE="$TF/zz_deploy_backup_vault_override.tf"
 FINAL_PLAN_FILE=""
+PROVIDER_SECRET_SOURCE_FILE=""
+PROVIDER_SECRET_NORMALIZED_FILE=""
 
 cleanup() {
   if [[ -n "$CONTAINER_ID" ]]; then
@@ -60,11 +62,70 @@ cleanup() {
     rm -f "$FINAL_PLAN_FILE"
   fi
 
+  if [[ -n "$PROVIDER_SECRET_SOURCE_FILE" ]]; then
+    rm -f "$PROVIDER_SECRET_SOURCE_FILE"
+  fi
+
+  if [[ -n "$PROVIDER_SECRET_NORMALIZED_FILE" ]]; then
+    rm -f "$PROVIDER_SECRET_NORMALIZED_FILE"
+  fi
+
   rm -f "$BACKUP_OVERRIDE_FILE"
   rm -rf "$DOCKER_CONFIG_DIR"
 }
 
 trap cleanup EXIT INT TERM
+
+# ECS resolves each configured Secrets Manager JSON key before starting a
+# container. Keep this schema complete even when credentials are rotated with a
+# partial JSON document. Empty strings intentionally disable unconfigured
+# providers, matching the secret's Terraform-created initial value.
+PROVIDER_CREDENTIAL_DEFAULTS='{"GOOGLE_OAUTH_CLIENT_ID":"","GOOGLE_OAUTH_CLIENT_SECRET":"","FACEBOOK_OAUTH_CLIENT_ID":"","FACEBOOK_OAUTH_CLIENT_SECRET":"","INSTAGRAM_OAUTH_CLIENT_ID":"","INSTAGRAM_OAUTH_CLIENT_SECRET":"","TIKTOK_OAUTH_CLIENT_KEY":"","TIKTOK_OAUTH_CLIENT_SECRET":"","STRIPE_SECRET_KEY":"","STRIPE_WEBHOOK_SECRET":"","META_APP_ID":"","META_APP_SECRET":"","META_PIXEL_ID":"","META_CONVERSIONS_API_TOKEN":"","VIBESMEET_ACCESS_TOKEN":"","VIBESMEET_WEBHOOK_SECRET":""}'
+
+normalize_provider_credentials() {
+  local source_file="$1"
+  local destination_file="$2"
+  local missing_keys
+
+  jq -e 'type == "object"' "$source_file" >/dev/null || {
+    echo "Provider credentials must be a JSON object." >&2
+    return 1
+  }
+
+  missing_keys="$(
+    jq -r \
+      --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+      '[($defaults | keys[]) as $key
+        | select(has($key) | not)
+        | $key]
+       | join(", ")' \
+      "$source_file"
+  )"
+
+  jq \
+    --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+    '$defaults + .' \
+    "$source_file" \
+    >"$destination_file"
+
+  jq -e \
+    --argjson defaults "$PROVIDER_CREDENTIAL_DEFAULTS" \
+    'type == "object"
+     and (. as $credentials
+          | all($defaults | keys[];
+                . as $key
+                | $credentials[$key]
+                | type == "string"))' \
+    "$destination_file" \
+    >/dev/null || {
+      echo "Every required provider credential must be a JSON string." >&2
+      return 1
+    }
+
+  if [[ -n "$missing_keys" ]]; then
+    echo "Adding missing provider credential keys with empty values: ${missing_keys}."
+  fi
+}
 
 restore_secret_if_scheduled_for_deletion() {
   local secret_name="$1"
@@ -1086,25 +1147,50 @@ terraform -chdir="$TF" apply \
   -target=module.secrets_manager.aws_secretsmanager_secret_version.initial \
   -target=module.migration
 
-# Optional non-interactive provider credential injection. The JSON file must
-# contain only documented keys and must not be committed.
+# Normalize the provider secret before ECS resolves its required JSON keys. An
+# optional file can replace the current document non-interactively; otherwise
+# the current document is repaired in place without exposing credential values.
+PROVIDER_SECRET_ARN="$(
+  terraform -chdir="$TF" output \
+    -raw provider_credentials_secret_arn
+)"
+
+PROVIDER_SECRET_SOURCE_FILE="$(mktemp)"
+PROVIDER_SECRET_NORMALIZED_FILE="$(mktemp)"
+chmod 600 "$PROVIDER_SECRET_SOURCE_FILE" "$PROVIDER_SECRET_NORMALIZED_FILE"
+
 if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]]; then
   [[ -f "$PROVIDER_CREDENTIALS_FILE" ]] || {
     echo "Provider credentials file not found: $PROVIDER_CREDENTIALS_FILE" >&2
     exit 1
   }
 
-  jq -e 'type == "object"' "$PROVIDER_CREDENTIALS_FILE" >/dev/null
-
-  PROVIDER_SECRET_ARN="$(
-    terraform -chdir="$TF" output \
-      -raw provider_credentials_secret_arn
-  )"
-
-  aws secretsmanager put-secret-value \
+  cp "$PROVIDER_CREDENTIALS_FILE" "$PROVIDER_SECRET_SOURCE_FILE"
+else
+  aws secretsmanager get-secret-value \
+    --region "$REGION" \
     --secret-id "$PROVIDER_SECRET_ARN" \
-    --secret-string "file://$PROVIDER_CREDENTIALS_FILE" \
+    --query SecretString \
+    --output text \
+    >"$PROVIDER_SECRET_SOURCE_FILE"
+fi
+
+normalize_provider_credentials \
+  "$PROVIDER_SECRET_SOURCE_FILE" \
+  "$PROVIDER_SECRET_NORMALIZED_FILE"
+
+if [[ -n "${PROVIDER_CREDENTIALS_FILE:-}" ]] ||
+   ! jq -s -e '.[0] == .[1]' \
+     "$PROVIDER_SECRET_SOURCE_FILE" \
+     "$PROVIDER_SECRET_NORMALIZED_FILE" \
+     >/dev/null; then
+  aws secretsmanager put-secret-value \
+    --region "$REGION" \
+    --secret-id "$PROVIDER_SECRET_ARN" \
+    --secret-string "file://$PROVIDER_SECRET_NORMALIZED_FILE" \
     >/dev/null
+else
+  echo "Provider credential secret already contains every required JSON key."
 fi
 
 CLUSTER_ARN="$(
@@ -1219,33 +1305,48 @@ aws ecs wait tasks-stopped \
   --cluster "$CLUSTER_ARN" \
   --tasks "$MIGRATION_TASK"
 
-# GuardDuty Runtime Monitoring can inject a sidecar before the application
-# container, so select the migration container by exact name.
-MIGRATION_EXIT_CODE="$(
+TASK_DETAILS="$(
   aws ecs describe-tasks \
     --cluster "$CLUSTER_ARN" \
     --tasks "$MIGRATION_TASK" \
-    --query "tasks[0].containers[?name=='$SERVICE_NAME'].exitCode | [0]" \
-    --output text
+    --output json
 )"
 
-[[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
-  TASK_DETAILS="$(
-    aws ecs describe-tasks \
-      --cluster "$CLUSTER_ARN" \
-      --tasks "$MIGRATION_TASK" \
-      --output json
-  )"
+# GuardDuty Runtime Monitoring can inject a sidecar before the application
+# container, so select the migration container by exact name.
+MIGRATION_EXIT_CODE="$(
+  jq -r \
+    --arg container_name "$SERVICE_NAME" \
+    '.tasks[0].containers[]?
+     | select(.name == $container_name)
+     | .exitCode // empty' \
+    <<<"$TASK_DETAILS" |
+    head -n 1
+)"
 
+[[ "$MIGRATION_EXIT_CODE" != "None" ]] || MIGRATION_EXIT_CODE=""
+
+[[ "$MIGRATION_EXIT_CODE" == "0" ]] || {
   echo "ECS task details:" >&2
   jq . <<<"$TASK_DETAILS" >&2
 
+  TASK_STOP_CODE="$(jq -r '.tasks[0].stopCode // empty' <<<"$TASK_DETAILS")"
+  TASK_STOP_REASON="$(jq -r '.tasks[0].stoppedReason // empty' <<<"$TASK_DETAILS")"
+
+  [[ -z "$TASK_STOP_CODE" ]] || echo "ECS stop code: $TASK_STOP_CODE" >&2
+  [[ -z "$TASK_STOP_REASON" ]] || echo "ECS stopped reason: $TASK_STOP_REASON" >&2
+
   echo "Container failure reasons:" >&2
   jq -r \
-    '.tasks[0].containers[]
+    '.tasks[0].containers[]?
      | select(.reason != null)
      | "- \(.name): \(.reason)"' \
     <<<"$TASK_DETAILS" >&2 || true
+
+  if [[ -z "$MIGRATION_EXIT_CODE" ]]; then
+    echo "Database migration container never started; CloudWatch logs are unavailable." >&2
+    exit 1
+  fi
 
   TASK_ID="${MIGRATION_TASK##*/}"
   LOG_GROUP="/aws/ecs/$SERVICE_NAME"

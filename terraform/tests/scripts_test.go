@@ -5,6 +5,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -172,6 +173,11 @@ exit 0
 // Execute the deployment script in a fixture and verify migration success gates service scale-up and publication steps.
 func TestDeployScriptOrchestratesMigrationBeforeScaleUp(t *testing.T) {
 	fixture, fakeBin, logFile := prepareScriptFixture(t)
+	capturedSecretFile := filepath.Join(fixture, "normalized-provider-secret.json")
+	migrationModeFile := filepath.Join(fixture, "migration-mode")
+	if err := os.WriteFile(migrationModeFile, []byte("success"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	writeExecutable(t, filepath.Join(fakeBin, "terraform"), `#!/usr/bin/env bash
 set -eu
@@ -183,6 +189,7 @@ case "$*" in
   *"output -raw ecs_cluster_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:cluster/demand-gig-engine-dev' ;;
   *"output -raw migration_task_definition_arn"*) echo 'arn:aws:ecs:us-east-1:123456789012:task-definition/migration:1' ;;
   *"output -raw migration_container_name"*) echo 'demand-gig-engine-dev-migration' ;;
+  *"output -raw provider_credentials_secret_arn"*) echo 'arn:aws:secretsmanager:us-east-1:123456789012:secret:provider-credentials' ;;
   *"output -raw app_security_group_id"*) echo 'sg-1234567890' ;;
   *"output -json app_subnet_ids"*) echo '["subnet-a","subnet-b"]' ;;
   *"output -raw static_bucket_id"*) echo 'static-bucket' ;;
@@ -201,8 +208,27 @@ if [[ "$1 $2" == "s3api get-bucket-versioning" ]]; then echo Enabled; exit 0; fi
 if [[ "$1 $2" == "s3api get-bucket-encryption" ]]; then echo aws:kms; exit 0; fi
 if [[ "$1 $2" == "kms describe-key" ]]; then echo arn:aws:kms:us-east-1:123456789012:key/bootstrap-key; exit 0; fi
 if [[ "$1 $2" == "ecr get-login-password" ]]; then echo password; exit 0; fi
+if [[ "$1 $2" == "secretsmanager get-secret-value" ]]; then
+  echo '{"GOOGLE_OAUTH_CLIENT_ID":"existing-google-client","CUSTOM_PROVIDER_SETTING":"preserved"}'
+  exit 0
+fi
+if [[ "$1 $2" == "secretsmanager put-secret-value" ]]; then
+  for argument in "$@"; do
+    if [[ "$argument" == file://* ]]; then
+      cp "${argument#file://}" "$CAPTURED_SECRET_FILE"
+    fi
+  done
+  exit 0
+fi
 if [[ "$1 $2" == "ecs run-task" ]]; then echo 'arn:aws:ecs:us-east-1:123456789012:task/migration-task'; exit 0; fi
-if [[ "$1 $2" == "ecs describe-tasks" && "$*" == *"exitCode"* ]]; then echo 0; exit 0; fi
+if [[ "$1 $2" == "ecs describe-tasks" ]]; then
+  if [[ "$(< "$MOCK_MIGRATION_MODE_FILE")" == "start_failure" ]]; then
+    echo '{"tasks":[{"stopCode":"TaskFailedToStart","stoppedReason":"ResourceInitializationError: retrieved secret did not contain json key FACEBOOK_OAUTH_CLIENT_ID","containers":[{"name":"demand-gig-engine-dev-migration"}]}]}'
+  else
+    echo '{"tasks":[{"stopCode":"EssentialContainerExited","containers":[{"name":"demand-gig-engine-dev-migration","exitCode":0}]}]}'
+  fi
+  exit 0
+fi
 if [[ "$1 $2" == "cloudfront create-invalidation" ]]; then echo 'I123456789'; exit 0; fi
 exit 0
 `)
@@ -238,6 +264,8 @@ esac
 	environment := append(os.Environ(),
 		"PATH="+fakeBin+":"+os.Getenv("PATH"),
 		"MOCK_LOG="+logFile,
+		"CAPTURED_SECRET_FILE="+capturedSecretFile,
+		"MOCK_MIGRATION_MODE_FILE="+migrationModeFile,
 		"AWS_REGION=us-east-1",
 		"CREATE_BACKEND=true",
 	)
@@ -273,6 +301,54 @@ esac
 		if !strings.Contains(commands, expected) {
 			t.Errorf("deployment orchestration missing %q", expected)
 		}
+	}
+
+	secretBody := read(t, capturedSecretFile)
+	var credentials map[string]interface{}
+	if err := json.Unmarshal([]byte(secretBody), &credentials); err != nil {
+		t.Fatalf("normalized provider secret is not valid JSON: %v", err)
+	}
+	for _, key := range []string{
+		"GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+		"FACEBOOK_OAUTH_CLIENT_ID", "FACEBOOK_OAUTH_CLIENT_SECRET",
+		"INSTAGRAM_OAUTH_CLIENT_ID", "INSTAGRAM_OAUTH_CLIENT_SECRET",
+		"TIKTOK_OAUTH_CLIENT_KEY", "TIKTOK_OAUTH_CLIENT_SECRET",
+		"STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
+		"META_APP_ID", "META_APP_SECRET", "META_PIXEL_ID",
+		"META_CONVERSIONS_API_TOKEN", "VIBESMEET_ACCESS_TOKEN",
+		"VIBESMEET_WEBHOOK_SECRET",
+	} {
+		if _, ok := credentials[key].(string); !ok {
+			t.Errorf("normalized provider secret is missing string key %s", key)
+		}
+	}
+	if credentials["GOOGLE_OAUTH_CLIENT_ID"] != "existing-google-client" {
+		t.Error("provider secret normalization did not preserve an existing credential")
+	}
+	if credentials["CUSTOM_PROVIDER_SETTING"] != "preserved" {
+		t.Error("provider secret normalization did not preserve an additional existing key")
+	}
+	if credentials["FACEBOOK_OAUTH_CLIENT_ID"] != "" {
+		t.Error("provider secret normalization did not add a missing required key with an empty value")
+	}
+
+	if err := os.WriteFile(logFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(migrationModeFile, []byte("start_failure"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	failureOutput, failureErr := runCommand(t, "bash", []string{"terraform/scripts/deploy.sh", "dev"}, environment, fixture)
+	if failureErr == nil {
+		t.Fatalf("migration start failure unexpectedly succeeded:\n%s", failureOutput)
+	}
+	for _, expected := range []string{"TaskFailedToStart", "FACEBOOK_OAUTH_CLIENT_ID", "container never started"} {
+		if !strings.Contains(failureOutput, expected) {
+			t.Errorf("migration start failure did not report %q:\n%s", expected, failureOutput)
+		}
+	}
+	if commands := read(t, logFile); strings.Contains(commands, "logs get-log-events") {
+		t.Fatalf("deployment polled a CloudWatch log stream for a container that never started:\n%s", commands)
 	}
 }
 

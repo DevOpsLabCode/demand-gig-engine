@@ -255,6 +255,8 @@ func TestDeploymentRunsMigrationsBeforeUpdatingServices(t *testing.T) {
 		`"migrate","--noinput"`,
 		`aws ecs wait tasks-stopped`,
 		`MIGRATION_EXIT_CODE`,
+		`.tasks[0].stoppedReason`,
+		`Database migration container never started`,
 		`aws cloudfront wait invalidation-completed`,
 		`/api/readiness/`,
 		`sessionid=00000000000000000000000000000000`,
@@ -624,8 +626,11 @@ func TestDeploySupportsNonInteractiveProviderSecretInjection(t *testing.T) {
 	deploy := read(t, filepath.Join(root(t), "scripts", "deploy.sh"))
 	for _, expected := range []string{
 		"PROVIDER_CREDENTIALS_FILE",
+		"PROVIDER_CREDENTIAL_DEFAULTS",
 		"provider_credentials_secret_arn",
+		"aws secretsmanager get-secret-value",
 		"aws secretsmanager put-secret-value",
+		"FACEBOOK_OAUTH_CLIENT_ID",
 		`jq -e 'type == "object"'`,
 	} {
 		if !strings.Contains(deploy, expected) {
