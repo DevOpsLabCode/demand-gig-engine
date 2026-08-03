@@ -5,8 +5,11 @@
  */
 
 import type {
+  AuthConfig,
+  AuthUser,
   Campaign,
   CampaignCreate,
+  CredentialLoginInput,
   FacebookConfig,
   FacebookPage,
   FacebookProfile,
@@ -14,9 +17,8 @@ import type {
   PledgeInput,
   PledgeResult,
   SponsorInput,
+  UserRegistrationInput,
   VibesMeetConfig,
-  AuthConfig,
-  AuthUser,
 } from "./types";
 
 // Use same-origin /api in production unless a local or test build explicitly supplies another backend URL.
@@ -36,7 +38,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.detail ?? `Request failed (${response.status})`);
+    const detail =
+      typeof body.detail === "string"
+        ? body.detail
+        : Object.values(body)
+            .flat()
+            .filter((value): value is string => typeof value === "string")
+            .join(" ");
+    throw new Error(detail || `Request failed (${response.status})`);
   }
   return body as T;
 }
@@ -61,18 +70,50 @@ export const api = {
     serverCsrfToken = config.csrf_token;
     return config;
   },
+  // Start a credential-backed Django session using either username or email.
+  login: (data: CredentialLoginInput) =>
+    request<AuthUser>("/auth/login/", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
+  // Create a normal community-member account and automatically start its session.
+  register: (data: UserRegistrationInput) =>
+    request<AuthUser>("/auth/register/", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
   // Update only the authenticated profile fields supplied by the account panel.
-  updateAuthProfile: (data: Partial<AuthUser>) => request<AuthUser>("/auth/profile/", { method: "PATCH", body: JSON.stringify(data), headers: csrfHeaders() }),
+  updateAuthProfile: (data: Partial<AuthUser>) =>
+    request<AuthUser>("/auth/profile/", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
   // End the current server session using a CSRF-protected POST.
-  logout: () => request<void>("/auth/logout/", { method: "POST", body: "{}", headers: csrfHeaders() }),
+  logout: () =>
+    request<void>("/auth/logout/", {
+      method: "POST",
+      body: "{}",
+      headers: csrfHeaders(),
+    }),
   // Read campaigns with server-calculated thresholds, status, and totals.
   listCampaigns: () => request<Campaign[]>("/campaigns/"),
   // Create a draft demand campaign owned by the authenticated organizer when signed in.
   createCampaign: (data: CampaignCreate) =>
-    request<Campaign>("/campaigns/", { method: "POST", body: JSON.stringify(data), headers: csrfHeaders() }),
+    request<Campaign>("/campaigns/", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
   // Transition a draft campaign into the collecting state through the lifecycle action endpoint.
   launchCampaign: (slug: string) =>
-    request<Campaign>(`/campaigns/${slug}/launch/`, { method: "POST", body: "{}", headers: csrfHeaders() }),
+    request<Campaign>(`/campaigns/${slug}/launch/`, {
+      method: "POST",
+      body: "{}",
+      headers: csrfHeaders(),
+    }),
   // Create or resume an idempotent supporter pledge and receive payment data when a deposit is required.
   pledge: (slug: string, data: PledgeInput) =>
     request<PledgeResult>(`/campaigns/${slug}/pledge/`, {
@@ -106,7 +147,10 @@ export const api = {
       headers: csrfHeaders(),
     }),
   // Build a tracked campaign URL and corresponding Facebook share-dialog URL without auto-posting to Groups.
-  facebookShareLink: (slug: string, data: { group_name?: string; referral_code?: string; source?: string }) =>
+  facebookShareLink: (
+    slug: string,
+    data: { group_name?: string; referral_code?: string; source?: string },
+  ) =>
     request<FacebookShareLink>(`/campaigns/${slug}/facebook/share-link/`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -123,9 +167,13 @@ export const api = {
       referral_code?: string;
       source?: string;
     },
-  ) => request<{ post_id: string; campaign_url: string }>(`/campaigns/${slug}/facebook/publish-page/`, {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: csrfHeaders(),
-  }),
+  ) =>
+    request<{ post_id: string; campaign_url: string }>(
+      `/campaigns/${slug}/facebook/publish-page/`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: csrfHeaders(),
+      },
+    ),
 };
