@@ -8,9 +8,68 @@ Validates and converts API payloads between JSON representations and Django doma
 Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 """
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
+
 from .models import DemandCampaign, GigUserProfile, Pledge, SponsorCommitment
+
+
+class CredentialLoginSerializer(serializers.Serializer):
+    """Validate one username/email and password login request."""
+
+    identifier = serializers.CharField(max_length=254, trim_whitespace=True)
+    password = serializers.CharField(
+        max_length=128,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+
+class UserRegistrationSerializer(serializers.Serializer):
+    """Validate a new community-member account before database creation."""
+
+    display_name = serializers.CharField(max_length=160, trim_whitespace=True)
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        trim_whitespace=False,
+        write_only=True,
+    )
+    password_confirm = serializers.CharField(
+        min_length=8,
+        max_length=128,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+    def validate_email(self, value):
+        """Normalize email case and reject duplicate credential accounts."""
+        email = get_user_model().objects.normalize_email(value).lower()
+        if get_user_model()._default_manager.filter(email__iexact=email).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+        return email
+
+    def validate_password(self, value):
+        """Apply the project's configured Django password validators."""
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
+
+    def validate(self, attrs):
+        """Require matching password confirmation before creating the account."""
+        if attrs["password"] != attrs["password_confirm"]:
+            raise serializers.ValidationError(
+                {"password_confirm": "Passwords do not match."}
+            )
+        return attrs
 
 
 class CampaignSerializer(serializers.ModelSerializer):
