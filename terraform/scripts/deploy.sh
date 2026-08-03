@@ -172,7 +172,10 @@ report_ecs_service_diagnostics() {
 
   jq -r '
     .failures[]?
-    | "Service lookup failure: \(.arn // \"unknown\") - \(.reason // \"unknown\")"
+    | "Service lookup failure: "
+      + (.arn // "unknown")
+      + " - "
+      + (.reason // "unknown")
   ' <<<"$service_state" >&2
 
   jq -r '
@@ -181,7 +184,10 @@ report_ecs_service_diagnostics() {
       "  Status/counts: status=\(.status), desired=\(.desiredCount), running=\(.runningCount), pending=\(.pendingCount)",
       "  Deployments:",
       (.deployments[]?
-       | "    - status=\(.status), rolloutState=\(.rolloutState // \"unknown\"), reason=\(.rolloutStateReason // \"not provided\")"),
+       | "    - status=\(.status), rolloutState="
+         + (.rolloutState // "unknown")
+         + ", reason="
+         + (.rolloutStateReason // "not provided")),
       "  Recent events:",
       (.events[:10][]?
        | "    - \(.createdAt): \(.message)")
