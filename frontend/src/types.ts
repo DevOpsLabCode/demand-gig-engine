@@ -157,11 +157,27 @@ export interface VibesMeetConfig {
   };
 }
 
-
 /**
  * Enumerate marketplace roles supported by user profiles and future matching workflows.
+ *
+ * Every authenticated person remains a platform user. This value selects the
+ * person's current primary marketplace profile and can be changed later.
  */
 export type AccountType = "fan" | "band" | "venue" | "organizer" | "rental" | "sponsor";
+
+/** Define first-page username/email and password sign-in data. */
+export interface CredentialLoginInput {
+  identifier: string;
+  password: string;
+}
+
+/** Define the self-service community-member registration form. */
+export interface UserRegistrationInput {
+  display_name: string;
+  email: string;
+  password: string;
+  password_confirm: string;
+}
 
 /**
  * Describe one social provider, its allauth routes, and whether configuration is complete enough to enable it.
@@ -203,5 +219,6 @@ export interface AuthConfig {
   user: AuthUser | null;
   providers: AuthProvider[];
   csrf_token: string;
+  password_auth_enabled: boolean;
   account_types: Array<{ value: AccountType; label: string }>;
 }
