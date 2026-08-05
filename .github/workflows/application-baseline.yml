@@ -1,6 +1,6 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
 # Purpose: Establishes the Open Concert MVP Phase 0 application baseline.
-# Safety: This workflow does not run Terraform init, plan, apply, destroy, or merge changes.
+# Safety: This workflow does not run Terraform plan, apply, destroy, or merge changes.
 
 name: Application baseline
 
@@ -22,6 +22,51 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  lockfile-bootstrap:
+    name: Bootstrap missing frontend lockfile
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out pull-request branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Generate and commit lockfile when missing
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ -f package-lock.json ]]; then
+            echo "frontend/package-lock.json is already committed."
+            exit 0
+          fi
+
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "build: add reproducible frontend lockfile"
+          git push origin "HEAD:${HEAD_BRANCH}"
+
   backend-baseline:
     name: Backend tests and migrations
     runs-on: ubuntu-latest
