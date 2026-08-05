@@ -1,0 +1,151 @@
+# Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+# Purpose: Establishes the Open Concert MVP Phase 0 application baseline.
+# Safety: This workflow does not run Terraform init, plan, apply, destroy, or merge changes.
+
+name: Application baseline
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-baseline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_INPUT: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  backend-baseline:
+    name: Backend tests and migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install application dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --requirement requirements.txt
+          python -m pip check
+
+      - name: Run Django system check
+        env:
+          DEBUG: "true"
+        run: python backend/manage.py check
+
+      - name: Check migration drift
+        env:
+          DEBUG: "true"
+        run: python backend/manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations to an empty database
+        env:
+          DEBUG: "true"
+        run: |
+          rm -f backend/db.sqlite3
+          python backend/manage.py migrate --noinput
+
+      - name: Run backend tests and 90 percent coverage gate
+        env:
+          DEBUG: "true"
+          DJANGO_SETTINGS_MODULE: config.settings
+          PYTHONPATH: backend
+        run: python -m pytest
+
+  frontend-baseline:
+    name: Frontend type check and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Detect committed npm lockfile
+        id: npm-lock
+        shell: bash
+        run: |
+          if [[ -f package-lock.json ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Using committed frontend/package-lock.json with npm ci."
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::frontend/package-lock.json is missing. A temporary lockfile will be generated for this diagnostic baseline."
+          fi
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: |
+          if [[ "${{ steps.npm-lock.outputs.present }}" == "true" ]]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Upload generated npm lockfile
+        if: steps.npm-lock.outputs.present != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: phase-0-generated-frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run TypeScript check and production build
+        run: npm run build
+
+  application-baseline-gate:
+    name: Application baseline gate
+    if: always()
+    needs:
+      - backend-baseline
+      - frontend-baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_RESULT: ${{ needs.backend-baseline.result }}
+      FRONTEND_RESULT: ${{ needs.frontend-baseline.result }}
+
+    steps:
+      - name: Enforce Phase 0 results
+        shell: bash
+        run: |
+          printf '%-24s %s\n' \
+            "Backend baseline" "$BACKEND_RESULT" \
+            "Frontend baseline" "$FRONTEND_RESULT"
+
+          if [[ "$BACKEND_RESULT" != "success" || "$FRONTEND_RESULT" != "success" ]]; then
+            echo "Phase 0 application baseline failed. Do not begin Phase 1."
+            exit 1
+          fi
+
+          echo "Phase 0 application baseline passed. Terraform remains manual and was not executed."
