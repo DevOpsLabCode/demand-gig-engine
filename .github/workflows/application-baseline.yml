@@ -22,51 +22,6 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
-  lockfile-bootstrap:
-    name: Bootstrap missing frontend lockfile
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - name: Check out pull-request branch
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          persist-credentials: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-
-      - name: Generate and commit lockfile when missing
-        shell: bash
-        env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-
-          if [[ -f package-lock.json ]]; then
-            echo "frontend/package-lock.json is already committed."
-            exit 0
-          fi
-
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "build: add reproducible frontend lockfile"
-          git push origin "HEAD:${HEAD_BRANCH}"
-
   backend-baseline:
     name: Backend tests and migrations
     runs-on: ubuntu-latest
@@ -134,36 +89,15 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Detect committed npm lockfile
-        id: npm-lock
+      - name: Require committed npm lockfile
         shell: bash
-        run: |
-          if [[ -f package-lock.json ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "Using committed frontend/package-lock.json with npm ci."
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::frontend/package-lock.json is missing. A temporary lockfile will be generated for this diagnostic baseline."
-          fi
+        run: test -f package-lock.json
 
-      - name: Install frontend dependencies
-        shell: bash
-        run: |
-          if [[ "${{ steps.npm-lock.outputs.present }}" == "true" ]]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
-
-      - name: Upload generated npm lockfile
-        if: steps.npm-lock.outputs.present != 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: phase-0-generated-frontend-package-lock
-          path: frontend/package-lock.json
-          if-no-files-found: error
-          retention-days: 14
+      - name: Install locked frontend dependencies
+        run: npm ci --no-audit --no-fund
 
       - name: Run TypeScript check and production build
         run: npm run build
