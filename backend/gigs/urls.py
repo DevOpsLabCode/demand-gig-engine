@@ -23,13 +23,15 @@ from .campaign_approval_views import (
     campaign_review_queue,
     campaign_submit_review,
 )
-from .campaign_owner_edit_views import campaign_owner_edit_detail
+from .campaign_owner_edit_views import (
+    campaign_owner_date_option_detail,
+    campaign_owner_date_options,
+    campaign_owner_edit_detail,
+    campaign_owner_price_option_detail,
+    campaign_owner_price_options,
+)
 from .campaign_preference_views import (
-    campaign_date_option_detail,
-    campaign_date_options,
     campaign_preference_summary,
-    campaign_price_option_detail,
-    campaign_price_options,
     campaign_supporter_preference,
 )
 from .role_views import reject_role, role_collection, verify_role
@@ -55,22 +57,22 @@ urlpatterns = [
     path("campaigns/", campaign_collection, name="campaign-collection"),
     path(
         "campaigns/<slug:slug>/date-options/",
-        campaign_date_options,
+        campaign_owner_date_options,
         name="campaign-date-options",
     ),
     path(
         "campaigns/<slug:slug>/date-options/<int:option_id>/",
-        campaign_date_option_detail,
+        campaign_owner_date_option_detail,
         name="campaign-date-option-detail",
     ),
     path(
         "campaigns/<slug:slug>/price-options/",
-        campaign_price_options,
+        campaign_owner_price_options,
         name="campaign-price-options",
     ),
     path(
         "campaigns/<slug:slug>/price-options/<int:option_id>/",
-        campaign_price_option_detail,
+        campaign_owner_price_option_detail,
         name="campaign-price-option-detail",
     ),
     path(
