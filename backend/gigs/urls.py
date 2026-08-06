@@ -18,12 +18,12 @@ from .auth_views import (
 from .campaign_approval_views import (
     campaign_approve,
     campaign_collection,
-    campaign_detail,
     campaign_launch,
     campaign_reject,
     campaign_review_queue,
     campaign_submit_review,
 )
+from .campaign_owner_edit_views import campaign_owner_edit_detail
 from .campaign_preference_views import (
     campaign_date_option_detail,
     campaign_date_options,
@@ -87,7 +87,7 @@ urlpatterns = [
     path("campaigns/<slug:slug>/approve/", campaign_approve, name="campaign-approve"),
     path("campaigns/<slug:slug>/reject/", campaign_reject, name="campaign-reject"),
     path("campaigns/<slug:slug>/launch/", campaign_launch, name="campaign-approved-launch"),
-    path("campaigns/<slug:slug>/", campaign_detail, name="campaign-protected-detail"),
+    path("campaigns/<slug:slug>/", campaign_owner_edit_detail, name="campaign-protected-detail"),
     path("", include(router.urls)),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/login/", auth_login, name="auth-login"),
