@@ -14,7 +14,6 @@ from django.utils import timezone
 
 from .campaign_review_models import CampaignReview, CampaignReviewDecision
 from .models import CampaignEvent, DemandCampaign
-from .role_models import RoleCode, RoleVerificationStatus, UserRole
 
 
 DRAFT = "draft"
@@ -26,6 +25,10 @@ REJECTED = "rejected"
 
 class CampaignApprovalError(ValueError):
     """Raised when a campaign approval transition is not permitted."""
+
+
+class CampaignApprovalPermissionError(CampaignApprovalError):
+    """Raised when the actor lacks permission for a campaign transition."""
 
 
 @dataclass(frozen=True)
@@ -47,23 +50,12 @@ def can_review_campaigns(user) -> bool:
         return False
     if user.is_staff:
         return True
+
+    from .role_models import RoleCode, RoleVerificationStatus, UserRole
+
     return UserRole.objects.filter(
         user=user,
         role__code=RoleCode.ADMINISTRATOR,
-        verification_status=RoleVerificationStatus.VERIFIED,
-    ).exists()
-
-
-def _owner_has_verified_organizer_role(campaign: DemandCampaign) -> bool:
-    """Require a verified organizer or administrator role for automatic approval."""
-
-    if not campaign.owner_id:
-        return False
-    if campaign.owner.is_staff:
-        return True
-    return UserRole.objects.filter(
-        user_id=campaign.owner_id,
-        role__code__in=[RoleCode.ORGANIZER, RoleCode.ADMINISTRATOR],
         verification_status=RoleVerificationStatus.VERIFIED,
     ).exists()
 
@@ -87,8 +79,11 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
         campaign.organizer_name,
         campaign.organizer_email,
     )
-    verified_organizer = _owner_has_verified_organizer_role(campaign)
+    required_complete = all(bool(value) for value in required_values)
+    owner_active = bool(campaign.owner_id and campaign.owner.is_active)
+    future_deadline = campaign.deadline > timezone.now()
     no_early_support = not campaign.pledges.exists() and not campaign.sponsorships.exists()
+
     return [
         AutomaticCheck(
             "owner_present",
@@ -98,24 +93,24 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
             else "An authenticated campaign owner is required.",
         ),
         AutomaticCheck(
-            "verified_organizer",
-            verified_organizer,
-            "Owner has a verified organizer or administrator role."
-            if verified_organizer
-            else "Owner needs a verified organizer role or administrator review.",
+            "owner_account_active",
+            owner_active,
+            "Campaign owner account is active."
+            if owner_active
+            else "Campaign owner account must be active.",
         ),
         AutomaticCheck(
             "required_content",
-            all(bool(value) for value in required_values),
+            required_complete,
             "Required campaign and organizer fields are complete."
-            if all(bool(value) for value in required_values)
+            if required_complete
             else "Required campaign or organizer information is missing.",
         ),
         AutomaticCheck(
             "future_deadline",
-            campaign.deadline > timezone.now(),
+            future_deadline,
             "Campaign deadline is in the future."
-            if campaign.deadline > timezone.now()
+            if future_deadline
             else "Campaign deadline must be in the future.",
         ),
         AutomaticCheck("model_validation", model_valid, model_message),
@@ -178,8 +173,13 @@ def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, Camp
         .select_related("owner")
         .get(pk=campaign_id)
     )
-    if campaign.owner_id != getattr(actor, "id", None):
-        raise CampaignApprovalError("Only the campaign owner may submit it for review.")
+    if (
+        campaign.owner_id != getattr(actor, "id", None)
+        and not getattr(actor, "is_staff", False)
+    ):
+        raise CampaignApprovalPermissionError(
+            "Only the campaign owner or an administrator may submit it for review."
+        )
     if campaign.status not in [DRAFT, REJECTED]:
         raise CampaignApprovalError("Only a draft or rejected campaign can be submitted.")
 
@@ -225,7 +225,7 @@ def approve_campaign_manually(
     """Allow an administrator to approve a failed auto-review with written notes."""
 
     if not can_review_campaigns(reviewer):
-        raise CampaignApprovalError("Administrator campaign-review permission is required.")
+        raise CampaignApprovalPermissionError("Administrator campaign-review permission is required.")
 
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
     if campaign.owner_id == reviewer.id:
@@ -256,7 +256,7 @@ def reject_campaign_manually(
     """Return a pending campaign to its owner with mandatory rejection notes."""
 
     if not can_review_campaigns(reviewer):
-        raise CampaignApprovalError("Administrator campaign-review permission is required.")
+        raise CampaignApprovalPermissionError("Administrator campaign-review permission is required.")
     if not notes or not notes.strip():
         raise CampaignApprovalError("Rejection notes are required.")
 
@@ -286,9 +286,9 @@ def launch_approved_campaign(campaign_id, actor) -> DemandCampaign:
 
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
     if not getattr(actor, "is_authenticated", False):
-        raise CampaignApprovalError("Authentication is required.")
+        raise CampaignApprovalPermissionError("Authentication is required.")
     if campaign.owner_id != actor.id and not actor.is_staff:
-        raise CampaignApprovalError("Only the campaign owner or an administrator may launch it.")
+        raise CampaignApprovalPermissionError("Only the campaign owner or an administrator may launch it.")
     if campaign.status != APPROVED:
         raise CampaignApprovalError("Campaign approval is required before launch.")
     if campaign.deadline <= timezone.now():

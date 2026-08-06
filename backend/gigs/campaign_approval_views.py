@@ -16,6 +16,7 @@ from .campaign_approval import (
     PENDING_REVIEW,
     REJECTED,
     CampaignApprovalError,
+    CampaignApprovalPermissionError,
     approve_campaign_manually,
     can_review_campaigns,
     launch_approved_campaign,
@@ -28,6 +29,8 @@ from .serializers import CampaignSerializer
 
 
 def _review_payload(review: CampaignReview | None) -> dict | None:
+    """Serialize review evidence without exposing the full reviewer account."""
+
     if review is None:
         return None
     return {
@@ -43,6 +46,8 @@ def _review_payload(review: CampaignReview | None) -> dict | None:
 
 
 def _campaign_payload(campaign: DemandCampaign, request, review=None) -> dict:
+    """Add approval state and actor capabilities to the existing campaign contract."""
+
     payload = CampaignSerializer(campaign, context={"request": request}).data
     payload["latest_review"] = _review_payload(
         review
@@ -59,7 +64,14 @@ def _campaign_payload(campaign: DemandCampaign, request, review=None) -> dict:
 
 
 def _error(exc: Exception) -> Response:
-    return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    """Preserve permission semantics separately from lifecycle conflicts."""
+
+    response_status = (
+        status.HTTP_403_FORBIDDEN
+        if isinstance(exc, CampaignApprovalPermissionError)
+        else status.HTTP_409_CONFLICT
+    )
+    return Response({"detail": str(exc)}, status=response_status)
 
 
 @api_view(["GET", "POST"])
@@ -72,7 +84,10 @@ def campaign_collection(request):
         return Response([_campaign_payload(campaign, request) for campaign in campaigns])
 
     if not request.user.is_authenticated:
-        return Response({"detail": "Authentication is required."}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {"detail": "Authentication is required."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
     serializer = CampaignSerializer(data=request.data, context={"request": request})
     serializer.is_valid(raise_exception=True)
@@ -93,12 +108,18 @@ def campaign_collection(request):
 def campaign_detail(request, slug: str):
     """Provide public retrieval while limiting edits and deletion to draft/rejected owners."""
 
-    campaign = get_object_or_404(DemandCampaign.objects.select_related("owner"), slug=slug)
+    campaign = get_object_or_404(
+        DemandCampaign.objects.select_related("owner"),
+        slug=slug,
+    )
     if request.method == "GET":
         return Response(_campaign_payload(campaign, request))
 
     if not request.user.is_authenticated:
-        return Response({"detail": "Authentication is required."}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {"detail": "Authentication is required."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
     if campaign.owner_id != request.user.id and not request.user.is_staff:
         return Response(
             {"detail": "Only the campaign owner or an administrator may modify it."},
@@ -151,7 +172,11 @@ def campaign_approve(request, slug: str):
     campaign = get_object_or_404(DemandCampaign, slug=slug)
     notes = str(request.data.get("notes", "")).strip()
     try:
-        campaign, review = approve_campaign_manually(campaign.id, request.user, notes)
+        campaign, review = approve_campaign_manually(
+            campaign.id,
+            request.user,
+            notes,
+        )
     except CampaignApprovalError as exc:
         return _error(exc)
     return Response(_campaign_payload(campaign, request, review))
@@ -165,7 +190,11 @@ def campaign_reject(request, slug: str):
     campaign = get_object_or_404(DemandCampaign, slug=slug)
     notes = str(request.data.get("notes", "")).strip()
     try:
-        campaign, review = reject_campaign_manually(campaign.id, request.user, notes)
+        campaign, review = reject_campaign_manually(
+            campaign.id,
+            request.user,
+            notes,
+        )
     except CampaignApprovalError as exc:
         return _error(exc)
     return Response(_campaign_payload(campaign, request, review))
@@ -174,10 +203,19 @@ def campaign_reject(request, slug: str):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def campaign_launch(request, slug: str):
-    """Launch an approved campaign without exposing the legacy draft-launch route."""
+    """Run deterministic review for legacy launch calls, then launch only approval-passing campaigns."""
 
     campaign = get_object_or_404(DemandCampaign, slug=slug)
     try:
+        review = None
+        if campaign.status in [DRAFT, REJECTED]:
+            campaign, review = submit_campaign_for_review(campaign.id, request.user)
+        if campaign.status == PENDING_REVIEW:
+            payload = _campaign_payload(campaign, request, review)
+            payload["detail"] = (
+                "Automatic checks require administrator review before launch."
+            )
+            return Response(payload, status=status.HTTP_409_CONFLICT)
         campaign = launch_approved_campaign(campaign.id, request.user)
     except (CampaignApprovalError, ValueError) as exc:
         return _error(exc)

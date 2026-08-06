@@ -5,6 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -15,6 +16,7 @@ from gigs.campaign_approval import (
     PENDING_REVIEW,
     REJECTED,
     CampaignApprovalError,
+    CampaignApprovalPermissionError,
     approve_campaign_manually,
     launch_approved_campaign,
     reject_campaign_manually,
@@ -22,7 +24,6 @@ from gigs.campaign_approval import (
 )
 from gigs.campaign_review_models import CampaignReview, CampaignReviewDecision
 from gigs.models import CampaignEvent, DemandCampaign, GoalType
-from gigs.role_models import Role, RoleCode, RoleVerificationStatus, UserRole
 
 
 class CampaignApprovalTests(TestCase):
@@ -45,7 +46,6 @@ class CampaignApprovalTests(TestCase):
             email="other@example.com",
             password="StrongPass123!",
         )
-        self.organizer_role = Role.objects.get(code=RoleCode.ORGANIZER)
 
     def make_campaign(self, **overrides):
         data = {
@@ -65,19 +65,7 @@ class CampaignApprovalTests(TestCase):
         data.update(overrides)
         return DemandCampaign.objects.create(**data)
 
-    def verify_owner_as_organizer(self):
-        return UserRole.objects.update_or_create(
-            user=self.owner,
-            role=self.organizer_role,
-            defaults={
-                "verification_status": RoleVerificationStatus.VERIFIED,
-                "verified_by": self.admin,
-                "verified_at": timezone.now(),
-            },
-        )[0]
-
     def test_passing_checks_auto_approve_and_launch(self):
-        self.verify_owner_as_organizer()
         campaign = self.make_campaign()
 
         campaign, review = submit_campaign_for_review(campaign.id, self.owner)
@@ -95,7 +83,9 @@ class CampaignApprovalTests(TestCase):
         )
 
     def test_failed_check_routes_campaign_to_manual_review(self):
-        campaign = self.make_campaign()
+        campaign = self.make_campaign(
+            deadline=timezone.now() - timedelta(minutes=1),
+        )
         campaign, review = submit_campaign_for_review(campaign.id, self.owner)
 
         self.assertEqual(campaign.status, PENDING_REVIEW)
@@ -106,17 +96,34 @@ class CampaignApprovalTests(TestCase):
         failed_keys = {
             item["key"] for item in review.checks if not item["passed"]
         }
-        self.assertIn("verified_organizer", failed_keys)
+        self.assertIn("future_deadline", failed_keys)
         with self.assertRaises(CampaignApprovalError):
             launch_approved_campaign(campaign.id, self.owner)
 
+    def test_inactive_owner_routes_to_manual_review(self):
+        self.owner.is_active = False
+        self.owner.save(update_fields=["is_active"])
+        campaign, review = submit_campaign_for_review(
+            self.make_campaign().id,
+            self.admin,
+        )
+
+        self.assertEqual(campaign.status, PENDING_REVIEW)
+        failed_keys = {
+            item["key"] for item in review.checks if not item["passed"]
+        }
+        self.assertIn("owner_account_active", failed_keys)
+
     def test_admin_can_approve_failed_auto_review(self):
-        campaign, _ = submit_campaign_for_review(self.make_campaign().id, self.owner)
+        campaign, _ = submit_campaign_for_review(
+            self.make_campaign(deadline=timezone.now() - timedelta(minutes=1)).id,
+            self.owner,
+        )
 
         campaign, review = approve_campaign_manually(
             campaign.id,
             self.admin,
-            "Organizer identity and campaign details reviewed.",
+            "Deadline exception and campaign evidence reviewed.",
         )
         self.assertEqual(campaign.status, APPROVED)
         self.assertEqual(review.decision, CampaignReviewDecision.MANUAL_APPROVED)
@@ -131,7 +138,10 @@ class CampaignApprovalTests(TestCase):
             approve_campaign_manually(campaign.id, self.owner, "Self approval")
 
     def test_rejection_requires_notes_and_allows_resubmission(self):
-        campaign, _ = submit_campaign_for_review(self.make_campaign().id, self.owner)
+        campaign, _ = submit_campaign_for_review(
+            self.make_campaign(deadline=timezone.now() - timedelta(minutes=1)).id,
+            self.owner,
+        )
 
         with self.assertRaises(CampaignApprovalError):
             reject_campaign_manually(campaign.id, self.admin, "")
@@ -139,45 +149,43 @@ class CampaignApprovalTests(TestCase):
         campaign, review = reject_campaign_manually(
             campaign.id,
             self.admin,
-            "Add verified organizer credentials.",
+            "Choose a future campaign deadline.",
         )
         self.assertEqual(campaign.status, REJECTED)
         self.assertEqual(review.decision, CampaignReviewDecision.REJECTED)
 
-        self.verify_owner_as_organizer()
+        campaign.deadline = timezone.now() + timedelta(days=30)
+        campaign.save(update_fields=["deadline", "updated_at"])
         campaign, review = submit_campaign_for_review(campaign.id, self.owner)
         self.assertEqual(campaign.status, APPROVED)
         self.assertEqual(review.previous_status, REJECTED)
 
     def test_review_records_are_append_only(self):
-        campaign, review = submit_campaign_for_review(self.make_campaign().id, self.owner)
+        campaign, review = submit_campaign_for_review(
+            self.make_campaign().id,
+            self.owner,
+        )
         review.notes = "Changed"
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValidationError):
             review.save()
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValidationError):
             review.delete()
-        self.assertEqual(CampaignReview.objects.filter(campaign=campaign).count(), 1)
+        self.assertEqual(
+            CampaignReview.objects.filter(campaign=campaign).count(),
+            1,
+        )
 
-    def test_api_blocks_direct_draft_launch_and_auto_approves_after_role_verification(self):
-        self.verify_owner_as_organizer()
+    def test_unauthorized_user_cannot_submit_or_launch_campaign(self):
+        campaign = self.make_campaign()
+        with self.assertRaises(CampaignApprovalPermissionError):
+            submit_campaign_for_review(campaign.id, self.other)
+        with self.assertRaises(CampaignApprovalPermissionError):
+            launch_approved_campaign(campaign.id, self.other)
+
+    def test_api_legacy_launch_runs_auto_review_and_launches(self):
         campaign = self.make_campaign()
         client = APIClient()
         client.force_authenticate(self.owner)
-
-        direct = client.post(f"/api/campaigns/{campaign.slug}/launch/", {}, format="json")
-        self.assertEqual(direct.status_code, 409)
-
-        submitted = client.post(
-            f"/api/campaigns/{campaign.slug}/submit-review/",
-            {},
-            format="json",
-        )
-        self.assertEqual(submitted.status_code, 200)
-        self.assertEqual(submitted.data["status"], APPROVED)
-        self.assertEqual(
-            submitted.data["latest_review"]["decision"],
-            CampaignReviewDecision.AUTO_APPROVED,
-        )
 
         launched = client.post(
             f"/api/campaigns/{campaign.slug}/launch/",
@@ -186,9 +194,35 @@ class CampaignApprovalTests(TestCase):
         )
         self.assertEqual(launched.status_code, 200)
         self.assertEqual(launched.data["status"], COLLECTING)
+        self.assertEqual(
+            launched.data["latest_review"]["decision"],
+            CampaignReviewDecision.AUTO_APPROVED,
+        )
+
+    def test_api_failed_legacy_launch_enters_manual_queue(self):
+        campaign = self.make_campaign(
+            deadline=timezone.now() - timedelta(minutes=1),
+        )
+        client = APIClient()
+        client.force_authenticate(self.owner)
+
+        response = client.post(
+            f"/api/campaigns/{campaign.slug}/launch/",
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["status"], PENDING_REVIEW)
+        self.assertEqual(
+            response.data["latest_review"]["decision"],
+            CampaignReviewDecision.MANUAL_REVIEW_REQUIRED,
+        )
 
     def test_api_manual_queue_and_decisions_require_admin(self):
-        campaign, _ = submit_campaign_for_review(self.make_campaign().id, self.owner)
+        campaign, _ = submit_campaign_for_review(
+            self.make_campaign(deadline=timezone.now() - timedelta(minutes=1)).id,
+            self.owner,
+        )
 
         owner_client = APIClient()
         owner_client.force_authenticate(self.owner)
