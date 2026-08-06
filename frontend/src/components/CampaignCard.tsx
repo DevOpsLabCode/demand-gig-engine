@@ -15,7 +15,6 @@ import {
   CircleDollarSign,
   Clock3,
   ExternalLink,
-  Facebook,
   MapPin,
   MonitorPlay,
   MoreHorizontal,
@@ -775,7 +774,7 @@ export function CampaignCard({
               campaign.facebook_page_url) && (
               <section>
                 <div className="subsection-heading">
-                  <Facebook size={18} />
+                  <Share2 size={18} />
                   <strong>Community links</strong>
                 </div>
                 <div className="external-link-row">
