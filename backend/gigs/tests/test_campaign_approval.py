@@ -3,6 +3,7 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -242,6 +243,36 @@ class CampaignApprovalTests(TestCase):
         )
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(approved.data["status"], APPROVED)
+
+    def test_api_unexpected_review_failure_returns_safe_reference(self):
+        campaign = self.make_campaign()
+        client = APIClient()
+        client.force_authenticate(self.owner)
+
+        with (
+            patch(
+                "gigs.campaign_approval_views.submit_campaign_for_review",
+                side_effect=RuntimeError("simulated database write failure"),
+            ),
+            patch("gigs.campaign_approval_views.logger.exception") as log_exception,
+        ):
+            response = client.post(
+                f"/api/campaigns/{campaign.slug}/submit-review/",
+                {},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.data["error_code"],
+            "campaign_approval_internal_error",
+        )
+        reference_id = response.data["reference_id"]
+        self.assertEqual(len(reference_id), 16)
+        self.assertEqual(response["X-Error-Reference"], reference_id)
+        self.assertIn(reference_id, response.data["detail"])
+        self.assertNotIn("database", response.data["detail"].lower())
+        log_exception.assert_called_once()
 
     def test_owner_can_edit_seed_at_any_status_without_changing_lifecycle(self):
         campaign = self.make_campaign()
