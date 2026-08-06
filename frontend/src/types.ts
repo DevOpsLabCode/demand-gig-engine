@@ -260,43 +260,59 @@ export interface VibesMeetConfig {
   };
 }
 
-export type AccountType =
+/** Temporary primary-profile values kept for backward compatibility. */
+export type AccountType = "fan" | "band" | "venue" | "organizer" | "rental" | "sponsor";
+
+/** Stable multiple-role codes used by the Phase 1 role API. */
+export type RoleCode =
   | "fan"
-  | "band"
+  | "artist"
   | "venue"
-  | "rental"
   | "organizer"
-  | "sponsor";
+  | "sponsor"
+  | "vendor"
+  | "equipment_rental"
+  | "administrator";
 
-export interface AccountTypeOption {
-  value: AccountType;
-  label: string;
-}
+export type RoleVerificationStatus = "pending" | "verified" | "rejected";
 
-export interface AuthProvider {
-  id: "google" | "facebook";
-  label: string;
-  enabled: boolean;
-  login_url: string;
-}
-
-export interface AuthUser {
-  id: number;
-  username: string;
-  email: string;
+export interface RoleDefinition {
+  code: Exclude<RoleCode, "administrator">;
   display_name: string;
-  account_type: AccountType;
-  avatar_url: string;
-  linked_providers: string[];
+  description: string;
+  requires_verification: boolean;
 }
 
-export interface AuthConfig {
-  authenticated: boolean;
-  csrf_token: string;
-  user: AuthUser | null;
-  providers: AuthProvider[];
-  account_types: AccountTypeOption[];
-  role_codes: RoleCodeOption[];
+export interface UserRoleAssignment {
+  id: number;
+  user_id: number;
+  user_display_name: string;
+  role: {
+    code: RoleCode;
+    display_name: string;
+    description: string;
+    requires_verification: boolean;
+  };
+  organization_name: string;
+  profile_data: Record<string, unknown>;
+  verification_status: RoleVerificationStatus;
+  verified_by_id: number | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoleConfig {
+  roles: RoleDefinition[];
+  assignments: UserRoleAssignment[];
+  can_verify_roles: boolean;
+  review_queue: UserRoleAssignment[];
+}
+
+export interface RoleRequestInput {
+  role_code: Exclude<RoleCode, "administrator">;
+  organization_name?: string;
+  profile_data?: Record<string, unknown>;
 }
 
 export interface CredentialLoginInput {
@@ -311,52 +327,37 @@ export interface UserRegistrationInput {
   password_confirm: string;
 }
 
-export type RoleCode =
-  | "fan"
-  | "band"
-  | "venue"
-  | "equipment_vendor"
-  | "organizer"
-  | "sponsor"
-  | "administrator";
-
-export type RoleVerificationStatus = "pending" | "verified" | "rejected";
-
-export interface RoleCodeOption {
-  code: RoleCode;
+export interface AuthProvider {
+  id: "google" | "facebook" | "instagram" | "tiktok";
   label: string;
-  professional: boolean;
-  requires_verification: boolean;
+  icon: string;
+  enabled: boolean;
+  login_url: string;
+  callback_path: string;
 }
 
-export interface RoleRequestInput {
-  role_code: RoleCode;
-  organization_name?: string;
-  public_name?: string;
-  city?: string;
-  country?: string;
-  website_url?: string;
-  notes?: string;
-}
-
-export interface UserRoleAssignment {
+export interface AuthUser {
   id: number;
-  role: RoleCodeOption;
-  verification_status: RoleVerificationStatus;
-  is_primary: boolean;
-  organization_name: string;
-  public_name: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  avatar_url: string;
+  account_type: AccountType;
+  company_name: string;
+  bio: string;
   city: string;
   country: string;
-  website_url: string;
-  notes: string;
-  requested_at: string;
-  verified_at: string | null;
-  verified_by: number | null;
+  verified: boolean;
+  linked_providers: string[];
 }
 
-export interface RoleConfig {
-  available_roles: RoleCodeOption[];
-  assignments: UserRoleAssignment[];
-  can_verify_roles: boolean;
+export interface AuthConfig {
+  authenticated: boolean;
+  user: AuthUser | null;
+  providers: AuthProvider[];
+  csrf_token: string;
+  password_auth_enabled: boolean;
+  account_types: Array<{ value: AccountType; label: string }>;
 }
