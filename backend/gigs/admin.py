@@ -1,10 +1,15 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Registers campaign, integration, profile, role, and immutable audit models with Django Admin.
+# Purpose: Registers campaign, integration, profile, role, preference, and immutable audit models with Django Admin.
 
 """Django Admin registrations for the demand-gig domain."""
 
 from django.contrib import admin
 
+from .campaign_preference_models import (
+    CampaignDateOption,
+    CampaignPriceOption,
+    SupporterPreference,
+)
 from .campaign_review_models import CampaignReview
 from .models import (
     CampaignEvent,
@@ -24,6 +29,42 @@ class DemandCampaignAdmin(admin.ModelAdmin):
     list_filter = ("status", "goal_type", "city")
     search_fields = ("title", "artist_name", "organizer_email")
     prepopulated_fields = {"slug": ("artist_name", "city")}
+
+
+@admin.register(CampaignDateOption)
+class CampaignDateOptionAdmin(admin.ModelAdmin):
+    list_display = ("campaign", "label", "start_datetime", "end_datetime", "venue_timezone", "active")
+    list_filter = ("active", "venue_timezone")
+    search_fields = ("campaign__title", "campaign__slug", "label")
+
+
+@admin.register(CampaignPriceOption)
+class CampaignPriceOptionAdmin(admin.ModelAdmin):
+    list_display = ("campaign", "label", "amount", "currency", "active")
+    list_filter = ("active", "currency")
+    search_fields = ("campaign__title", "campaign__slug", "label")
+
+
+@admin.register(SupporterPreference)
+class SupporterPreferenceAdmin(admin.ModelAdmin):
+    list_display = (
+        "campaign",
+        "user",
+        "attendance_mode",
+        "expected_quantity",
+        "selected_date_option",
+        "selected_price_option",
+        "updated_at",
+    )
+    list_filter = ("attendance_mode", "campaign")
+    search_fields = (
+        "campaign__title",
+        "campaign__slug",
+        "user__username",
+        "user__email",
+        "preferred_neighborhood",
+    )
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(CampaignReview)
