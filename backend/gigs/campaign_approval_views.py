@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Exposes deterministic campaign review, protected editing, approved launch, and Phase 2 option-enriched payloads.
+# Purpose: Exposes deterministic campaign review, owner-safe editing, approved launch, and Phase 2 option-enriched payloads.
 
 """REST endpoints for campaign approval and enriched campaign details."""
 
@@ -39,7 +39,6 @@ from .campaign_preferences import (
 from .campaign_review_models import CampaignReview
 from .models import CampaignEvent, DemandCampaign
 from .serializers import CampaignSerializer
-
 
 
 def _can_view_private_campaign(campaign: DemandCampaign, user) -> bool:
@@ -148,7 +147,7 @@ def _split_campaign_input(request) -> tuple[dict, object, object]:
 
 
 def _validate_option_input(date_input, price_input) -> tuple[list | None, list | None]:
-    """Validate optional nested option lists before any campaign write."""
+    """Validate optional nested option lists before initial campaign creation."""
 
     validated_dates = None
     validated_prices = None
@@ -227,7 +226,7 @@ def campaign_collection(request):
 @api_view(["GET", "PUT", "PATCH", "DELETE"])
 @permission_classes([AllowAny])
 def campaign_detail(request, slug: str):
-    """Provide public retrieval while limiting edits and deletion to draft/rejected owners."""
+    """Allow owner content edits at any status while protecting lifecycle state."""
 
     campaign = get_object_or_404(
         DemandCampaign.objects.select_related("owner"),
@@ -254,25 +253,30 @@ def campaign_detail(request, slug: str):
             {"detail": "Only the campaign owner or an administrator may modify it."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    if campaign.status not in [DRAFT, REJECTED]:
-        return Response(
-            {"detail": "Campaign content can be changed only while draft or rejected."},
-            status=status.HTTP_409_CONFLICT,
-        )
 
     if request.method == "DELETE":
+        if campaign.status not in [DRAFT, REJECTED]:
+            return Response(
+                {
+                    "detail": (
+                        "An active campaign cannot be deleted. Edit its seed or use "
+                        "the lifecycle controls instead."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         campaign.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     campaign_data, date_input, price_input = _split_campaign_input(request)
-    try:
-        validated_dates, validated_prices = _validate_option_input(
-            date_input,
-            price_input,
-        )
-    except TypeError:
+    if date_input is not None or price_input is not None:
         return Response(
-            {"detail": "Campaign date and price options must be JSON lists."},
+            {
+                "detail": (
+                    "Edit dates and prices through their dedicated option controls "
+                    "so supporter votes remain protected."
+                )
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -283,20 +287,37 @@ def campaign_detail(request, slug: str):
         context={"request": request},
     )
     serializer.is_valid(raise_exception=True)
+    before = {
+        field: getattr(campaign, field)
+        for field in campaign_data
+        if hasattr(campaign, field)
+    }
 
     with transaction.atomic():
         campaign = serializer.save()
-        if validated_dates is not None or validated_prices is not None:
-            replace_campaign_options(
-                campaign.id,
-                request.user,
-                date_options=validated_dates,
-                price_options=validated_prices,
-            )
+        changed_fields = [
+            field
+            for field, previous_value in before.items()
+            if getattr(campaign, field) != previous_value
+        ]
         CampaignEvent.objects.create(
             campaign=campaign,
-            event_type="campaign.updated",
-            payload={"actor_id": request.user.id, "status": campaign.status},
+            event_type="campaign.owner_edited",
+            payload={
+                "actor_id": request.user.id,
+                "status": campaign.status,
+                "changed_fields": changed_fields,
+                "protected_fields_unchanged": [
+                    "owner",
+                    "slug",
+                    "status",
+                    "artist_confirmed",
+                    "venue_confirmed",
+                    "confirmed_artist_details",
+                    "confirmed_venue_details",
+                    "event_id",
+                ],
+            },
         )
     return Response(_campaign_payload(campaign, request))
 
