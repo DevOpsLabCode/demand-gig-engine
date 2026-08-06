@@ -61,3 +61,11 @@ No backend, API, database, Terraform, Docker, payment, approval, or security beh
 - Keyboard focus is always visible.
 - Mobile layouts require no horizontal page scrolling.
 - No existing Phase 0–2 business logic is removed.
+
+## Responsive review matrix
+
+- **Desktop, 1280 pixels and wider:** two-column discovery grid and side-by-side hero/account layout.
+- **Tablet, 840–1279 pixels:** single campaign column, compact navigation, and horizontal wizard progress.
+- **Mobile, below 620 pixels:** full-width actions, stacked metrics, single-column choices, and sticky vote submission.
+- **Keyboard only:** every navigation, filter, tab, choice, disclosure, and form action has visible focus.
+- **Reduced motion:** transitions and smooth scrolling are minimized when the operating system requests it.
