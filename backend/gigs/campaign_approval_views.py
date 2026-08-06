@@ -63,15 +63,18 @@ def _campaign_payload(campaign: DemandCampaign, request, review=None) -> dict:
     return payload
 
 
-def _error(exc: Exception) -> Response:
-    """Preserve permission semantics separately from lifecycle conflicts."""
+def _error(exc: CampaignApprovalError) -> Response:
+    """Return static public messages so internal exception details are never exposed."""
 
-    response_status = (
-        status.HTTP_403_FORBIDDEN
-        if isinstance(exc, CampaignApprovalPermissionError)
-        else status.HTTP_409_CONFLICT
+    if isinstance(exc, CampaignApprovalPermissionError):
+        return Response(
+            {"detail": "You do not have permission to perform this campaign action."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return Response(
+        {"detail": "The campaign cannot complete this transition in its current state."},
+        status=status.HTTP_409_CONFLICT,
     )
-    return Response({"detail": str(exc)}, status=response_status)
 
 
 @api_view(["GET", "POST"])
@@ -217,7 +220,7 @@ def campaign_launch(request, slug: str):
             )
             return Response(payload, status=status.HTTP_409_CONFLICT)
         campaign = launch_approved_campaign(campaign.id, request.user)
-    except (CampaignApprovalError, ValueError) as exc:
+    except CampaignApprovalError as exc:
         return _error(exc)
     return Response(_campaign_payload(campaign, request))
 
