@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Menu,
   Music2,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -23,6 +24,7 @@ import {
 import { api } from "./api";
 import { CampaignCard } from "./components/CampaignCard";
 import { CreateCampaignForm } from "./components/CreateCampaignForm";
+import { EditCampaignForm } from "./components/EditCampaignForm";
 import { AuthPanel, type AuthState } from "./components/AuthPanel";
 import { RoleManager } from "./components/RoleManager";
 import type {
@@ -74,6 +76,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<CampaignFilter>("discover");
   const [showCreate, setShowCreate] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   async function reload() {
@@ -108,6 +111,24 @@ export default function App() {
     setCampaigns((current) => [campaign, ...current]);
     setShowCreate(false);
     requestAnimationFrame(() => scrollToSection("campaigns"));
+  }
+
+  async function finishEdit() {
+    await reload();
+    setEditingCampaign(null);
+    requestAnimationFrame(() => scrollToSection("campaigns"));
+  }
+
+  function openCreate() {
+    setEditingCampaign(null);
+    setShowCreate(true);
+    requestAnimationFrame(() => scrollToSection("create-campaign"));
+  }
+
+  function openEdit(campaign: Campaign) {
+    setShowCreate(false);
+    setEditingCampaign(campaign);
+    requestAnimationFrame(() => scrollToSection("edit-campaign"));
   }
 
   async function submitReview(slug: string) {
@@ -211,13 +232,7 @@ export default function App() {
               How it works
             </button>
             {authenticated && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreate(true);
-                  requestAnimationFrame(() => scrollToSection("create-campaign"));
-                }}
-              >
+              <button type="button" onClick={openCreate}>
                 Create
               </button>
             )}
@@ -228,10 +243,7 @@ export default function App() {
               <button
                 className="button primary compact"
                 type="button"
-                onClick={() => {
-                  setShowCreate(true);
-                  requestAnimationFrame(() => scrollToSection("create-campaign"));
-                }}
+                onClick={openCreate}
               >
                 <Plus size={17} aria-hidden="true" />
                 Start a campaign
@@ -273,12 +285,7 @@ export default function App() {
                 <button
                   className="button secondary large"
                   type="button"
-                  onClick={() => {
-                    setShowCreate(true);
-                    requestAnimationFrame(() =>
-                      scrollToSection("create-campaign"),
-                    );
-                  }}
+                  onClick={openCreate}
                 >
                   <Sprout size={18} aria-hidden="true" />
                   Plant a gig seed
@@ -339,6 +346,39 @@ export default function App() {
           </div>
         )}
 
+        {authenticated && editingCampaign && (
+          <section
+            className="create-workspace owner-edit-workspace"
+            id="edit-campaign"
+            aria-labelledby="edit-heading"
+          >
+            <div className="workspace-heading">
+              <div>
+                <span className="section-kicker">Owner workspace</span>
+                <h2 id="edit-heading">Edit campaign seed</h2>
+                <p>
+                  Update the complete seed at any lifecycle stage. Protected
+                  status, payment, vote, and confirmation records remain unchanged.
+                </p>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setEditingCampaign(null)}
+                aria-label="Close campaign editor"
+              >
+                <X />
+              </button>
+            </div>
+            <EditCampaignForm
+              key={`${editingCampaign.slug}-${editingCampaign.status}`}
+              campaign={editingCampaign}
+              onSaved={finishEdit}
+              onCancel={() => setEditingCampaign(null)}
+            />
+          </section>
+        )}
+
         {authenticated && showCreate && (
           <section
             className="create-workspace"
@@ -379,12 +419,7 @@ export default function App() {
                 <button
                   className="button secondary"
                   type="button"
-                  onClick={() => {
-                    setShowCreate(true);
-                    requestAnimationFrame(() =>
-                      scrollToSection("create-campaign"),
-                    );
-                  }}
+                  onClick={openCreate}
                 >
                   <Plus size={17} />
                   New campaign
@@ -437,19 +472,33 @@ export default function App() {
           {filteredCampaigns.length > 0 ? (
             <div className="campaign-grid">
               {filteredCampaigns.map((campaign) => (
-                <CampaignCard
-                  key={campaign.id}
-                  campaign={campaign}
-                  authenticated={authenticated}
-                  onSubmitReview={submitReview}
-                  onApprove={approve}
-                  onReject={reject}
-                  onLaunch={launch}
-                  onPreference={savePreference}
-                  onPledge={pledge}
-                  onSponsor={sponsor}
-                  onReload={reload}
-                />
+                <div className="campaign-card-shell" key={campaign.id}>
+                  {campaign.can_manage && (
+                    <div className="owner-card-toolbar">
+                      <span>Owner controls · editable at any stage</span>
+                      <button
+                        className="button secondary compact"
+                        type="button"
+                        onClick={() => openEdit(campaign)}
+                      >
+                        <Pencil size={15} />
+                        Edit campaign seed
+                      </button>
+                    </div>
+                  )}
+                  <CampaignCard
+                    campaign={campaign}
+                    authenticated={authenticated}
+                    onSubmitReview={submitReview}
+                    onApprove={approve}
+                    onReject={reject}
+                    onLaunch={launch}
+                    onPreference={savePreference}
+                    onPledge={pledge}
+                    onSponsor={sponsor}
+                    onReload={reload}
+                  />
+                </div>
               ))}
             </div>
           ) : (
