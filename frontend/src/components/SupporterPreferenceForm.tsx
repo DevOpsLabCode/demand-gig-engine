@@ -1,10 +1,18 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Lets one authenticated supporter create or update a private campaign preference.
+ * Purpose: Provides a comfortable, accessible card-based date, price, quantity, and attendance voting experience.
  */
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarCheck2, MonitorPlay, TicketCheck, Users } from "lucide-react";
+import {
+  CalendarCheck2,
+  Check,
+  Info,
+  MapPin,
+  MonitorPlay,
+  TicketCheck,
+  Users,
+} from "lucide-react";
 import type {
   AttendanceMode,
   Campaign,
@@ -54,6 +62,16 @@ function defaultInput(campaign: Campaign): SupporterPreferenceInput {
   };
 }
 
+function dateLabel(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function SupporterPreferenceForm({
   campaign,
   authenticated,
@@ -83,26 +101,33 @@ export function SupporterPreferenceForm({
   );
 
   if (!canVote) {
-    return null;
+    return (
+      <div className="notice">
+        Voting is not open in the campaign’s current lifecycle state.
+      </div>
+    );
   }
 
   if (!hasOptions) {
     return (
-      <div className="review-summary">
+      <div className="notice">
         <strong>Voting options are not available yet.</strong>
-        <p>The organizer must publish at least one proposed date and price.</p>
+        <span>The organizer must publish at least one proposed date and price.</span>
       </div>
     );
   }
 
   if (!authenticated) {
     return (
-      <div className="review-summary">
-        <strong><TicketCheck size={17} /> Sign in to vote</strong>
-        <p>
-          Campaign totals are public, but your date, price, quantity, and
-          accessibility preferences remain attached only to your account.
-        </p>
+      <div className="sign-in-prompt">
+        <span className="prompt-icon"><TicketCheck /></span>
+        <div>
+          <h4>Sign in to vote</h4>
+          <p>
+            Public totals remain visible. Your selection and private notes stay
+            attached only to your account.
+          </p>
+        </div>
       </div>
     );
   }
@@ -111,12 +136,13 @@ export function SupporterPreferenceForm({
     event.preventDefault();
     setBusy(true);
     setMessage("");
+
     try {
       await onSave(campaign.slug, form);
       setMessage(
         campaign.my_preference
-          ? "Your preference was updated."
-          : "Your preference was recorded.",
+          ? "Your vote was updated."
+          : "Your vote was recorded.",
       );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not save preference");
@@ -126,125 +152,239 @@ export function SupporterPreferenceForm({
   }
 
   return (
-    <form className="panel form" onSubmit={submit}>
-      <div className="section-title">
-        <TicketCheck size={19} />
-        Your attendance preference
+    <form className="preference-form" onSubmit={submit}>
+      <div className="preference-intro">
+        <div>
+          <span className="section-kicker">Your demand signal</span>
+          <h4>{campaign.my_preference ? "Update your vote" : "Vote on this campaign"}</h4>
+          <p>
+            This is a forecast, not a payment or reservation. You can update it
+            while voting remains open.
+          </p>
+        </div>
+        {campaign.my_preference && (
+          <span className="saved-indicator">
+            <Check size={15} />
+            Vote saved
+          </span>
+        )}
       </div>
-      <p>
-        This is a demand forecast, not a payment. You may update it while the
-        campaign is accepting votes.
-      </p>
-      <div className="grid three">
-        <label>
-          <Users size={15} /> Expected tickets
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={form.expected_quantity}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                expected_quantity: Number(event.target.value),
-              })
-            }
-            required
-          />
-        </label>
-        <label>
-          Attendance mode
-          <select
-            value={form.attendance_mode}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                attendance_mode: event.target.value as AttendanceMode,
-              })
-            }
-          >
-            <option value="physical">Physical attendance</option>
-            <option value="virtual">Virtual attendance</option>
-          </select>
-        </label>
-        <label>
-          <CalendarCheck2 size={15} /> Preferred date
-          <select
-            value={form.selected_date_option}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                selected_date_option: Number(event.target.value),
-              })
-            }
-            required
-          >
-            {campaign.date_options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label || new Date(option.start_datetime).toLocaleString()}
-                {" — "}
-                {new Date(option.start_datetime).toLocaleString()}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Acceptable ticket price
-          <select
-            value={form.selected_price_option}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                selected_price_option: Number(event.target.value),
-              })
-            }
-            required
-          >
-            {campaign.price_options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label || money.format(Number(option.amount))}
-                {" — "}
-                {money.format(Number(option.amount))}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Preferred neighborhood
-          <input
-            value={form.preferred_neighborhood ?? ""}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                preferred_neighborhood: event.target.value,
-              })
-            }
-            placeholder="Greenwich Village"
-          />
-        </label>
-        <label>
-          <MonitorPlay size={15} /> Accessibility or streaming notes
-          <textarea
-            value={form.accessibility_notes ?? ""}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                accessibility_notes: event.target.value,
-              })
-            }
-            rows={2}
-            placeholder="Kept private; not shown in public aggregates"
-          />
-        </label>
+
+      <fieldset className="choice-section">
+        <legend>
+          <span>1</span>
+          <CalendarCheck2 size={19} />
+          Choose a proposed date
+        </legend>
+        <div className="choice-card-grid">
+          {campaign.date_options.map((option) => {
+            const selected = form.selected_date_option === option.id;
+            return (
+              <label
+                className={`choice-card ${selected ? "is-selected" : ""}`}
+                key={option.id}
+              >
+                <input
+                  type="radio"
+                  name={`date-${campaign.slug}`}
+                  value={option.id}
+                  checked={selected}
+                  onChange={() =>
+                    setForm({ ...form, selected_date_option: option.id })
+                  }
+                />
+                <span className="choice-check"><Check size={15} /></span>
+                <strong>{option.label || dateLabel(option.start_datetime)}</strong>
+                <span>{dateLabel(option.start_datetime)}</span>
+                <small>{option.venue_timezone.replaceAll("_", " ")}</small>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset className="choice-section">
+        <legend>
+          <span>2</span>
+          <TicketCheck size={19} />
+          Choose an acceptable ticket price
+        </legend>
+        <div className="choice-card-grid price-choices">
+          {campaign.price_options.map((option) => {
+            const selected = form.selected_price_option === option.id;
+            return (
+              <label
+                className={`choice-card price-card ${selected ? "is-selected" : ""}`}
+                key={option.id}
+              >
+                <input
+                  type="radio"
+                  name={`price-${campaign.slug}`}
+                  value={option.id}
+                  checked={selected}
+                  onChange={() =>
+                    setForm({ ...form, selected_price_option: option.id })
+                  }
+                />
+                <span className="choice-check"><Check size={15} /></span>
+                <strong>{money.format(Number(option.amount))}</strong>
+                <span>{option.label || "Acceptable ticket price"}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset className="choice-section">
+        <legend>
+          <span>3</span>
+          <Users size={19} />
+          Tell us how you would attend
+        </legend>
+        <div className="attendance-layout">
+          <div className="segmented-control" aria-label="Attendance mode">
+            {([
+              ["physical", "In person", MapPin],
+              ["virtual", "Virtual", MonitorPlay],
+            ] as [AttendanceMode, string, typeof MapPin][]).map(
+              ([value, label, Icon]) => (
+                <label
+                  key={value}
+                  className={form.attendance_mode === value ? "is-selected" : ""}
+                >
+                  <input
+                    type="radio"
+                    name={`attendance-${campaign.slug}`}
+                    value={value}
+                    checked={form.attendance_mode === value}
+                    onChange={() =>
+                      setForm({ ...form, attendance_mode: value })
+                    }
+                  />
+                  <Icon size={18} />
+                  {label}
+                </label>
+              ),
+            )}
+          </div>
+
+          <label className="quantity-field">
+            Expected tickets
+            <span className="quantity-control">
+              <button
+                type="button"
+                aria-label="Decrease expected tickets"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    expected_quantity: Math.max(1, form.expected_quantity - 1),
+                  })
+                }
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                inputMode="numeric"
+                value={form.expected_quantity}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    expected_quantity: Math.max(
+                      1,
+                      Math.min(20, Number(event.target.value) || 1),
+                    ),
+                  })
+                }
+                aria-label="Expected ticket quantity"
+                required
+              />
+              <button
+                type="button"
+                aria-label="Increase expected tickets"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    expected_quantity: Math.min(20, form.expected_quantity + 1),
+                  })
+                }
+              >
+                +
+              </button>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <details className="optional-preferences">
+        <summary>
+          <Info size={17} />
+          Add optional location or accessibility notes
+        </summary>
+        <div className="optional-grid">
+          <label>
+            Preferred neighborhood
+            <input
+              value={form.preferred_neighborhood ?? ""}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  preferred_neighborhood: event.target.value,
+                })
+              }
+              placeholder="For example, Greenwich Village"
+            />
+          </label>
+          <label>
+            Private accessibility or streaming notes
+            <textarea
+              value={form.accessibility_notes ?? ""}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  accessibility_notes: event.target.value,
+                })
+              }
+              rows={3}
+              placeholder="These notes are not included in public aggregates"
+            />
+          </label>
+        </div>
+      </details>
+
+      <div className="sticky-form-action">
+        <div>
+          <strong>
+            {form.expected_quantity} {form.expected_quantity === 1 ? "ticket" : "tickets"}
+          </strong>
+          <span>
+            {form.attendance_mode === "physical" ? "In person" : "Virtual"} ·{" "}
+            {money.format(
+              Number(
+                campaign.price_options.find(
+                  (option) => option.id === form.selected_price_option,
+                )?.amount ?? 0,
+              ),
+            )} acceptable
+          </span>
+        </div>
+        <button className="button primary" disabled={busy}>
+          {busy
+            ? "Saving…"
+            : campaign.my_preference
+              ? "Update my vote"
+              : "Save my vote"}
+        </button>
       </div>
-      <button className="primary" disabled={busy}>
-        {busy
-          ? "Saving…"
-          : campaign.my_preference
-            ? "Update my vote"
-            : "Save my vote"}
-      </button>
-      {message && <p className="message">{message}</p>}
+
+      {message && (
+        <p className="inline-success" role="status" aria-live="polite">
+          <Check size={16} />
+          {message}
+        </p>
+      )}
     </form>
   );
 }

@@ -1,18 +1,26 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Presents campaign approval, voting forecasts, progress, deposits, sponsorships, and sharing.
+ * Purpose: Presents one campaign through a compact summary and progressively disclosed voting, funding, and organizer tools.
  */
 
 import { FormEvent, useMemo, useState } from "react";
 import { Elements } from "@stripe/react-stripe-js";
 import {
+  BadgeDollarSign,
   Banknote,
   CalendarDays,
+  Check,
   CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  Clock3,
+  ExternalLink,
   MapPin,
   MonitorPlay,
+  MoreHorizontal,
   ShieldCheck,
   Share2,
+  Sparkles,
   TicketCheck,
   Users,
 } from "lucide-react";
@@ -46,6 +54,68 @@ interface Props {
   onReload: () => Promise<void>;
 }
 
+type CampaignTab = "overview" | "vote" | "funding" | "tools";
+
+const VOTING_STATUSES = new Set([
+  "approved",
+  "collecting",
+  "target_reached",
+  "threshold_reached",
+  "feasibility_review",
+  "conditionally_ready",
+  "ready",
+]);
+
+const FUNDING_STATUSES = new Set([
+  "collecting",
+  "target_reached",
+  "threshold_reached",
+]);
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  pending_review: "Needs review",
+  approved: "Approved",
+  collecting: "Building demand",
+  target_reached: "Target reached",
+  threshold_reached: "Threshold reached",
+  feasibility_review: "Feasibility review",
+  conditionally_ready: "Conditionally ready",
+  ready: "Ready to confirm",
+  confirmed: "Confirmed",
+  live: "Live",
+  completed: "Completed",
+  rejected: "Changes requested",
+  expired: "Expired",
+  cancelled: "Cancelled",
+  canceled: "Cancelled",
+  failed: "Not viable",
+  refund_pending: "Refund pending",
+  refunding: "Refunding",
+  refunded: "Refunded",
+};
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function statusTone(status: string) {
+  if (["target_reached", "threshold_reached", "ready", "confirmed", "live", "completed"].includes(status)) {
+    return "success";
+  }
+  if (["pending_review", "feasibility_review", "conditionally_ready"].includes(status)) {
+    return "warning";
+  }
+  if (["rejected", "expired", "cancelled", "canceled", "failed", "refunding", "refunded"].includes(status)) {
+    return "muted";
+  }
+  return "accent";
+}
+
 export function CampaignCard({
   campaign,
   authenticated,
@@ -58,13 +128,15 @@ export function CampaignCard({
   onSponsor,
   onReload,
 }: Props) {
-  const money = (value: string | number) => new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: campaign.currency,
-    maximumFractionDigits: 2,
-  }).format(Number(value));
+  const money = (value: string | number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: campaign.currency,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
 
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [activeTab, setActiveTab] = useState<CampaignTab>("overview");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [amount, setAmount] = useState(campaign.suggested_deposit);
@@ -81,8 +153,12 @@ export function CampaignCard({
     benefits_requested: "",
   });
 
-  const failedChecks = campaign.latest_review?.checks.filter((check) => !check.passed) ?? [];
+  const failedChecks =
+    campaign.latest_review?.checks.filter((check) => !check.passed) ?? [];
   const summary = campaign.preference_summary;
+  const canVote = VOTING_STATUSES.has(campaign.status);
+  const canFund = FUNDING_STATUSES.has(campaign.status);
+  const progress = Math.max(0, Math.min(100, campaign.progress_percent));
 
   async function runApprovalChecks() {
     setBusy(true);
@@ -91,9 +167,10 @@ export function CampaignCard({
       const result = await onSubmitReview(campaign.slug);
       setMessage(
         result.status === "approved"
-          ? "All deterministic checks passed. Campaign approved automatically."
-          : "Automatic checks found issues. Campaign sent to administrator review.",
+          ? "All approval checks passed. The campaign is ready to launch."
+          : "Some checks need administrator review.",
       );
+      setActiveTab("tools");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not submit campaign");
     } finally {
@@ -116,9 +193,10 @@ export function CampaignCard({
 
   async function reviewCampaign(decision: "approve" | "reject") {
     if (decision === "reject" && !reviewNotes.trim()) {
-      setMessage("Written rejection notes are required.");
+      setMessage("Add written notes before requesting changes.");
       return;
     }
+
     setBusy(true);
     setMessage("");
     try {
@@ -141,6 +219,7 @@ export function CampaignCard({
     event.preventDefault();
     setBusy(true);
     setMessage("");
+
     try {
       const result = await onPledge(campaign.slug, {
         supporter_name: name,
@@ -152,6 +231,7 @@ export function CampaignCard({
         source_label: params.get("group") ?? "",
         referral_code: params.get("ref") ?? "",
       });
+
       trackMetaEvent(
         result.client_secret ? "InitiateCheckout" : "Lead",
         {
@@ -162,11 +242,12 @@ export function CampaignCard({
         },
         `pledge:${result.pledge.id}:created`,
       );
+
       if (result.client_secret) {
         setClientSecret(result.client_secret);
         setMessage("Complete the refundable deposit below.");
       } else {
-        setMessage("You are helping make this gig happen.");
+        setMessage("Your support was recorded.");
         setName("");
         setEmail("");
       }
@@ -180,6 +261,8 @@ export function CampaignCard({
   async function submitSponsor(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
+    setMessage("");
+
     try {
       await onSponsor(campaign.slug, sponsor);
       setMessage("Sponsor commitment recorded.");
@@ -192,189 +275,543 @@ export function CampaignCard({
   }
 
   async function share() {
-    const url = `${window.location.origin}/?campaign=${campaign.slug}&source=facebook_group`;
+    const url = `${window.location.origin}/?campaign=${campaign.slug}&source=shared_campaign`;
     const data = { title: campaign.title, text: campaign.pitch, url };
-    if (navigator.share) await navigator.share(data);
-    else {
-      await navigator.clipboard.writeText(url);
-      setMessage("Campaign link copied. Share it in the Facebook group.");
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+      } else {
+        await navigator.clipboard.writeText(url);
+        setMessage("Campaign link copied.");
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setMessage("Sharing is unavailable. Copy the page URL from your browser.");
     }
   }
 
+  function openPrimaryAction() {
+    if (campaign.status === "pending_review" && campaign.can_review_campaign) {
+      setActiveTab("tools");
+      return;
+    }
+    if (canVote) {
+      setActiveTab("vote");
+      return;
+    }
+    if (canFund) {
+      setActiveTab("funding");
+      return;
+    }
+    setActiveTab("overview");
+  }
+
+  const primaryLabel =
+    campaign.status === "pending_review" && campaign.can_review_campaign
+      ? "Review campaign"
+      : canVote
+        ? campaign.my_preference
+          ? "Update my vote"
+          : "Vote on this gig"
+        : canFund
+          ? "Support this gig"
+          : "View campaign";
+
   return (
-    <article className="panel campaign">
-      <div className="campaign-heading">
-        <div>
-          <span className={`status ${campaign.status}`}>{campaign.status.replaceAll("_", " ")}</span>
-          <h2>{campaign.title}</h2>
-          <div className="meta">
-            <span><MapPin size={16} /> {campaign.city}</span>
-            <span><CalendarDays size={16} /> Ends {new Date(campaign.deadline).toLocaleDateString()}</span>
+    <article className="campaign-card">
+      <div className="campaign-card-top">
+        <div className="campaign-identity">
+          <div className="campaign-badges">
+            <span className={`status-badge ${statusTone(campaign.status)}`}>
+              {STATUS_LABELS[campaign.status] ?? campaign.status.replaceAll("_", " ")}
+            </span>
+            {campaign.my_preference && (
+              <span className="status-badge voted">
+                <Check size={13} />
+                Voted
+              </span>
+            )}
+          </div>
+          <h3>{campaign.title}</h3>
+          <div className="campaign-meta">
+            <span><MapPin size={15} /> {campaign.city}</span>
+            <span><Clock3 size={15} /> Ends {formatDate(campaign.deadline)}</span>
           </div>
         </div>
-        <button className="icon-button" onClick={share} aria-label="Share campaign"><Share2 /></button>
-      </div>
-
-      <p>{campaign.pitch}</p>
-
-      {campaign.latest_review && (
-        <div className="review-summary">
-          <strong><ShieldCheck size={17} /> Approval review</strong>
-          <p>{campaign.latest_review.notes}</p>
-          {failedChecks.length > 0 && (
-            <ul>
-              {failedChecks.map((check) => <li key={check.key}>{check.message}</li>)}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {(campaign.facebook_event_url || campaign.facebook_group_url || campaign.facebook_page_url) && (
-        <div className="facebook-hub-links">
-          {campaign.facebook_event_url && <a href={campaign.facebook_event_url} target="_blank" rel="noreferrer">Facebook Event</a>}
-          {campaign.facebook_group_url && <a href={campaign.facebook_group_url} target="_blank" rel="noreferrer">Facebook Group</a>}
-          {campaign.facebook_page_url && <a href={campaign.facebook_page_url} target="_blank" rel="noreferrer">Facebook Page</a>}
-        </div>
-      )}
-
-      <div className="progress"><div style={{ width: `${campaign.progress_percent}%` }} /></div>
-      <div className="metrics">
-        <div><strong>{campaign.active_supporter_count.toLocaleString()}</strong><span><Users size={15} /> pledged ticket quantity</span></div>
-        <div><strong>{money(campaign.committed_amount)}</strong><span>deposit and sponsor commitments</span></div>
-        <div><strong>{campaign.progress_percent}%</strong><span>minimum demand reached</span></div>
-      </div>
-
-      <div className="review-summary">
-        <strong><TicketCheck size={17} /> Attendance and ticket-price forecast</strong>
-        <div className="metrics">
-          <div><strong>{summary.expected_attendance.toLocaleString()}</strong><span><Users size={15} /> expected attendance</span></div>
-          <div><strong>{summary.physical_expected_attendance.toLocaleString()}</strong><span>physical</span></div>
-          <div><strong>{summary.virtual_expected_attendance.toLocaleString()}</strong><span><MonitorPlay size={15} /> virtual</span></div>
-          <div><strong>{money(summary.projected_ticket_revenue)}</strong><span>projected ticket revenue</span></div>
-          <div><strong>{money(summary.deposits_collected)}</strong><span>deposits collected</span></div>
-          <div><strong>{money(summary.sponsor_commitments)}</strong><span>sponsor commitments</span></div>
-          <div><strong>{money(summary.total_conditional_funding)}</strong><span><Banknote size={15} /> conditional funding only</span></div>
-        </div>
-
-        {summary.date_results.length > 0 && (
-          <>
-            <strong>Date voting</strong>
-            <ul>
-              {summary.date_results.map((result) => (
-                <li key={result.option_id}>
-                  {result.label || new Date(result.start_datetime).toLocaleString()}
-                  {": "}
-                  {result.expected_attendance} expected
-                  {" ("}{result.physical_expected_attendance} physical,{" "}
-                  {result.virtual_expected_attendance} virtual{")"}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        {summary.price_results.length > 0 && (
-          <>
-            <strong>Price voting</strong>
-            <ul>
-              {summary.price_results.map((result) => (
-                <li key={result.option_id}>
-                  {result.label || money(result.amount)}
-                  {": "}
-                  {result.expected_attendance} expected,{" "}
-                  {money(result.projected_revenue)} projected revenue
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <small>
-          Projected ticket revenue is a forecast. It is never added to deposits,
-          sponsor commitments, or conditional funding.
-        </small>
-      </div>
-
-      <div className="confirmation-row">
-        <span className={campaign.artist_confirmed ? "confirmed" : "pending"}><CheckCircle2 size={17} /> Artist {campaign.artist_confirmed ? "confirmed" : "pending"}</span>
-        <span className={campaign.venue_confirmed ? "confirmed" : "pending"}><CheckCircle2 size={17} /> Venue {campaign.venue_confirmed ? "confirmed" : "pending"}</span>
-      </div>
-
-      {["draft", "rejected"].includes(campaign.status) && campaign.can_manage && (
-        <button className="primary" disabled={busy} onClick={runApprovalChecks}>
-          {busy ? "Checking…" : "Run approval checks"}
+        <button
+          className="icon-button"
+          type="button"
+          onClick={share}
+          aria-label={`Share ${campaign.title}`}
+        >
+          <Share2 />
         </button>
-      )}
+      </div>
 
-      {campaign.status === "approved" && campaign.can_manage && (
-        <button className="primary" disabled={busy} onClick={launchApprovedCampaign}>
-          {busy ? "Launching…" : "Start collecting support"}
-        </button>
-      )}
+      <p className="campaign-pitch">{campaign.pitch}</p>
 
-      {campaign.status === "pending_review" && !campaign.can_review_campaign && (
-        <p className="message">Automatic checks require administrator review. The failed conditions are listed above.</p>
-      )}
-
-      {campaign.status === "pending_review" && campaign.can_review_campaign && (
-        <div className="review-controls">
-          <textarea
-            placeholder="Administrator review notes"
-            value={reviewNotes}
-            onChange={(event) => setReviewNotes(event.target.value)}
-          />
+      <div className="campaign-progress-block">
+        <div className="progress-label">
+          <span>Minimum demand</span>
+          <strong>{progress}%</strong>
+        </div>
+        <div
+          className="progress-track"
+          role="progressbar"
+          aria-label="Campaign progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+        >
+          <span style={{ width: `${progress}%` }} />
+        </div>
+        <div className="campaign-summary-grid">
           <div>
-            <button className="primary" disabled={busy} onClick={() => reviewCampaign("approve")}>
-              Approve
-            </button>
-            <button className="secondary" disabled={busy} onClick={() => reviewCampaign("reject")}>
-              Reject with notes
-            </button>
+            <Users size={17} />
+            <span>Expected audience</span>
+            <strong>{summary.expected_attendance.toLocaleString()}</strong>
+          </div>
+          <div>
+            <TicketCheck size={17} />
+            <span>Pledged quantity</span>
+            <strong>{campaign.active_supporter_count.toLocaleString()}</strong>
+          </div>
+          <div>
+            <BadgeDollarSign size={17} />
+            <span>Conditional funding</span>
+            <strong>{money(summary.total_conditional_funding)}</strong>
           </div>
         </div>
+      </div>
+
+      <div className="confirmation-strip" aria-label="Confirmation status">
+        <span className={campaign.artist_confirmed ? "is-confirmed" : ""}>
+          <CheckCircle2 size={16} />
+          Artist {campaign.artist_confirmed ? "confirmed" : "pending"}
+        </span>
+        <span className={campaign.venue_confirmed ? "is-confirmed" : ""}>
+          <CheckCircle2 size={16} />
+          Venue {campaign.venue_confirmed ? "confirmed" : "pending"}
+        </span>
+      </div>
+
+      <div className="campaign-primary-actions">
+        {["draft", "rejected"].includes(campaign.status) && campaign.can_manage ? (
+          <button
+            className="button primary"
+            type="button"
+            disabled={busy}
+            onClick={runApprovalChecks}
+          >
+            <ShieldCheck size={17} />
+            {busy ? "Checking…" : "Run approval checks"}
+          </button>
+        ) : campaign.status === "approved" && campaign.can_manage ? (
+          <button
+            className="button primary"
+            type="button"
+            disabled={busy}
+            onClick={launchApprovedCampaign}
+          >
+            <Sparkles size={17} />
+            {busy ? "Launching…" : "Start collecting support"}
+          </button>
+        ) : (
+          <button className="button primary" type="button" onClick={openPrimaryAction}>
+            {primaryLabel}
+            <ChevronRight size={17} />
+          </button>
+        )}
+        <button
+          className="button ghost"
+          type="button"
+          onClick={() => setActiveTab(activeTab === "overview" ? "tools" : "overview")}
+        >
+          <MoreHorizontal size={18} />
+          Details
+        </button>
+      </div>
+
+      <div className="campaign-tabs" role="tablist" aria-label={`${campaign.title} sections`}>
+        {([
+          ["overview", "Overview"],
+          ["vote", "Vote"],
+          ["funding", "Funding"],
+          ["tools", campaign.can_manage || campaign.can_review_campaign ? "Manage" : "More"],
+        ] as [CampaignTab, string][]).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === value}
+            className={activeTab === value ? "is-active" : ""}
+            onClick={() => setActiveTab(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="campaign-tab-panel" role="tabpanel">
+        {activeTab === "overview" && (
+          <div className="overview-stack">
+            <div className="forecast-grid">
+              <div className="forecast-card">
+                <Users />
+                <span>Physical attendance</span>
+                <strong>{summary.physical_expected_attendance.toLocaleString()}</strong>
+              </div>
+              <div className="forecast-card">
+                <MonitorPlay />
+                <span>Virtual attendance</span>
+                <strong>{summary.virtual_expected_attendance.toLocaleString()}</strong>
+              </div>
+              <div className="forecast-card">
+                <CircleDollarSign />
+                <span>Projected ticket revenue</span>
+                <strong>{money(summary.projected_ticket_revenue)}</strong>
+              </div>
+            </div>
+
+            <div className="result-columns">
+              <section>
+                <div className="subsection-heading">
+                  <CalendarDays size={17} />
+                  <strong>Popular dates</strong>
+                </div>
+                {summary.date_results.length > 0 ? (
+                  <ol className="ranked-list">
+                    {summary.date_results.map((result) => (
+                      <li key={result.option_id}>
+                        <div>
+                          <strong>{result.label || formatDate(result.start_datetime)}</strong>
+                          <span>{formatDate(result.start_datetime)}</span>
+                        </div>
+                        <span>{result.expected_attendance} expected</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="empty-copy">No date votes yet.</p>
+                )}
+              </section>
+
+              <section>
+                <div className="subsection-heading">
+                  <TicketCheck size={17} />
+                  <strong>Acceptable prices</strong>
+                </div>
+                {summary.price_results.length > 0 ? (
+                  <ol className="ranked-list">
+                    {summary.price_results.map((result) => (
+                      <li key={result.option_id}>
+                        <div>
+                          <strong>{result.label || money(result.amount)}</strong>
+                          <span>{money(result.amount)}</span>
+                        </div>
+                        <span>{result.expected_attendance} expected</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="empty-copy">No price votes yet.</p>
+                )}
+              </section>
+            </div>
+
+            <div className="financial-note">
+              <Banknote size={18} />
+              <p>
+                Projected ticket revenue is a forecast. Deposits and sponsorships
+                remain separate conditional commitments.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "vote" && (
+          <SupporterPreferenceForm
+            campaign={campaign}
+            authenticated={authenticated}
+            onSave={onPreference}
+          />
+        )}
+
+        {activeTab === "funding" && (
+          <div className="funding-stack">
+            <div className="forecast-grid compact-forecast">
+              <div className="forecast-card">
+                <BadgeDollarSign />
+                <span>Deposits collected</span>
+                <strong>{money(summary.deposits_collected)}</strong>
+              </div>
+              <div className="forecast-card">
+                <Banknote />
+                <span>Sponsor commitments</span>
+                <strong>{money(summary.sponsor_commitments)}</strong>
+              </div>
+            </div>
+
+            {canFund ? (
+              <>
+                <div className="subsection-heading">
+                  <BadgeDollarSign size={18} />
+                  <div>
+                    <strong>Support the campaign</strong>
+                    <span>Deposits are refundable under the published campaign terms.</span>
+                  </div>
+                </div>
+                <form className="comfortable-form pledge-form" onSubmit={pledge}>
+                  <label>
+                    Your name
+                    <input
+                      autoComplete="name"
+                      placeholder="Full name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Email
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Refundable deposit
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                    />
+                  </label>
+                  <button className="button primary" disabled={busy}>
+                    {busy ? "Recording…" : "Support this gig"}
+                  </button>
+                </form>
+
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setShowSponsor((value) => !value)}
+                  aria-expanded={showSponsor}
+                >
+                  <Banknote size={17} />
+                  {showSponsor ? "Close sponsor form" : "Support as a sponsor"}
+                </button>
+
+                {showSponsor && (
+                  <form className="comfortable-form sponsor-form" onSubmit={submitSponsor}>
+                    <label>
+                      Sponsor or company
+                      <input
+                        value={sponsor.sponsor_name}
+                        onChange={(event) =>
+                          setSponsor({ ...sponsor, sponsor_name: event.target.value })
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Contact name
+                      <input
+                        autoComplete="name"
+                        value={sponsor.contact_name}
+                        onChange={(event) =>
+                          setSponsor({ ...sponsor, contact_name: event.target.value })
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Contact email
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={sponsor.contact_email}
+                        onChange={(event) =>
+                          setSponsor({ ...sponsor, contact_email: event.target.value })
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Commitment amount
+                      <input
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        value={sponsor.amount}
+                        onChange={(event) =>
+                          setSponsor({ ...sponsor, amount: event.target.value })
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="full-width">
+                      Requested benefits
+                      <textarea
+                        rows={3}
+                        value={sponsor.benefits_requested}
+                        onChange={(event) =>
+                          setSponsor({
+                            ...sponsor,
+                            benefits_requested: event.target.value,
+                          })
+                        }
+                        placeholder="Optional visibility, hospitality, or activation request"
+                      />
+                    </label>
+                    <button className="button primary" disabled={busy}>
+                      Commit sponsorship
+                    </button>
+                  </form>
+                )}
+              </>
+            ) : (
+              <div className="notice">
+                Funding is not open in the campaign’s current lifecycle state.
+              </div>
+            )}
+
+            {clientSecret && stripePromise && (
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <DepositPayment
+                  onSuccess={async () => {
+                    setClientSecret("");
+                    setMessage("Deposit received. Thank you for supporting this campaign.");
+                    await onReload();
+                  }}
+                />
+              </Elements>
+            )}
+            {clientSecret && !stripePromise && (
+              <p className="error">
+                Set VITE_STRIPE_PUBLISHABLE_KEY to complete Stripe deposits.
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeTab === "tools" && (
+          <div className="tools-stack">
+            {campaign.latest_review && (
+              <section className="review-panel">
+                <div className="subsection-heading">
+                  <ShieldCheck size={18} />
+                  <div>
+                    <strong>Approval review</strong>
+                    <span>{campaign.latest_review.notes}</span>
+                  </div>
+                </div>
+                {failedChecks.length > 0 && (
+                  <ul className="check-list failed">
+                    {failedChecks.map((check) => (
+                      <li key={check.key}>{check.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {campaign.status === "pending_review" && !campaign.can_review_campaign && (
+              <div className="notice">
+                Automatic checks require administrator review. Any failed
+                conditions appear above.
+              </div>
+            )}
+
+            {campaign.status === "pending_review" && campaign.can_review_campaign && (
+              <section className="review-controls">
+                <div className="subsection-heading">
+                  <ShieldCheck size={18} />
+                  <div>
+                    <strong>Administrator decision</strong>
+                    <span>Approval notes are optional. Rejection notes are required.</span>
+                  </div>
+                </div>
+                <label>
+                  Review notes
+                  <textarea
+                    rows={4}
+                    placeholder="Explain the decision clearly and constructively"
+                    value={reviewNotes}
+                    onChange={(event) => setReviewNotes(event.target.value)}
+                  />
+                </label>
+                <div className="button-row">
+                  <button
+                    className="button primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => reviewCampaign("approve")}
+                  >
+                    Approve campaign
+                  </button>
+                  <button
+                    className="button danger"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => reviewCampaign("reject")}
+                  >
+                    Request changes
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {(campaign.facebook_event_url ||
+              campaign.facebook_group_url ||
+              campaign.facebook_page_url) && (
+              <section>
+                <div className="subsection-heading">
+                  <Share2 size={18} />
+                  <strong>Community links</strong>
+                </div>
+                <div className="external-link-row">
+                  {campaign.facebook_event_url && (
+                    <a href={campaign.facebook_event_url} target="_blank" rel="noreferrer">
+                      Facebook Event <ExternalLink size={14} />
+                    </a>
+                  )}
+                  {campaign.facebook_group_url && (
+                    <a href={campaign.facebook_group_url} target="_blank" rel="noreferrer">
+                      Facebook Group <ExternalLink size={14} />
+                    </a>
+                  )}
+                  {campaign.facebook_page_url && (
+                    <a href={campaign.facebook_page_url} target="_blank" rel="noreferrer">
+                      Facebook Page <ExternalLink size={14} />
+                    </a>
+                  )}
+                </div>
+              </section>
+            )}
+
+            <FacebookIntegration campaign={campaign} onMessage={setMessage} />
+
+            <small>
+              Deposits are refundable when the campaign misses its target or
+              cannot confirm the artist and venue under the published terms.
+            </small>
+          </div>
+        )}
+      </div>
+
+      {message && (
+        <div className="toast-message" role="status" aria-live="polite">
+          {message}
+        </div>
       )}
-
-      <SupporterPreferenceForm
-        campaign={campaign}
-        authenticated={authenticated}
-        onSave={onPreference}
-      />
-
-      {["collecting", "target_reached", "threshold_reached"].includes(campaign.status) && (
-        <>
-          <form className="pledge-form" onSubmit={pledge}>
-            <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Refundable deposit" />
-            <button className="primary" disabled={busy}>{busy ? "Supporting…" : "Make this gig happen"}</button>
-          </form>
-          <button className="secondary" type="button" onClick={() => setShowSponsor((value) => !value)}>Support as a sponsor</button>
-          {showSponsor && (
-            <form className="sponsor-form" onSubmit={submitSponsor}>
-              <input placeholder="Sponsor or company" value={sponsor.sponsor_name} onChange={(e) => setSponsor({ ...sponsor, sponsor_name: e.target.value })} required />
-              <input placeholder="Contact name" value={sponsor.contact_name} onChange={(e) => setSponsor({ ...sponsor, contact_name: e.target.value })} required />
-              <input type="email" placeholder="Contact email" value={sponsor.contact_email} onChange={(e) => setSponsor({ ...sponsor, contact_email: e.target.value })} required />
-              <input type="number" min="1" step="0.01" value={sponsor.amount} onChange={(e) => setSponsor({ ...sponsor, amount: e.target.value })} required />
-              <textarea placeholder="Requested sponsor benefits" value={sponsor.benefits_requested} onChange={(e) => setSponsor({ ...sponsor, benefits_requested: e.target.value })} />
-              <button className="primary" disabled={busy}>Commit sponsorship</button>
-            </form>
-          )}
-        </>
-      )}
-
-      {clientSecret && stripePromise && (
-        <Elements stripe={stripePromise} options={{ clientSecret }}>
-          <DepositPayment onSuccess={async () => {
-            setClientSecret("");
-            setMessage("Deposit received. You are helping make this gig happen.");
-            await onReload();
-          }} />
-        </Elements>
-      )}
-      {clientSecret && !stripePromise && <p className="error">Set VITE_STRIPE_PUBLISHABLE_KEY to complete Stripe deposits.</p>}
-
-      <FacebookIntegration campaign={campaign} onMessage={setMessage} />
-      <small>Deposits are refundable when the campaign misses its target or cannot confirm the artist and venue under the published terms.</small>
-      {message && <p className="message">{message}</p>}
     </article>
   );
 }
