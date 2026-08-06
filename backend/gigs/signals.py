@@ -1,99 +1,155 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Responds to Django and social-authentication signals to create or update related application profile data.
+# Purpose: Creates profiles, assigns the fan role, mirrors legacy account types, and synchronizes trusted social profile data.
 # Documentation: Inline comments explain intent; executable behavior is unchanged.
 
-"""
-Responds to Django and social-authentication signals to create or update related application profile data.
-
-Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-"""
+"""Django and social-authentication signal handlers for profile and role state."""
 
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .models import GigUserProfile
+from .role_models import (
+    Role,
+    RoleAuditEvent,
+    RoleCode,
+    RoleVerificationStatus,
+    UserRole,
+)
 from .social_auth import extract_avatar
+
+
+LEGACY_ACCOUNT_ROLE_MAP = {
+    "fan": RoleCode.FAN,
+    "band": RoleCode.ARTIST,
+    "venue": RoleCode.VENUE,
+    "organizer": RoleCode.ORGANIZER,
+    "rental": RoleCode.EQUIPMENT_RENTAL,
+    "sponsor": RoleCode.SPONSOR,
+}
+
+ROLE_DEFAULTS = {
+    RoleCode.FAN: ("Fan", "Support, reserve, vote, and share campaigns.", False),
+    RoleCode.ARTIST: ("Artist", "Represent an artist or performing act.", True),
+    RoleCode.VENUE: ("Venue", "Represent a performance venue or space.", True),
+    RoleCode.ORGANIZER: ("Organizer", "Create and coordinate demand-driven events.", True),
+    RoleCode.SPONSOR: ("Sponsor", "Support campaigns and event production.", True),
+    RoleCode.VENDOR: ("Vendor", "Provide event-related professional services.", True),
+    RoleCode.EQUIPMENT_RENTAL: (
+        "Equipment rental",
+        "Provide sound, lighting, staging, or rental inventory.",
+        True,
+    ),
+    RoleCode.ADMINISTRATOR: (
+        "Administrator",
+        "Review role and platform approval requests.",
+        True,
+    ),
+}
+
+
+def _role(code: str) -> Role:
+    """Return a seeded role, creating the stable definition only when required."""
+
+    display_name, description, requires_verification = ROLE_DEFAULTS[code]
+    role, _ = Role.objects.get_or_create(
+        code=code,
+        defaults={
+            "display_name": display_name,
+            "description": description,
+            "requires_verification": requires_verification,
+            "active": True,
+        },
+    )
+    return role
+
+
+def _ensure_assignment(profile: GigUserProfile, code: str) -> None:
+    """Create one idempotent role assignment derived from trusted profile state."""
+
+    role = _role(code)
+    assignment, created = UserRole.objects.get_or_create(
+        user=profile.user,
+        role=role,
+        defaults={
+            "organization_name": profile.company_name if code != RoleCode.FAN else "",
+            "profile_data": {},
+            "verification_status": (
+                RoleVerificationStatus.VERIFIED
+                if code == RoleCode.FAN
+                else RoleVerificationStatus.PENDING
+            ),
+        },
+    )
+    if created:
+        RoleAuditEvent.objects.create(
+            assignment=assignment,
+            actor=profile.user,
+            event_type="role_assigned" if code == RoleCode.FAN else "legacy_role_requested",
+            payload={"source_account_type": profile.account_type},
+        )
 
 
 @receiver(post_save, sender=get_user_model())
 def ensure_gig_profile(sender, instance, created, **kwargs):
-    """
-    Create the application-specific profile whenever a Django user is created.
-    
-    Args:
-        sender: Django signal sender that triggered this receiver.
-        instance: Model instance created or updated by the signal.
-        created: True when Django created the model instance during this operation.
-        **kwargs: Additional keyword arguments forwarded to the underlying implementation.
-    """
-    # Initialize defaults only for a newly created record so reruns remain idempotent.
+    """Create the application profile whenever a Django user is created."""
+
     if created:
         GigUserProfile.objects.get_or_create(user=instance)
 
 
+@receiver(post_save, sender=GigUserProfile)
+def synchronize_profile_roles(sender, instance, **kwargs):
+    """Assign fan automatically and mirror the temporary account_type field safely."""
+
+    try:
+        _ensure_assignment(instance, RoleCode.FAN)
+        role_code = LEGACY_ACCOUNT_ROLE_MAP.get(instance.account_type, RoleCode.FAN)
+        if role_code != RoleCode.FAN:
+            _ensure_assignment(instance, role_code)
+    except DatabaseError:
+        return
+
+
 def _synchronize_profile(user, extra):
-    """
-    Copy trusted social-account details such as avatar and display name into the local profile.
-    
-    Args:
-        user: Authenticated or newly created Django user whose profile is being processed.
-        extra: Additional structured data included with the webhook or integration event.
-    """
+    """Copy trusted social-account details into the local profile."""
+
     profile, _ = GigUserProfile.objects.get_or_create(user=user)
     changed = []
     avatar = extract_avatar(extra)
-    # Write the provider avatar only when it is present and different, avoiding unnecessary database updates.
     if avatar and avatar != profile.avatar_url:
         profile.avatar_url = avatar
         changed.append("avatar_url")
     display_name = extra.get("name") or extra.get("display_name") or user.get_full_name()
-    # Synchronize a changed provider display name while respecting the model length limit.
     if display_name and str(display_name) != profile.display_name:
         profile.display_name = str(display_name)[:160]
         changed.append("display_name")
-    # Persist only fields that actually changed and update the profile timestamp in the same write.
     if changed:
         changed.append("updated_at")
         profile.save(update_fields=changed)
 
 
-# Allow dependency-free tooling to import this module even when django-allauth is not installed locally.
 try:
     from allauth.account.signals import user_signed_up
     from allauth.socialaccount.signals import social_account_added, social_account_updated
-except ImportError:  # pragma: no cover - dependency is installed in runtime environments
+except ImportError:  # pragma: no cover - installed in runtime environments
     user_signed_up = social_account_added = social_account_updated = None
 
 
-# Register allauth receivers only when django-allauth is installed in the current runtime.
 if user_signed_up is not None:
 
     @receiver(user_signed_up)
     def synchronize_new_social_profile(request, user, sociallogin=None, **kwargs):
-        """
-        Populate the local user profile from trusted social-account data immediately after sign-up.
-        
-        Args:
-            request: Incoming Django/DRF request, including the authenticated user and payload.
-            user: Authenticated or newly created Django user whose profile is being processed.
-            sociallogin: django-allauth social-login object containing the provider account and extra data.
-            **kwargs: Additional keyword arguments forwarded to the underlying implementation.
-        """
-        # Synchronize provider data only when the signup signal includes a social-login account.
+        """Populate the local profile from trusted social data after sign-up."""
+
         if sociallogin is not None:
             _synchronize_profile(user, sociallogin.account.extra_data or {})
 
     @receiver([social_account_added, social_account_updated])
     def synchronize_existing_social_profile(request, sociallogin, **kwargs):
-        """
-        Refresh the local profile when a linked social account is added or updated.
-        
-        Args:
-            request: Incoming Django/DRF request, including the authenticated user and payload.
-            sociallogin: django-allauth social-login object containing the provider account and extra data.
-            **kwargs: Additional keyword arguments forwarded to the underlying implementation.
-        """
+        """Refresh the local profile when a linked social account changes."""
+
         _synchronize_profile(sociallogin.user, sociallogin.account.extra_data or {})
