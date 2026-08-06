@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Coordinates authentication, multiple roles, campaign loading, creation, launch, pledges, and sponsorships.
+ * Purpose: Coordinates authentication, roles, deterministic campaign approval, launch, pledges, and sponsorships.
  */
 
 import { useEffect, useState } from "react";
@@ -56,9 +56,28 @@ export default function App() {
     setCampaigns((current) => [campaign, ...current]);
   }
 
-  async function launch(slug: string) {
-    await api.launchCampaign(slug);
+  async function submitReview(slug: string) {
+    const campaign = await api.submitCampaignForReview(slug);
     await reload();
+    return campaign;
+  }
+
+  async function approve(slug: string, notes: string) {
+    const campaign = await api.approveCampaign(slug, notes);
+    await reload();
+    return campaign;
+  }
+
+  async function reject(slug: string, notes: string) {
+    const campaign = await api.rejectCampaign(slug, notes);
+    await reload();
+    return campaign;
+  }
+
+  async function launch(slug: string) {
+    const campaign = await api.launchCampaign(slug);
+    await reload();
+    return campaign;
   }
 
   async function pledge(slug: string, data: PledgeInput): Promise<PledgeResult> {
@@ -97,14 +116,14 @@ export default function App() {
                 Then make the gig happen.
               </h1>
               <p>
-                Plant a seed, gather real commitments, unlock sponsors, confirm the artist and venue,
-                and convert verified demand into a live event.
+                Plant a seed, pass transparent approval checks, gather real commitments, unlock
+                sponsors, confirm the artist and venue, and convert verified demand into a live event.
               </p>
             </div>
             <div className="flow">
               <span><Sprout /> Plant seed</span>
               <ArrowRight />
-              <span><Users /> Gather fans</span>
+              <span><Users /> Verify campaign</span>
               <ArrowRight />
               <span><BadgeDollarSign /> Reach target</span>
               <ArrowRight />
@@ -122,7 +141,10 @@ export default function App() {
           <CreateCampaignForm onCreate={create} />
           <div className="section-heading">
             <h2>Gig seeds</h2>
-            <p>Campaigns become events only after demand is proven.</p>
+            <p>
+              Submission runs deterministic checks. Passing campaigns are approved automatically;
+              failed checks enter administrator review.
+            </p>
           </div>
           {error && (
             <div className="panel error">
@@ -134,6 +156,9 @@ export default function App() {
               <CampaignCard
                 key={campaign.id}
                 campaign={campaign}
+                onSubmitReview={submitReview}
+                onApprove={approve}
+                onReject={reject}
                 onLaunch={launch}
                 onPledge={pledge}
                 onSponsor={sponsor}

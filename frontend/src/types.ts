@@ -1,10 +1,55 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
  * Purpose: Defines shared TypeScript contracts used by React components and API functions.
- * Reading guide: JSDoc comments describe each exported contract and executable block.
  */
 
 export type GoalType = "supporters" | "money" | "both";
+
+export type CampaignStatus =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "collecting"
+  | "target_reached"
+  | "threshold_reached"
+  | "confirming"
+  | "feasibility_review"
+  | "conditionally_ready"
+  | "ready"
+  | "handed_off"
+  | "confirmed"
+  | "live"
+  | "completed"
+  | "rejected"
+  | "expired"
+  | "failed"
+  | "cancelled"
+  | "canceled"
+  | "not_viable"
+  | "refund_pending"
+  | "refunding"
+  | "refunded";
+
+export interface CampaignReviewCheck {
+  key: string;
+  passed: boolean;
+  message: string;
+}
+
+export interface CampaignReview {
+  id: number;
+  decision:
+    | "auto_approved"
+    | "manual_review_required"
+    | "manual_approved"
+    | "rejected";
+  reviewer_id: number | null;
+  notes: string;
+  checks: CampaignReviewCheck[];
+  reviewed_at: string;
+  previous_status: string;
+  resulting_status: string;
+}
 
 export interface Campaign {
   id: string;
@@ -27,7 +72,7 @@ export interface Campaign {
   amount_target: string;
   suggested_deposit: string;
   currency: string;
-  status: string;
+  status: CampaignStatus;
   artist_confirmed: boolean;
   venue_confirmed: boolean;
   active_supporter_count: number;
@@ -37,6 +82,9 @@ export interface Campaign {
   facebook_event_url: string;
   facebook_group_url: string;
   facebook_page_url: string;
+  latest_review: CampaignReview | null;
+  can_manage: boolean;
+  can_review_campaign: boolean;
 }
 
 export interface CampaignCreate {

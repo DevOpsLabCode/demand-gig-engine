@@ -1,11 +1,11 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Registers campaign, integration, profile, role, and immutable role-audit models with Django Admin.
-# Documentation: Inline comments explain intent; executable behavior is unchanged.
+# Purpose: Registers campaign, integration, profile, role, and immutable audit models with Django Admin.
 
 """Django Admin registrations for the demand-gig domain."""
 
 from django.contrib import admin
 
+from .campaign_review_models import CampaignReview
 from .models import (
     CampaignEvent,
     DemandCampaign,
@@ -24,6 +24,32 @@ class DemandCampaignAdmin(admin.ModelAdmin):
     list_filter = ("status", "goal_type", "city")
     search_fields = ("title", "artist_name", "organizer_email")
     prepopulated_fields = {"slug": ("artist_name", "city")}
+
+
+@admin.register(CampaignReview)
+class CampaignReviewAdmin(admin.ModelAdmin):
+    list_display = ("campaign", "decision", "reviewer", "previous_status", "resulting_status", "reviewed_at")
+    list_filter = ("decision", "previous_status", "resulting_status", "reviewed_at")
+    search_fields = ("campaign__title", "campaign__slug", "reviewer__username", "notes")
+    readonly_fields = (
+        "campaign",
+        "decision",
+        "reviewer",
+        "notes",
+        "checks",
+        "reviewed_at",
+        "previous_status",
+        "resulting_status",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Pledge)
