@@ -153,6 +153,8 @@ export interface Campaign {
   status: CampaignStatus;
   artist_confirmed: boolean;
   venue_confirmed: boolean;
+  organizer_name: string;
+  organizer_email: string;
   active_supporter_count: number;
   committed_amount: string;
   target_reached: boolean;

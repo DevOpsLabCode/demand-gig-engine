@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Verifies Phase 2 option management, private voting, aggregate calculations, and privacy boundaries.
+# Purpose: Verifies Phase 2 option management, owner editing, private voting, aggregate calculations, and privacy boundaries.
 
 from datetime import timedelta
 from decimal import Decimal
@@ -197,7 +197,7 @@ class CampaignPreferenceTests(TestCase):
             "0.00",
         )
 
-    def test_option_management_requires_owner_or_admin_and_editable_status(self):
+    def test_option_management_requires_owner_or_admin_and_allows_active_status(self):
         campaign = self.make_campaign(status="draft")
         date_one, _, _, _ = self.add_options(campaign)
 
@@ -228,12 +228,53 @@ class CampaignPreferenceTests(TestCase):
 
         campaign.status = "collecting"
         campaign.save(update_fields=["status", "updated_at"])
-        blocked = owner_client.post(
+        added = owner_client.post(
             f"/api/campaigns/{campaign.slug}/price-options/",
             {"amount": "80.00", "currency": "USD", "label": "$80"},
             format="json",
         )
-        self.assertEqual(blocked.status_code, 409)
+        self.assertEqual(added.status_code, 201)
+        self.assertEqual(added.data["label"], "$80")
+        self.assertTrue(
+            CampaignEvent.objects.filter(
+                campaign=campaign,
+                event_type="campaign.price_option.created",
+            ).exists()
+        )
+
+    def test_selected_options_can_be_edited_but_not_removed(self):
+        campaign = self.make_campaign(status="collecting")
+        date_one, _, price_low, _ = self.add_options(campaign)
+        SupporterPreference.objects.create(
+            campaign=campaign,
+            user=self.supporter,
+            expected_quantity=2,
+            attendance_mode=AttendanceMode.PHYSICAL,
+            selected_date_option=date_one,
+            selected_price_option=price_low,
+        )
+        client = APIClient()
+        client.force_authenticate(self.owner)
+
+        date_edit = client.patch(
+            f"/api/campaigns/{campaign.slug}/date-options/{date_one.id}/",
+            {"label": "Updated after voting opened"},
+            format="json",
+        )
+        self.assertEqual(date_edit.status_code, 200)
+
+        blocked_date = client.delete(
+            f"/api/campaigns/{campaign.slug}/date-options/{date_one.id}/"
+        )
+        blocked_price = client.delete(
+            f"/api/campaigns/{campaign.slug}/price-options/{price_low.id}/"
+        )
+        self.assertEqual(blocked_date.status_code, 409)
+        self.assertEqual(blocked_price.status_code, 409)
+        date_one.refresh_from_db()
+        price_low.refresh_from_db()
+        self.assertTrue(date_one.active)
+        self.assertTrue(price_low.active)
 
     def test_admin_can_manage_options_and_delete_means_deactivate(self):
         campaign = self.make_campaign(status="draft")
@@ -520,4 +561,3 @@ class CampaignPreferenceTests(TestCase):
         owner_detail = owner_client.get(f"/api/campaigns/{draft.slug}/")
         self.assertEqual(owner_detail.status_code, 200)
         self.assertEqual(owner_detail.data["slug"], draft.slug)
-
