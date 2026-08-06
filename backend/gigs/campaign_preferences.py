@@ -34,7 +34,6 @@ PUBLIC_CAMPAIGN_STATUSES = {
     "live",
     "completed",
 }
-OPTION_EDITABLE_STATUSES = {"draft", "rejected"}
 VOTING_STATUSES = {
     "approved",
     "collecting",
@@ -66,13 +65,11 @@ def _may_manage(campaign: DemandCampaign, user) -> bool:
 
 
 def _ensure_option_management(campaign: DemandCampaign, user) -> None:
+    """Allow the owner or a trusted administrator to manage options at any status."""
+
     if not _may_manage(campaign, user):
         raise CampaignPreferencePermissionError(
             "Only the campaign owner or an administrator may manage options."
-        )
-    if campaign.status not in OPTION_EDITABLE_STATUSES:
-        raise CampaignPreferenceError(
-            "Campaign options can be changed only while draft or rejected."
         )
 
 
@@ -92,7 +89,7 @@ def replace_campaign_options(
     date_options: list[dict] | None = None,
     price_options: list[dict] | None = None,
 ) -> DemandCampaign:
-    """Replace supplied option groups while the campaign remains editable."""
+    """Replace option groups during initial campaign creation."""
 
     campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
     _ensure_option_management(campaign, user)
@@ -172,7 +169,24 @@ def update_date_option(
 
 @transaction.atomic
 def deactivate_date_option(campaign_id, option_id: int, user) -> None:
-    update_date_option(campaign_id, option_id, user, {"active": False})
+    campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    _ensure_option_management(campaign, user)
+    option = CampaignDateOption.objects.select_for_update().get(
+        pk=option_id,
+        campaign=campaign,
+    )
+    if option.preferences.exists():
+        raise CampaignPreferenceError(
+            "This date already has supporter votes and cannot be removed."
+        )
+    option.active = False
+    option.save(update_fields=["active"])
+    _event(
+        campaign,
+        "campaign.date_option.deactivated",
+        actor_id=user.id,
+        option_id=option.id,
+    )
 
 
 @transaction.atomic
@@ -217,7 +231,24 @@ def update_price_option(
 
 @transaction.atomic
 def deactivate_price_option(campaign_id, option_id: int, user) -> None:
-    update_price_option(campaign_id, option_id, user, {"active": False})
+    campaign = DemandCampaign.objects.select_for_update().get(pk=campaign_id)
+    _ensure_option_management(campaign, user)
+    option = CampaignPriceOption.objects.select_for_update().get(
+        pk=option_id,
+        campaign=campaign,
+    )
+    if option.preferences.exists():
+        raise CampaignPreferenceError(
+            "This price already has supporter votes and cannot be removed."
+        )
+    option.active = False
+    option.save(update_fields=["active"])
+    _event(
+        campaign,
+        "campaign.price_option.deactivated",
+        actor_id=user.id,
+        option_id=option.id,
+    )
 
 
 @transaction.atomic
@@ -310,10 +341,7 @@ def build_preference_summary(campaign: DemandCampaign) -> dict:
 
     for preference in preferences:
         quantity = preference.expected_quantity
-        revenue = (
-            Decimal(quantity)
-            * preference.selected_price_option.amount
-        )
+        revenue = Decimal(quantity) * preference.selected_price_option.amount
         projected_revenue += revenue
 
         if preference.attendance_mode == AttendanceMode.PHYSICAL:
