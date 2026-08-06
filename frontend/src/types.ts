@@ -51,6 +51,84 @@ export interface CampaignReview {
   resulting_status: string;
 }
 
+export type AttendanceMode = "physical" | "virtual";
+
+export interface CampaignDateOptionInput {
+  start_datetime: string;
+  end_datetime?: string | null;
+  venue_timezone: string;
+  label: string;
+  active?: boolean;
+}
+
+export interface CampaignDateOption extends CampaignDateOptionInput {
+  id: number;
+  active: boolean;
+}
+
+export interface CampaignPriceOptionInput {
+  amount: string;
+  currency: string;
+  label: string;
+  active?: boolean;
+}
+
+export interface CampaignPriceOption extends CampaignPriceOptionInput {
+  id: number;
+  active: boolean;
+}
+
+export interface SupporterPreferenceInput {
+  expected_quantity: number;
+  attendance_mode: AttendanceMode;
+  selected_date_option: number;
+  selected_price_option: number;
+  preferred_neighborhood?: string;
+  accessibility_notes?: string;
+  referral_source?: string;
+}
+
+export interface SupporterPreference extends SupporterPreferenceInput {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignDateResult {
+  option_id: number;
+  label: string;
+  start_datetime: string;
+  end_datetime: string | null;
+  venue_timezone: string;
+  supporter_count: number;
+  expected_attendance: number;
+  physical_expected_attendance: number;
+  virtual_expected_attendance: number;
+}
+
+export interface CampaignPriceResult {
+  option_id: number;
+  label: string;
+  amount: string;
+  currency: string;
+  supporter_count: number;
+  expected_attendance: number;
+  projected_revenue: string;
+}
+
+export interface CampaignPreferenceSummary {
+  supporter_count: number;
+  expected_attendance: number;
+  physical_expected_attendance: number;
+  virtual_expected_attendance: number;
+  projected_ticket_revenue: string;
+  deposits_collected: string;
+  sponsor_commitments: string;
+  total_conditional_funding: string;
+  date_results: CampaignDateResult[];
+  price_results: CampaignPriceResult[];
+}
+
 export interface Campaign {
   id: string;
   owner: {
@@ -85,6 +163,10 @@ export interface Campaign {
   latest_review: CampaignReview | null;
   can_manage: boolean;
   can_review_campaign: boolean;
+  date_options: CampaignDateOption[];
+  price_options: CampaignPriceOption[];
+  preference_summary: CampaignPreferenceSummary;
+  my_preference: SupporterPreference | null;
 }
 
 export interface CampaignCreate {
@@ -105,6 +187,8 @@ export interface CampaignCreate {
   facebook_event_url?: string;
   facebook_group_url?: string;
   facebook_page_url?: string;
+  date_options: CampaignDateOptionInput[];
+  price_options: CampaignPriceOptionInput[];
 }
 
 export interface PledgeInput {

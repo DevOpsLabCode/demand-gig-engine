@@ -13,10 +13,14 @@ class GigsConfig(AppConfig):
     name = "gigs"
 
     def import_models(self):
-        """Load primary, multiple-role, and campaign-review model modules."""
+        """Load primary and modular Phase 1, Phase 1B, and Phase 2 models."""
 
         super().import_models()
-        from . import campaign_review_models, role_models  # noqa: F401
+        from . import (  # noqa: F401
+            campaign_preference_models,
+            campaign_review_models,
+            role_models,
+        )
 
     def ready(self):
         """Load signals and extend runtime status validation with Phase 1B states."""

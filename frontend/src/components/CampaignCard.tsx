@@ -1,30 +1,46 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Presents campaign approval, progress, supporter/sponsor input, deposits, and sharing integrations.
+ * Purpose: Presents campaign approval, voting forecasts, progress, deposits, sponsorships, and sharing.
  */
 
 import { FormEvent, useMemo, useState } from "react";
 import { Elements } from "@stripe/react-stripe-js";
 import {
+  Banknote,
   CalendarDays,
   CheckCircle2,
   MapPin,
+  MonitorPlay,
   ShieldCheck,
   Share2,
+  TicketCheck,
   Users,
 } from "lucide-react";
-import type { Campaign, PledgeInput, PledgeResult, SponsorInput } from "../types";
+import type {
+  Campaign,
+  PledgeInput,
+  PledgeResult,
+  SponsorInput,
+  SupporterPreference,
+  SupporterPreferenceInput,
+} from "../types";
 import { stripePromise } from "../stripe";
 import { DepositPayment } from "./DepositPayment";
 import { FacebookIntegration } from "./FacebookIntegration";
+import { SupporterPreferenceForm } from "./SupporterPreferenceForm";
 import { trackMetaEvent } from "../meta";
 
 interface Props {
   campaign: Campaign;
+  authenticated: boolean;
   onSubmitReview: (slug: string) => Promise<Campaign>;
   onApprove: (slug: string, notes: string) => Promise<Campaign>;
   onReject: (slug: string, notes: string) => Promise<Campaign>;
   onLaunch: (slug: string) => Promise<Campaign>;
+  onPreference: (
+    slug: string,
+    data: SupporterPreferenceInput,
+  ) => Promise<SupporterPreference>;
   onPledge: (slug: string, data: PledgeInput) => Promise<PledgeResult>;
   onSponsor: (slug: string, data: SponsorInput) => Promise<void>;
   onReload: () => Promise<void>;
@@ -32,10 +48,12 @@ interface Props {
 
 export function CampaignCard({
   campaign,
+  authenticated,
   onSubmitReview,
   onApprove,
   onReject,
   onLaunch,
+  onPreference,
   onPledge,
   onSponsor,
   onReload,
@@ -64,6 +82,7 @@ export function CampaignCard({
   });
 
   const failedChecks = campaign.latest_review?.checks.filter((check) => !check.passed) ?? [];
+  const summary = campaign.preference_summary;
 
   async function runApprovalChecks() {
     setBusy(true);
@@ -220,9 +239,59 @@ export function CampaignCard({
 
       <div className="progress"><div style={{ width: `${campaign.progress_percent}%` }} /></div>
       <div className="metrics">
-        <div><strong>{campaign.active_supporter_count.toLocaleString()}</strong><span><Users size={15} /> of {campaign.supporter_target.toLocaleString()} supporters</span></div>
-        <div><strong>{money(campaign.committed_amount)}</strong><span>of {money(campaign.amount_target)} committed</span></div>
+        <div><strong>{campaign.active_supporter_count.toLocaleString()}</strong><span><Users size={15} /> pledged ticket quantity</span></div>
+        <div><strong>{money(campaign.committed_amount)}</strong><span>deposit and sponsor commitments</span></div>
         <div><strong>{campaign.progress_percent}%</strong><span>minimum demand reached</span></div>
+      </div>
+
+      <div className="review-summary">
+        <strong><TicketCheck size={17} /> Attendance and ticket-price forecast</strong>
+        <div className="metrics">
+          <div><strong>{summary.expected_attendance.toLocaleString()}</strong><span><Users size={15} /> expected attendance</span></div>
+          <div><strong>{summary.physical_expected_attendance.toLocaleString()}</strong><span>physical</span></div>
+          <div><strong>{summary.virtual_expected_attendance.toLocaleString()}</strong><span><MonitorPlay size={15} /> virtual</span></div>
+          <div><strong>{money(summary.projected_ticket_revenue)}</strong><span>projected ticket revenue</span></div>
+          <div><strong>{money(summary.deposits_collected)}</strong><span>deposits collected</span></div>
+          <div><strong>{money(summary.sponsor_commitments)}</strong><span>sponsor commitments</span></div>
+          <div><strong>{money(summary.total_conditional_funding)}</strong><span><Banknote size={15} /> conditional funding only</span></div>
+        </div>
+
+        {summary.date_results.length > 0 && (
+          <>
+            <strong>Date voting</strong>
+            <ul>
+              {summary.date_results.map((result) => (
+                <li key={result.option_id}>
+                  {result.label || new Date(result.start_datetime).toLocaleString()}
+                  {": "}
+                  {result.expected_attendance} expected
+                  {" ("}{result.physical_expected_attendance} physical,{" "}
+                  {result.virtual_expected_attendance} virtual{")"}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {summary.price_results.length > 0 && (
+          <>
+            <strong>Price voting</strong>
+            <ul>
+              {summary.price_results.map((result) => (
+                <li key={result.option_id}>
+                  {result.label || money(result.amount)}
+                  {": "}
+                  {result.expected_attendance} expected,{" "}
+                  {money(result.projected_revenue)} projected revenue
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <small>
+          Projected ticket revenue is a forecast. It is never added to deposits,
+          sponsor commitments, or conditional funding.
+        </small>
       </div>
 
       <div className="confirmation-row">
@@ -263,6 +332,12 @@ export function CampaignCard({
           </div>
         </div>
       )}
+
+      <SupporterPreferenceForm
+        campaign={campaign}
+        authenticated={authenticated}
+        onSave={onPreference}
+      />
 
       {["collecting", "target_reached", "threshold_reached"].includes(campaign.status) && (
         <>

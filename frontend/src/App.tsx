@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Coordinates authentication, roles, deterministic campaign approval, launch, pledges, and sponsorships.
+ * Purpose: Coordinates public campaign discovery, authentication, roles, campaign approval, voting, pledges, and sponsorships.
  */
 
 import { useEffect, useState } from "react";
@@ -23,6 +23,8 @@ import type {
   PledgeInput,
   PledgeResult,
   SponsorInput,
+  SupporterPreference,
+  SupporterPreferenceInput,
 } from "./types";
 import { initMetaPixel } from "./meta";
 
@@ -50,6 +52,13 @@ export default function App() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (authState !== "loading") {
+      void reload();
+    }
+  }, [authState]);
+
 
   async function create(data: CampaignCreate) {
     const campaign = await api.createCampaign(data);
@@ -80,6 +89,15 @@ export default function App() {
     return campaign;
   }
 
+  async function savePreference(
+    slug: string,
+    data: SupporterPreferenceInput,
+  ): Promise<SupporterPreference> {
+    const preference = await api.savePreference(slug, data);
+    await reload();
+    return preference;
+  }
+
   async function pledge(slug: string, data: PledgeInput): Promise<PledgeResult> {
     const result = await api.pledge(slug, data);
     await reload();
@@ -101,7 +119,7 @@ export default function App() {
             <Music2 />
             Open Concert × VibesMeet
           </div>
-          <span>{authenticated ? "Demand-driven events" : "Open Concert Network"}</span>
+          <span>Demand-driven events</span>
         </nav>
 
         <AuthPanel onAuthStateChange={setAuthState} />
@@ -116,14 +134,15 @@ export default function App() {
                 Then make the gig happen.
               </h1>
               <p>
-                Plant a seed, pass transparent approval checks, gather real commitments, unlock
-                sponsors, confirm the artist and venue, and convert verified demand into a live event.
+                Plant a seed, pass transparent approval checks, vote on dates
+                and prices, gather real commitments, and convert verified demand
+                into a live or virtual event.
               </p>
             </div>
             <div className="flow">
               <span><Sprout /> Plant seed</span>
               <ArrowRight />
-              <span><Users /> Verify campaign</span>
+              <span><Users /> Vote on demand</span>
               <ArrowRight />
               <span><BadgeDollarSign /> Reach target</span>
               <ArrowRight />
@@ -135,39 +154,44 @@ export default function App() {
         )}
       </header>
 
-      {authenticated && (
-        <section className="content">
-          <RoleManager />
-          <CreateCampaignForm onCreate={create} />
-          <div className="section-heading">
-            <h2>Gig seeds</h2>
-            <p>
-              Submission runs deterministic checks. Passing campaigns are approved automatically;
-              failed checks enter administrator review.
-            </p>
+      <section className="content">
+        {authenticated && (
+          <>
+            <RoleManager />
+            <CreateCampaignForm onCreate={create} />
+          </>
+        )}
+        <div className="section-heading">
+          <h2>Gig seeds</h2>
+          <p>
+            Campaign forecasts show physical and virtual attendance, date votes,
+            price votes, and projected ticket revenue separately from deposits
+            and sponsor commitments.
+          </p>
+        </div>
+        {error && (
+          <div className="panel error">
+            {error}. Start the Django API at http://localhost:8000.
           </div>
-          {error && (
-            <div className="panel error">
-              {error}. Start the Django API at http://localhost:8000.
-            </div>
-          )}
-          <div className="campaign-list">
-            {campaigns.map((campaign) => (
-              <CampaignCard
-                key={campaign.id}
-                campaign={campaign}
-                onSubmitReview={submitReview}
-                onApprove={approve}
-                onReject={reject}
-                onLaunch={launch}
-                onPledge={pledge}
-                onSponsor={sponsor}
-                onReload={reload}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        )}
+        <div className="campaign-list">
+          {campaigns.map((campaign) => (
+            <CampaignCard
+              key={campaign.id}
+              campaign={campaign}
+              authenticated={authenticated}
+              onSubmitReview={submitReview}
+              onApprove={approve}
+              onReject={reject}
+              onLaunch={launch}
+              onPreference={savePreference}
+              onPledge={pledge}
+              onSponsor={sponsor}
+              onReload={reload}
+            />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
