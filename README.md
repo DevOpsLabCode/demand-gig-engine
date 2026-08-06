@@ -1,4 +1,4 @@
-# Demand-Driven Gig Creation MVP
+## Demand-Driven Gig Creation MVP
 
 > **Author:** Stan Zvenigorodskiy  
 > **Organization:** DevOps Lab Inc.  
