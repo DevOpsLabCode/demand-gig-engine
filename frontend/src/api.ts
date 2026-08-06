@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Provides typed browser functions for campaigns, authentication, roles, Facebook, Stripe, and VibesMeet APIs.
+ * Purpose: Provides typed browser functions for campaigns, approvals, authentication, roles, Facebook, Stripe, and VibesMeet APIs.
  */
 
 import type {
@@ -108,10 +108,29 @@ export const api = {
       headers: csrfHeaders(),
     }),
   listCampaigns: () => request<Campaign[]>("/campaigns/"),
+  listCampaignReviewQueue: () => request<Campaign[]>("/campaigns/review-queue/"),
   createCampaign: (data: CampaignCreate) =>
     request<Campaign>("/campaigns/", {
       method: "POST",
       body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
+  submitCampaignForReview: (slug: string) =>
+    request<Campaign>(`/campaigns/${slug}/submit-review/`, {
+      method: "POST",
+      body: "{}",
+      headers: csrfHeaders(),
+    }),
+  approveCampaign: (slug: string, notes: string) =>
+    request<Campaign>(`/campaigns/${slug}/approve/`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+      headers: csrfHeaders(),
+    }),
+  rejectCampaign: (slug: string, notes: string) =>
+    request<Campaign>(`/campaigns/${slug}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
       headers: csrfHeaders(),
     }),
   launchCampaign: (slug: string) =>

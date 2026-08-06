@@ -1,41 +1,51 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Presents campaign status and progress, captures supporter/sponsor input, completes deposits, and exposes sharing integrations.
- * Reading guide: JSDoc comments describe each exported contract and executable block.
+ * Purpose: Presents campaign approval, progress, supporter/sponsor input, deposits, and sharing integrations.
  */
 
 import { FormEvent, useMemo, useState } from "react";
 import { Elements } from "@stripe/react-stripe-js";
-import { CalendarDays, CheckCircle2, MapPin, Share2, Users } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  MapPin,
+  ShieldCheck,
+  Share2,
+  Users,
+} from "lucide-react";
 import type { Campaign, PledgeInput, PledgeResult, SponsorInput } from "../types";
 import { stripePromise } from "../stripe";
 import { DepositPayment } from "./DepositPayment";
 import { FacebookIntegration } from "./FacebookIntegration";
 import { trackMetaEvent } from "../meta";
 
-/**
- * Receive one campaign plus callbacks for state transitions, commitments, sponsorships, and authoritative reloads.
- */
 interface Props {
   campaign: Campaign;
-  onLaunch: (slug: string) => Promise<void>;
+  onSubmitReview: (slug: string) => Promise<Campaign>;
+  onApprove: (slug: string, notes: string) => Promise<Campaign>;
+  onReject: (slug: string, notes: string) => Promise<Campaign>;
+  onLaunch: (slug: string) => Promise<Campaign>;
   onPledge: (slug: string, data: PledgeInput) => Promise<PledgeResult>;
   onSponsor: (slug: string, data: SponsorInput) => Promise<void>;
   onReload: () => Promise<void>;
 }
 
-/**
- * Render lifecycle status, threshold metrics, confirmation state, pledge/sponsor forms, Stripe deposit completion, and social sharing.
- */
-export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload }: Props) {
-  /**
-   * Format server-supplied decimal strings in the campaign currency for readable progress and target values.
-   */
+export function CampaignCard({
+  campaign,
+  onSubmitReview,
+  onApprove,
+  onReject,
+  onLaunch,
+  onPledge,
+  onSponsor,
+  onReload,
+}: Props) {
   const money = (value: string | number) => new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: campaign.currency,
     maximumFractionDigits: 2,
   }).format(Number(value));
+
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,6 +53,7 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [clientSecret, setClientSecret] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
   const [showSponsor, setShowSponsor] = useState(false);
   const [sponsor, setSponsor] = useState<SponsorInput>({
     sponsor_name: "",
@@ -52,7 +63,61 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     benefits_requested: "",
   });
 
-  /** Submit one idempotent supporter commitment and open Stripe only when the backend returns a client secret. */
+  const failedChecks = campaign.latest_review?.checks.filter((check) => !check.passed) ?? [];
+
+  async function runApprovalChecks() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await onSubmitReview(campaign.slug);
+      setMessage(
+        result.status === "approved"
+          ? "All deterministic checks passed. Campaign approved automatically."
+          : "Automatic checks found issues. Campaign sent to administrator review.",
+      );
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not submit campaign");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function launchApprovedCampaign() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await onLaunch(campaign.slug);
+      setMessage("Campaign launched and is now collecting support.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not launch campaign");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reviewCampaign(decision: "approve" | "reject") {
+    if (decision === "reject" && !reviewNotes.trim()) {
+      setMessage("Written rejection notes are required.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      if (decision === "approve") {
+        await onApprove(campaign.slug, reviewNotes);
+        setMessage("Campaign approved after administrator review.");
+      } else {
+        await onReject(campaign.slug, reviewNotes);
+        setMessage("Campaign returned to its owner with review notes.");
+      }
+      setReviewNotes("");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not complete review");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pledge(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -93,7 +158,6 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     }
   }
 
-  /** Validate and submit a sponsor commitment, then reset only the form fields after success. */
   async function submitSponsor(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -108,7 +172,6 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
     }
   }
 
-  /** Use the native share sheet when available, otherwise copy the public campaign URL to the clipboard. */
   async function share() {
     const url = `${window.location.origin}/?campaign=${campaign.slug}&source=facebook_group`;
     const data = { title: campaign.title, text: campaign.pitch, url };
@@ -125,12 +188,28 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
         <div>
           <span className={`status ${campaign.status}`}>{campaign.status.replaceAll("_", " ")}</span>
           <h2>{campaign.title}</h2>
-          <div className="meta"><span><MapPin size={16} /> {campaign.city}</span><span><CalendarDays size={16} /> Ends {new Date(campaign.deadline).toLocaleDateString()}</span></div>
+          <div className="meta">
+            <span><MapPin size={16} /> {campaign.city}</span>
+            <span><CalendarDays size={16} /> Ends {new Date(campaign.deadline).toLocaleDateString()}</span>
+          </div>
         </div>
         <button className="icon-button" onClick={share} aria-label="Share campaign"><Share2 /></button>
       </div>
 
       <p>{campaign.pitch}</p>
+
+      {campaign.latest_review && (
+        <div className="review-summary">
+          <strong><ShieldCheck size={17} /> Approval review</strong>
+          <p>{campaign.latest_review.notes}</p>
+          {failedChecks.length > 0 && (
+            <ul>
+              {failedChecks.map((check) => <li key={check.key}>{check.message}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
       {(campaign.facebook_event_url || campaign.facebook_group_url || campaign.facebook_page_url) && (
         <div className="facebook-hub-links">
           {campaign.facebook_event_url && <a href={campaign.facebook_event_url} target="_blank" rel="noreferrer">Facebook Event</a>}
@@ -138,6 +217,7 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
           {campaign.facebook_page_url && <a href={campaign.facebook_page_url} target="_blank" rel="noreferrer">Facebook Page</a>}
         </div>
       )}
+
       <div className="progress"><div style={{ width: `${campaign.progress_percent}%` }} /></div>
       <div className="metrics">
         <div><strong>{campaign.active_supporter_count.toLocaleString()}</strong><span><Users size={15} /> of {campaign.supporter_target.toLocaleString()} supporters</span></div>
@@ -150,9 +230,41 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
         <span className={campaign.venue_confirmed ? "confirmed" : "pending"}><CheckCircle2 size={17} /> Venue {campaign.venue_confirmed ? "confirmed" : "pending"}</span>
       </div>
 
-      {campaign.status === "draft" ? (
-        <button className="primary" onClick={() => onLaunch(campaign.slug)}>Launch campaign</button>
-      ) : ["collecting", "target_reached"].includes(campaign.status) ? (
+      {["draft", "rejected"].includes(campaign.status) && campaign.can_manage && (
+        <button className="primary" disabled={busy} onClick={runApprovalChecks}>
+          {busy ? "Checking…" : "Run approval checks"}
+        </button>
+      )}
+
+      {campaign.status === "approved" && campaign.can_manage && (
+        <button className="primary" disabled={busy} onClick={launchApprovedCampaign}>
+          {busy ? "Launching…" : "Start collecting support"}
+        </button>
+      )}
+
+      {campaign.status === "pending_review" && !campaign.can_review_campaign && (
+        <p className="message">Automatic checks require administrator review. The failed conditions are listed above.</p>
+      )}
+
+      {campaign.status === "pending_review" && campaign.can_review_campaign && (
+        <div className="review-controls">
+          <textarea
+            placeholder="Administrator review notes"
+            value={reviewNotes}
+            onChange={(event) => setReviewNotes(event.target.value)}
+          />
+          <div>
+            <button className="primary" disabled={busy} onClick={() => reviewCampaign("approve")}>
+              Approve
+            </button>
+            <button className="secondary" disabled={busy} onClick={() => reviewCampaign("reject")}>
+              Reject with notes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {["collecting", "target_reached", "threshold_reached"].includes(campaign.status) && (
         <>
           <form className="pledge-form" onSubmit={pledge}>
             <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -172,11 +284,15 @@ export function CampaignCard({ campaign, onLaunch, onPledge, onSponsor, onReload
             </form>
           )}
         </>
-      ) : null}
+      )}
 
       {clientSecret && stripePromise && (
         <Elements stripe={stripePromise} options={{ clientSecret }}>
-          <DepositPayment onSuccess={async () => { setClientSecret(""); setMessage("Deposit received. You are helping make this gig happen."); await onReload(); }} />
+          <DepositPayment onSuccess={async () => {
+            setClientSecret("");
+            setMessage("Deposit received. You are helping make this gig happen.");
+            await onReload();
+          }} />
         </Elements>
       )}
       {clientSecret && !stripePromise && <p className="error">Set VITE_STRIPE_PUBLISHABLE_KEY to complete Stripe deposits.</p>}
