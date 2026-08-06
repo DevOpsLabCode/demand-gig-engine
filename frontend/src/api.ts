@@ -122,6 +122,12 @@ export const api = {
       body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
+  updateCampaign: (slug: string, data: Partial<CampaignCreate>) =>
+    request<Campaign>(`/campaigns/${slug}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
   submitCampaignForReview: (slug: string) =>
     request<Campaign>(`/campaigns/${slug}/submit-review/`, {
       method: "POST",
