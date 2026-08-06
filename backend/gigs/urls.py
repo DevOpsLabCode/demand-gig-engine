@@ -1,12 +1,11 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Maps application API paths to view sets, authentication endpoints, payment webhooks, and integration webhooks.
+# Purpose: Maps application API paths to campaigns, authentication, multiple roles, payments, and integrations.
 # Documentation: Inline comments explain intent; executable behavior is unchanged.
 
-"""
-Maps application API paths to view sets, authentication endpoints, payment webhooks, and integration webhooks.
+"""URL routing for the demand-gig API."""
 
-Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-"""
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
 from .auth_views import (
     auth_config,
@@ -17,8 +16,7 @@ from .auth_views import (
     health,
     readiness,
 )
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from .role_views import reject_role, role_collection, verify_role
 from .views import (
     CampaignViewSet,
     facebook_config,
@@ -40,6 +38,9 @@ urlpatterns = [
     path("auth/login/", auth_login, name="auth-login"),
     path("auth/register/", auth_register, name="auth-register"),
     path("auth/profile/", auth_profile, name="auth-profile"),
+    path("auth/roles/", role_collection, name="auth-roles"),
+    path("auth/roles/<int:assignment_id>/verify/", verify_role, name="auth-role-verify"),
+    path("auth/roles/<int:assignment_id>/reject/", reject_role, name="auth-role-reject"),
     path("auth/logout/", auth_logout, name="auth-logout"),
     path("facebook/config/", facebook_config, name="facebook-config"),
     path("facebook/login/", facebook_login, name="facebook-login"),
