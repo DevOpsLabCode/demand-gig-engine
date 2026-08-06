@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Provides typed browser functions for campaigns, authentication, roles, Facebook, Stripe, and VibesMeet APIs.
+ * Purpose: Provides typed browser functions for campaigns, preferences, approvals, authentication, roles, Facebook, Stripe, and VibesMeet APIs.
  */
 
 import type {
@@ -8,6 +8,11 @@ import type {
   AuthUser,
   Campaign,
   CampaignCreate,
+  CampaignDateOption,
+  CampaignDateOptionInput,
+  CampaignPreferenceSummary,
+  CampaignPriceOption,
+  CampaignPriceOptionInput,
   CredentialLoginInput,
   FacebookConfig,
   FacebookPage,
@@ -18,6 +23,8 @@ import type {
   RoleConfig,
   RoleRequestInput,
   SponsorInput,
+  SupporterPreference,
+  SupporterPreferenceInput,
   UserRegistrationInput,
   UserRoleAssignment,
   VibesMeetConfig,
@@ -108,16 +115,101 @@ export const api = {
       headers: csrfHeaders(),
     }),
   listCampaigns: () => request<Campaign[]>("/campaigns/"),
+  listCampaignReviewQueue: () => request<Campaign[]>("/campaigns/review-queue/"),
   createCampaign: (data: CampaignCreate) =>
     request<Campaign>("/campaigns/", {
       method: "POST",
       body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
+  submitCampaignForReview: (slug: string) =>
+    request<Campaign>(`/campaigns/${slug}/submit-review/`, {
+      method: "POST",
+      body: "{}",
+      headers: csrfHeaders(),
+    }),
+  approveCampaign: (slug: string, notes: string) =>
+    request<Campaign>(`/campaigns/${slug}/approve/`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+      headers: csrfHeaders(),
+    }),
+  rejectCampaign: (slug: string, notes: string) =>
+    request<Campaign>(`/campaigns/${slug}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+      headers: csrfHeaders(),
+    }),
   launchCampaign: (slug: string) =>
     request<Campaign>(`/campaigns/${slug}/launch/`, {
       method: "POST",
       body: "{}",
+      headers: csrfHeaders(),
+    }),
+  listDateOptions: (slug: string) =>
+    request<CampaignDateOption[]>(`/campaigns/${slug}/date-options/`),
+  createDateOption: (slug: string, data: CampaignDateOptionInput) =>
+    request<CampaignDateOption>(`/campaigns/${slug}/date-options/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
+  updateDateOption: (
+    slug: string,
+    optionId: number,
+    data: Partial<CampaignDateOptionInput>,
+  ) =>
+    request<CampaignDateOption>(
+      `/campaigns/${slug}/date-options/${optionId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: csrfHeaders(),
+      },
+    ),
+  deleteDateOption: (slug: string, optionId: number) =>
+    request<void>(`/campaigns/${slug}/date-options/${optionId}/`, {
+      method: "DELETE",
+      headers: csrfHeaders(),
+    }),
+  listPriceOptions: (slug: string) =>
+    request<CampaignPriceOption[]>(`/campaigns/${slug}/price-options/`),
+  createPriceOption: (slug: string, data: CampaignPriceOptionInput) =>
+    request<CampaignPriceOption>(`/campaigns/${slug}/price-options/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: csrfHeaders(),
+    }),
+  updatePriceOption: (
+    slug: string,
+    optionId: number,
+    data: Partial<CampaignPriceOptionInput>,
+  ) =>
+    request<CampaignPriceOption>(
+      `/campaigns/${slug}/price-options/${optionId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: csrfHeaders(),
+      },
+    ),
+  deletePriceOption: (slug: string, optionId: number) =>
+    request<void>(`/campaigns/${slug}/price-options/${optionId}/`, {
+      method: "DELETE",
+      headers: csrfHeaders(),
+    }),
+  getPreferenceSummary: (slug: string) =>
+    request<CampaignPreferenceSummary>(
+      `/campaigns/${slug}/preference-summary/`,
+    ),
+  getMyPreference: (slug: string) =>
+    request<{ preference: SupporterPreference | null }>(
+      `/campaigns/${slug}/preference/`,
+    ),
+  savePreference: (slug: string, data: SupporterPreferenceInput) =>
+    request<SupporterPreference>(`/campaigns/${slug}/preference/`, {
+      method: "POST",
+      body: JSON.stringify(data),
       headers: csrfHeaders(),
     }),
   pledge: (slug: string, data: PledgeInput) =>
