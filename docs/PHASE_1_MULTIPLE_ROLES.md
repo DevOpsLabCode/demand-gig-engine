@@ -33,6 +33,10 @@ Every new user receives a verified `fan` assignment. Existing profile values are
 - `POST /api/auth/roles/<id>/verify/` — administrator verification.
 - `POST /api/auth/roles/<id>/reject/` — administrator rejection.
 
+## Validation
+
+The phase must pass the complete backend suite, the 90% coverage gate, empty-database migrations, strict `npm ci`, the production frontend build, security checks, and Terraform static validation. No Terraform deployment job is permitted.
+
 ## Scope boundary
 
 Campaign submission and administrator campaign approval are intentionally deferred to Phase 1B. No Terraform or deployment behavior is changed by this phase.
