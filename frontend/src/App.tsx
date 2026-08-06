@@ -1,7 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Coordinates the login-first application shell, campaign loading, creation, launch, pledges, and sponsorships.
- * Reading guide: JSDoc comments describe each exported contract and executable block.
+ * Purpose: Coordinates authentication, multiple roles, campaign loading, creation, launch, pledges, and sponsorships.
  */
 
 import { useEffect, useState } from "react";
@@ -16,10 +15,8 @@ import {
 import { api } from "./api";
 import { CampaignCard } from "./components/CampaignCard";
 import { CreateCampaignForm } from "./components/CreateCampaignForm";
-import {
-  AuthPanel,
-  type AuthState,
-} from "./components/AuthPanel";
+import { AuthPanel, type AuthState } from "./components/AuthPanel";
+import { RoleManager } from "./components/RoleManager";
 import type {
   Campaign,
   CampaignCreate,
@@ -29,65 +26,47 @@ import type {
 } from "./types";
 import { initMetaPixel } from "./meta";
 
-/**
- * Render the application shell and coordinate authentication, campaign loading,
- * creation, launch, pledges, sponsorships, and integration initialization.
- */
 export default function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [error, setError] = useState("");
 
-  /** Refresh the campaign list and surface API connectivity errors without discarding the current page shell. */
   async function reload() {
     try {
       setCampaigns(await api.listCampaigns());
       setError("");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "API unavailable",
-      );
+      setError(err instanceof Error ? err.message : "API unavailable");
     }
   }
 
-  // Load public campaign state and initialize Meta Pixel only when the backend or build supplies a pixel ID.
   useEffect(() => {
     void reload();
     void api
       .facebookConfig()
       .then((config) => {
-        const pixelId =
-          config.pixel_id ||
-          import.meta.env.VITE_META_PIXEL_ID ||
-          "";
+        const pixelId = config.pixel_id || import.meta.env.VITE_META_PIXEL_ID || "";
         initMetaPixel(pixelId);
       })
       .catch(() => undefined);
   }, []);
 
-  /** Persist a new campaign and prepend it to local state so the organizer sees it immediately. */
   async function create(data: CampaignCreate) {
     const campaign = await api.createCampaign(data);
     setCampaigns((current) => [campaign, ...current]);
   }
 
-  /** Move a draft campaign into demand collection, then reload server-calculated status and progress. */
   async function launch(slug: string) {
     await api.launchCampaign(slug);
     await reload();
   }
 
-  /** Submit an idempotent supporter commitment, refresh totals, and return any Stripe client secret. */
-  async function pledge(
-    slug: string,
-    data: PledgeInput,
-  ): Promise<PledgeResult> {
+  async function pledge(slug: string, data: PledgeInput): Promise<PledgeResult> {
     const result = await api.pledge(slug, data);
     await reload();
     return result;
   }
 
-  /** Record a sponsor commitment and refresh campaign funding progress from the authoritative API. */
   async function sponsor(slug: string, data: SponsorInput) {
     await api.sponsor(slug, data);
     await reload();
@@ -97,19 +76,13 @@ export default function App() {
 
   return (
     <main aria-busy={authState === "loading"}>
-      <header
-        className={`hero ${authenticated ? "" : "auth-first-page"}`}
-      >
+      <header className={`hero ${authenticated ? "" : "auth-first-page"}`}>
         <nav>
           <div className="brand">
             <Music2 />
             Open Concert × VibesMeet
           </div>
-          <span>
-            {authenticated
-              ? "Demand-driven events"
-              : "Open Concert Network"}
-          </span>
+          <span>{authenticated ? "Demand-driven events" : "Open Concert Network"}</span>
         </nav>
 
         <AuthPanel onAuthStateChange={setAuthState} />
@@ -117,40 +90,27 @@ export default function App() {
         {authenticated && (
           <>
             <div className="hero-copy">
-              <span className="eyebrow">
-                Do not book first and hope.
-              </span>
+              <span className="eyebrow">Do not book first and hope.</span>
               <h1>
                 Prove the audience.
                 <br />
                 Then make the gig happen.
               </h1>
               <p>
-                Plant a seed, gather real commitments, unlock sponsors,
-                confirm the artist and venue, and convert verified demand
-                into a live event.
+                Plant a seed, gather real commitments, unlock sponsors, confirm the artist and venue,
+                and convert verified demand into a live event.
               </p>
             </div>
             <div className="flow">
-              <span>
-                <Sprout /> Plant seed
-              </span>
+              <span><Sprout /> Plant seed</span>
               <ArrowRight />
-              <span>
-                <Users /> Gather fans
-              </span>
+              <span><Users /> Gather fans</span>
               <ArrowRight />
-              <span>
-                <BadgeDollarSign /> Reach target
-              </span>
+              <span><BadgeDollarSign /> Reach target</span>
               <ArrowRight />
-              <span>
-                <Building2 /> Confirm venue
-              </span>
+              <span><Building2 /> Confirm venue</span>
               <ArrowRight />
-              <span>
-                <Music2 /> Produce gig
-              </span>
+              <span><Music2 /> Produce gig</span>
             </div>
           </>
         )}
@@ -158,17 +118,15 @@ export default function App() {
 
       {authenticated && (
         <section className="content">
+          <RoleManager />
           <CreateCampaignForm onCreate={create} />
           <div className="section-heading">
             <h2>Gig seeds</h2>
-            <p>
-              Campaigns become events only after demand is proven.
-            </p>
+            <p>Campaigns become events only after demand is proven.</p>
           </div>
           {error && (
             <div className="panel error">
-              {error}. Start the Django API at
-              http://localhost:8000.
+              {error}. Start the Django API at http://localhost:8000.
             </div>
           )}
           <div className="campaign-list">
