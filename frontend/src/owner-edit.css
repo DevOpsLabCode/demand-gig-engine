@@ -1,0 +1,184 @@
+/**
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Styles the always-available owner campaign seed editor and card-level owner controls.
+ */
+
+.campaign-card-shell {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.owner-card-toolbar {
+  display: flex;
+  min-height: 50px;
+  padding: 8px 10px 8px 15px;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  border: 1px solid rgba(155, 123, 255, 0.24);
+  border-radius: 14px;
+  background: rgba(155, 123, 255, 0.08);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.owner-edit-workspace {
+  scroll-margin-top: 92px;
+}
+
+.owner-edit-form {
+  display: grid;
+  gap: 22px;
+}
+
+.owner-edit-banner {
+  display: flex;
+  padding: 18px;
+  gap: 13px;
+  align-items: flex-start;
+  color: var(--text-soft);
+  border: 1px solid rgba(85, 214, 169, 0.25);
+  border-radius: 16px;
+  background: var(--green-soft);
+}
+
+.owner-edit-banner > svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: var(--green);
+}
+
+.owner-edit-banner div {
+  display: grid;
+  gap: 5px;
+}
+
+.owner-edit-banner p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.owner-edit-section {
+  display: grid;
+  padding: clamp(18px, 3vw, 28px);
+  gap: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-raised);
+}
+
+.owner-option-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.owner-option-list {
+  display: grid;
+  gap: 10px;
+}
+
+.owner-option-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  padding: 15px;
+  gap: 13px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface-soft);
+}
+
+.price-option-card {
+  grid-template-columns: 28px minmax(0, 1fr) 44px;
+  align-items: center;
+}
+
+.price-option-card > svg {
+  color: var(--green);
+}
+
+.owner-price-grid {
+  grid-template-columns: 1.3fr 0.8fr 0.55fr;
+}
+
+.owner-edit-actions {
+  display: flex;
+  position: sticky;
+  z-index: 5;
+  bottom: 10px;
+  padding: 13px;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  border: 1px solid var(--border-strong);
+  border-radius: 15px;
+  background: rgba(23, 26, 35, 0.96);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+}
+
+.owner-edit-success {
+  display: flex;
+  align-items: center;
+  color: #a8f2d8;
+  border-color: rgba(85, 214, 169, 0.25);
+  background: var(--green-soft);
+}
+
+@media (max-width: 840px) {
+  .owner-price-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .owner-card-toolbar {
+    display: grid;
+  }
+
+  .owner-card-toolbar .button {
+    width: 100%;
+  }
+
+  .owner-edit-section {
+    padding: 16px 12px;
+  }
+
+  .owner-option-heading {
+    display: grid;
+  }
+
+  .owner-option-heading .button {
+    width: 100%;
+  }
+
+  .owner-option-card,
+  .price-option-card {
+    grid-template-columns: 1fr;
+  }
+
+  .price-option-card > svg {
+    display: none;
+  }
+
+  .owner-option-card > .icon-button {
+    justify-self: end;
+  }
+
+  .owner-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    bottom: 6px;
+  }
+
+  .owner-edit-actions .button {
+    width: 100%;
+  }
+}
