@@ -18,20 +18,18 @@ from .auth_views import (
 from .campaign_approval_views import (
     campaign_approve,
     campaign_collection,
+    campaign_detail,
     campaign_launch,
     campaign_reject,
     campaign_review_queue,
     campaign_submit_review,
 )
-from .campaign_owner_edit_views import (
-    campaign_owner_date_option_detail,
-    campaign_owner_date_options,
-    campaign_owner_edit_detail,
-    campaign_owner_price_option_detail,
-    campaign_owner_price_options,
-)
 from .campaign_preference_views import (
+    campaign_date_option_detail,
+    campaign_date_options,
     campaign_preference_summary,
+    campaign_price_option_detail,
+    campaign_price_options,
     campaign_supporter_preference,
 )
 from .role_views import reject_role, role_collection, verify_role
@@ -57,22 +55,22 @@ urlpatterns = [
     path("campaigns/", campaign_collection, name="campaign-collection"),
     path(
         "campaigns/<slug:slug>/date-options/",
-        campaign_owner_date_options,
+        campaign_date_options,
         name="campaign-date-options",
     ),
     path(
         "campaigns/<slug:slug>/date-options/<int:option_id>/",
-        campaign_owner_date_option_detail,
+        campaign_date_option_detail,
         name="campaign-date-option-detail",
     ),
     path(
         "campaigns/<slug:slug>/price-options/",
-        campaign_owner_price_options,
+        campaign_price_options,
         name="campaign-price-options",
     ),
     path(
         "campaigns/<slug:slug>/price-options/<int:option_id>/",
-        campaign_owner_price_option_detail,
+        campaign_price_option_detail,
         name="campaign-price-option-detail",
     ),
     path(
@@ -89,7 +87,7 @@ urlpatterns = [
     path("campaigns/<slug:slug>/approve/", campaign_approve, name="campaign-approve"),
     path("campaigns/<slug:slug>/reject/", campaign_reject, name="campaign-reject"),
     path("campaigns/<slug:slug>/launch/", campaign_launch, name="campaign-approved-launch"),
-    path("campaigns/<slug:slug>/", campaign_owner_edit_detail, name="campaign-protected-detail"),
+    path("campaigns/<slug:slug>/", campaign_detail, name="campaign-protected-detail"),
     path("", include(router.urls)),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/login/", auth_login, name="auth-login"),
