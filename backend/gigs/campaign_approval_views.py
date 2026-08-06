@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+import logging
+from uuid import uuid4
+
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -46,6 +49,9 @@ from .campaign_preferences import (
 from .campaign_review_models import CampaignReview
 from .models import CampaignEvent, DemandCampaign
 from .serializers import CampaignSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 def _can_view_private_campaign(campaign: DemandCampaign, user) -> bool:
@@ -136,6 +142,41 @@ def _error(exc: CampaignApprovalError) -> Response:
         {"detail": "The campaign cannot complete this transition in its current state."},
         status=status.HTTP_409_CONFLICT,
     )
+
+
+def _unexpected_approval_error(
+    *,
+    action: str,
+    campaign: DemandCampaign,
+    user,
+) -> Response:
+    """Log an unexpected approval failure and return an opaque support reference."""
+
+    reference_id = uuid4().hex[:16]
+    logger.exception(
+        "Unexpected campaign approval failure "
+        "reference_id=%s action=%s campaign_id=%s campaign_slug=%s "
+        "campaign_status=%s actor_id=%s",
+        reference_id,
+        action,
+        campaign.id,
+        campaign.slug,
+        campaign.status,
+        getattr(user, "id", None),
+    )
+    response = Response(
+        {
+            "detail": (
+                "Approval checks could not be completed because of a server error. "
+                f"Reference: {reference_id}."
+            ),
+            "error_code": "campaign_approval_internal_error",
+            "reference_id": reference_id,
+        },
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+    response["X-Error-Reference"] = reference_id
+    return response
 
 
 def _split_campaign_input(request) -> tuple[dict, object, object]:
@@ -428,9 +469,15 @@ def campaign_submit_review(request, slug: str):
     campaign = get_object_or_404(DemandCampaign, slug=slug)
     try:
         campaign, review = submit_campaign_for_review(campaign.id, request.user)
+        return Response(_campaign_payload(campaign, request, review))
     except CampaignApprovalError as exc:
         return _error(exc)
-    return Response(_campaign_payload(campaign, request, review))
+    except Exception:
+        return _unexpected_approval_error(
+            action="submit_review",
+            campaign=campaign,
+            user=request.user,
+        )
 
 
 @api_view(["POST"])
