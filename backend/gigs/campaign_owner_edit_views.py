@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -26,6 +26,10 @@ from .campaign_preference_serializers import (
 from .campaign_preferences import PUBLIC_CAMPAIGN_STATUSES
 from .models import CampaignEvent, DemandCampaign
 from .serializers import CampaignSerializer
+
+
+class OptionRemovalBlocked(ValueError):
+    """Raised when an owner attempts to remove an option with supporter votes."""
 
 
 def _may_manage(campaign: DemandCampaign, user) -> bool:
@@ -68,10 +72,172 @@ def _record_event(campaign: DemandCampaign, event_type: str, user, **payload) ->
     )
 
 
+def _sync_date_options(campaign: DemandCampaign, user, raw_options) -> None:
+    """Atomically create, update, reactivate, or safely deactivate date choices."""
+
+    if not isinstance(raw_options, list) or not raw_options:
+        raise serializers.ValidationError(
+            {"date_options": "Provide at least one proposed date."}
+        )
+
+    existing = {option.id: option for option in campaign.date_options.all()}
+    retained_ids: set[int] = set()
+
+    for raw_option in raw_options:
+        if not isinstance(raw_option, dict):
+            raise serializers.ValidationError(
+                {"date_options": "Every date option must be an object."}
+            )
+        data = dict(raw_option)
+        option_id = data.pop("id", None)
+
+        if option_id is None:
+            serializer = CampaignDateOptionSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            option = CampaignDateOption.objects.create(
+                campaign=campaign,
+                **serializer.validated_data,
+            )
+            retained_ids.add(option.id)
+            _record_event(
+                campaign,
+                "campaign.date_option.created",
+                user,
+                option_id=option.id,
+            )
+            continue
+
+        try:
+            normalized_id = int(option_id)
+        except (TypeError, ValueError) as exc:
+            raise serializers.ValidationError(
+                {"date_options": "Date option IDs must be integers."}
+            ) from exc
+
+        option = existing.get(normalized_id)
+        if option is None:
+            raise serializers.ValidationError(
+                {"date_options": "A date option does not belong to this campaign."}
+            )
+
+        serializer = CampaignDateOptionSerializer(option, data=data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(option, field, value)
+        option.full_clean()
+        option.save()
+        retained_ids.add(option.id)
+        _record_event(
+            campaign,
+            "campaign.date_option.updated",
+            user,
+            option_id=option.id,
+            changed_fields=list(serializer.validated_data),
+        )
+
+    for option in existing.values():
+        if option.id in retained_ids or not option.active:
+            continue
+        if option.preferences.exists():
+            raise OptionRemovalBlocked(
+                "A proposed date already has supporter votes and cannot be removed. "
+                "Keep it in the seed, edit it, or add another date."
+            )
+        option.active = False
+        option.save(update_fields=["active"])
+        _record_event(
+            campaign,
+            "campaign.date_option.deactivated",
+            user,
+            option_id=option.id,
+        )
+
+
+def _sync_price_options(campaign: DemandCampaign, user, raw_options) -> None:
+    """Atomically create, update, reactivate, or safely deactivate price choices."""
+
+    if not isinstance(raw_options, list) or not raw_options:
+        raise serializers.ValidationError(
+            {"price_options": "Provide at least one ticket-price choice."}
+        )
+
+    existing = {option.id: option for option in campaign.price_options.all()}
+    retained_ids: set[int] = set()
+
+    for raw_option in raw_options:
+        if not isinstance(raw_option, dict):
+            raise serializers.ValidationError(
+                {"price_options": "Every price option must be an object."}
+            )
+        data = dict(raw_option)
+        option_id = data.pop("id", None)
+
+        if option_id is None:
+            serializer = CampaignPriceOptionSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            option = CampaignPriceOption.objects.create(
+                campaign=campaign,
+                **serializer.validated_data,
+            )
+            retained_ids.add(option.id)
+            _record_event(
+                campaign,
+                "campaign.price_option.created",
+                user,
+                option_id=option.id,
+            )
+            continue
+
+        try:
+            normalized_id = int(option_id)
+        except (TypeError, ValueError) as exc:
+            raise serializers.ValidationError(
+                {"price_options": "Price option IDs must be integers."}
+            ) from exc
+
+        option = existing.get(normalized_id)
+        if option is None:
+            raise serializers.ValidationError(
+                {"price_options": "A price option does not belong to this campaign."}
+            )
+
+        serializer = CampaignPriceOptionSerializer(option, data=data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(option, field, value)
+        option.full_clean()
+        option.save()
+        retained_ids.add(option.id)
+        _record_event(
+            campaign,
+            "campaign.price_option.updated",
+            user,
+            option_id=option.id,
+            changed_fields=list(serializer.validated_data),
+        )
+
+    for option in existing.values():
+        if option.id in retained_ids or not option.active:
+            continue
+        if option.preferences.exists():
+            raise OptionRemovalBlocked(
+                "A ticket-price choice already has supporter votes and cannot be "
+                "removed. Keep it in the seed, edit it, or add another price."
+            )
+        option.active = False
+        option.save(update_fields=["active"])
+        _record_event(
+            campaign,
+            "campaign.price_option.deactivated",
+            user,
+            option_id=option.id,
+        )
+
+
 @api_view(["GET", "PUT", "PATCH", "DELETE"])
 @permission_classes([AllowAny])
 def campaign_owner_edit_detail(request, slug: str):
-    """Retrieve a campaign and allow its owner to edit seed content at any status."""
+    """Retrieve a campaign and allow its owner to edit the full seed at any status."""
 
     campaign = get_object_or_404(
         DemandCampaign.objects.select_related("owner"),
@@ -106,17 +272,6 @@ def campaign_owner_edit_detail(request, slug: str):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     campaign_data, date_input, price_input = _split_campaign_input(request)
-    if date_input is not None or price_input is not None:
-        return Response(
-            {
-                "detail": (
-                    "Edit campaign date and price choices through their dedicated "
-                    "option controls so existing supporter votes remain protected."
-                )
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
     serializer = CampaignSerializer(
         campaign,
         data=campaign_data,
@@ -131,28 +286,41 @@ def campaign_owner_edit_detail(request, slug: str):
         if hasattr(campaign, field)
     }
 
-    with transaction.atomic():
-        campaign = serializer.save()
-        changed_fields = [
-            field
-            for field, previous_value in before.items()
-            if getattr(campaign, field) != previous_value
-        ]
-        _record_event(
-            campaign,
-            "campaign.owner_edited",
-            request.user,
-            changed_fields=changed_fields,
-            protected_fields_unchanged=[
-                "owner",
-                "slug",
-                "status",
-                "artist_confirmed",
-                "venue_confirmed",
-                "confirmed_artist_details",
-                "confirmed_venue_details",
-                "event_id",
-            ],
+    try:
+        with transaction.atomic():
+            campaign = serializer.save()
+            if date_input is not None:
+                _sync_date_options(campaign, request.user, date_input)
+            if price_input is not None:
+                _sync_price_options(campaign, request.user, price_input)
+
+            changed_fields = [
+                field
+                for field, previous_value in before.items()
+                if getattr(campaign, field) != previous_value
+            ]
+            _record_event(
+                campaign,
+                "campaign.owner_edited",
+                request.user,
+                changed_fields=changed_fields,
+                date_options_edited=date_input is not None,
+                price_options_edited=price_input is not None,
+                protected_fields_unchanged=[
+                    "owner",
+                    "slug",
+                    "status",
+                    "artist_confirmed",
+                    "venue_confirmed",
+                    "confirmed_artist_details",
+                    "confirmed_venue_details",
+                    "event_id",
+                ],
+            )
+    except OptionRemovalBlocked as exc:
+        return Response(
+            {"detail": str(exc)},
+            status=status.HTTP_409_CONFLICT,
         )
 
     return Response(_campaign_payload(campaign, request))
