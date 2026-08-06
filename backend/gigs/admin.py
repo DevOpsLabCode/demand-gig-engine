@@ -1,14 +1,11 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Registers domain models with Django Admin and selects useful list, search, and filtering fields.
+# Purpose: Registers campaign, integration, profile, role, and immutable role-audit models with Django Admin.
 # Documentation: Inline comments explain intent; executable behavior is unchanged.
 
-"""
-Registers domain models with Django Admin and selects useful list, search, and filtering fields.
-
-Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-"""
+"""Django Admin registrations for the demand-gig domain."""
 
 from django.contrib import admin
+
 from .models import (
     CampaignEvent,
     DemandCampaign,
@@ -18,13 +15,11 @@ from .models import (
     Pledge,
     SponsorCommitment,
 )
+from .role_models import Role, RoleAuditEvent, UserRole
 
 
 @admin.register(DemandCampaign)
 class DemandCampaignAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for DemandCampaign records.
-    """
     list_display = ("title", "artist_name", "city", "status", "deadline", "artist_confirmed", "venue_confirmed")
     list_filter = ("status", "goal_type", "city")
     search_fields = ("title", "artist_name", "organizer_email")
@@ -33,9 +28,6 @@ class DemandCampaignAdmin(admin.ModelAdmin):
 
 @admin.register(Pledge)
 class PledgeAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for Pledge records.
-    """
     list_display = ("supporter_email", "campaign", "amount", "status", "source", "created_at")
     list_filter = ("status", "source", "payment_provider")
     search_fields = ("supporter_email", "payment_reference", "source_label")
@@ -43,26 +35,17 @@ class PledgeAdmin(admin.ModelAdmin):
 
 @admin.register(SponsorCommitment)
 class SponsorCommitmentAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for SponsorCommitment records.
-    """
     list_display = ("sponsor_name", "campaign", "amount", "status")
 
 
 @admin.register(CampaignEvent)
 class CampaignEventAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for CampaignEvent records.
-    """
     list_display = ("campaign", "event_type", "created_at")
     readonly_fields = ("campaign", "event_type", "payload", "created_at")
 
 
 @admin.register(ExternalResourceLink)
 class ExternalResourceLinkAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for ExternalResourceLink records.
-    """
     list_display = ("provider", "local_resource_type", "local_resource_id", "remote_resource_type", "remote_resource_id", "sync_status", "last_synced_at")
     list_filter = ("provider", "sync_status", "local_resource_type", "remote_resource_type")
     search_fields = ("local_resource_id", "remote_resource_id")
@@ -70,9 +53,6 @@ class ExternalResourceLinkAdmin(admin.ModelAdmin):
 
 @admin.register(IntegrationWebhookEvent)
 class IntegrationWebhookEventAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for IntegrationWebhookEvent records.
-    """
     list_display = ("provider", "event_type", "resource_type", "resource_id", "status", "received_at", "processed_at")
     list_filter = ("provider", "status", "event_type", "resource_type")
     search_fields = ("event_id", "resource_id")
@@ -81,9 +61,38 @@ class IntegrationWebhookEventAdmin(admin.ModelAdmin):
 
 @admin.register(GigUserProfile)
 class GigUserProfileAdmin(admin.ModelAdmin):
-    """
-    Configure Django Admin list, search, filtering, and display behavior for GigUserProfile records.
-    """
     list_display = ("user", "display_name", "account_type", "company_name", "verified", "updated_at")
     list_filter = ("account_type", "verified", "country")
     search_fields = ("user__username", "user__email", "display_name", "company_name")
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ("code", "display_name", "requires_verification", "active")
+    list_filter = ("requires_verification", "active")
+    search_fields = ("code", "display_name")
+
+
+@admin.register(UserRole)
+class UserRoleAdmin(admin.ModelAdmin):
+    list_display = ("user", "role", "organization_name", "verification_status", "verified_by", "updated_at")
+    list_filter = ("verification_status", "role")
+    search_fields = ("user__username", "user__email", "organization_name")
+    readonly_fields = ("verified_by", "verified_at", "created_at", "updated_at")
+
+
+@admin.register(RoleAuditEvent)
+class RoleAuditEventAdmin(admin.ModelAdmin):
+    list_display = ("assignment", "event_type", "actor", "created_at")
+    list_filter = ("event_type", "created_at")
+    search_fields = ("assignment__user__username", "assignment__user__email")
+    readonly_fields = ("assignment", "actor", "event_type", "payload", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
