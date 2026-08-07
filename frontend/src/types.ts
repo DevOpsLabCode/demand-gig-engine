@@ -6,43 +6,16 @@
 export type GoalType = "supporters" | "money" | "both";
 
 export type CampaignStatus =
-  | "draft"
-  | "pending_review"
-  | "approved"
-  | "collecting"
-  | "target_reached"
-  | "threshold_reached"
-  | "confirming"
-  | "feasibility_review"
-  | "conditionally_ready"
-  | "ready"
-  | "handed_off"
-  | "confirmed"
-  | "live"
-  | "completed"
-  | "rejected"
-  | "expired"
-  | "failed"
-  | "cancelled"
-  | "canceled"
-  | "not_viable"
-  | "refund_pending"
-  | "refunding"
-  | "refunded";
+  | "draft" | "pending_review" | "approved" | "collecting" | "target_reached"
+  | "threshold_reached" | "confirming" | "feasibility_review" | "conditionally_ready"
+  | "ready" | "handed_off" | "confirmed" | "live" | "completed" | "rejected"
+  | "expired" | "failed" | "cancelled" | "canceled" | "not_viable"
+  | "refund_pending" | "refunding" | "refunded";
 
-export interface CampaignReviewCheck {
-  key: string;
-  passed: boolean;
-  message: string;
-}
-
+export interface CampaignReviewCheck { key: string; passed: boolean; message: string; }
 export interface CampaignReview {
   id: number;
-  decision:
-    | "auto_approved"
-    | "manual_review_required"
-    | "manual_approved"
-    | "rejected";
+  decision: "auto_approved" | "manual_review_required" | "manual_approved" | "rejected";
   reviewer_id: number | null;
   notes: string;
   checks: CampaignReviewCheck[];
@@ -52,32 +25,10 @@ export interface CampaignReview {
 }
 
 export type AttendanceMode = "physical" | "virtual";
-
-export interface CampaignDateOptionInput {
-  start_datetime: string;
-  end_datetime?: string | null;
-  venue_timezone: string;
-  label: string;
-  active?: boolean;
-}
-
-export interface CampaignDateOption extends CampaignDateOptionInput {
-  id: number;
-  active: boolean;
-}
-
-export interface CampaignPriceOptionInput {
-  amount: string;
-  currency: string;
-  label: string;
-  active?: boolean;
-}
-
-export interface CampaignPriceOption extends CampaignPriceOptionInput {
-  id: number;
-  active: boolean;
-}
-
+export interface CampaignDateOptionInput { start_datetime: string; end_datetime?: string | null; venue_timezone: string; label: string; active?: boolean; }
+export interface CampaignDateOption extends CampaignDateOptionInput { id: number; active: boolean; }
+export interface CampaignPriceOptionInput { amount: string; currency: string; label: string; active?: boolean; }
+export interface CampaignPriceOption extends CampaignPriceOptionInput { id: number; active: boolean; }
 export interface SupporterPreferenceInput {
   expected_quantity: number;
   attendance_mode: AttendanceMode;
@@ -87,62 +38,32 @@ export interface SupporterPreferenceInput {
   accessibility_notes?: string;
   referral_source?: string;
 }
-
-export interface SupporterPreference extends SupporterPreferenceInput {
-  id: number;
-  created_at: string;
-  updated_at: string;
-}
-
+export interface SupporterPreference extends SupporterPreferenceInput { id: number; created_at: string; updated_at: string; }
 export interface CampaignDateResult {
-  option_id: number;
-  label: string;
-  start_datetime: string;
-  end_datetime: string | null;
-  venue_timezone: string;
-  supporter_count: number;
-  expected_attendance: number;
-  physical_expected_attendance: number;
-  virtual_expected_attendance: number;
+  option_id: number; label: string; start_datetime: string; end_datetime: string | null; venue_timezone: string;
+  supporter_count: number; expected_attendance: number; physical_expected_attendance: number; virtual_expected_attendance: number;
 }
-
 export interface CampaignPriceResult {
-  option_id: number;
-  label: string;
-  amount: string;
-  currency: string;
-  supporter_count: number;
-  expected_attendance: number;
-  projected_revenue: string;
+  option_id: number; label: string; amount: string; currency: string; supporter_count: number; expected_attendance: number; projected_revenue: string;
 }
-
 export interface CampaignPreferenceSummary {
-  supporter_count: number;
-  expected_attendance: number;
-  physical_expected_attendance: number;
-  virtual_expected_attendance: number;
-  projected_ticket_revenue: string;
-  deposits_collected: string;
-  sponsor_commitments: string;
-  total_conditional_funding: string;
-  date_results: CampaignDateResult[];
-  price_results: CampaignPriceResult[];
+  supporter_count: number; expected_attendance: number; physical_expected_attendance: number; virtual_expected_attendance: number;
+  projected_ticket_revenue: string; deposits_collected: string; sponsor_commitments: string; total_conditional_funding: string;
+  date_results: CampaignDateResult[]; price_results: CampaignPriceResult[];
 }
 
 export interface Campaign {
   id: string;
-  owner: {
-    id: number;
-    display_name: string;
-    account_type: AccountType;
-    avatar_url: string;
-  } | null;
+  owner: { id: number; display_name: string; account_type: AccountType; avatar_url: string; } | null;
   title: string;
   slug: string;
   pitch: string;
   artist_name: string;
   city: string;
+  state?: string;
   country: string;
+  latitude?: string | null;
+  longitude?: string | null;
   proposed_date: string | null;
   deadline: string;
   goal_type: GoalType;
@@ -176,6 +97,7 @@ export interface CampaignCreate {
   pitch: string;
   artist_name: string;
   city: string;
+  state?: string;
   country: string;
   proposed_date?: string | null;
   deadline: string;
@@ -193,153 +115,40 @@ export interface CampaignCreate {
   price_options: CampaignPriceOptionInput[];
 }
 
-export interface PledgeInput {
-  supporter_name: string;
-  supporter_email: string;
-  quantity: number;
-  amount: string;
-  idempotency_key: string;
-  source?: string;
-  source_label?: string;
-  referral_code?: string;
-}
-
-export interface PledgeResult {
-  pledge: { id: string; status: string };
-  client_secret: string;
-}
-
-export interface SponsorInput {
-  sponsor_name: string;
-  contact_name: string;
-  contact_email: string;
-  amount: string;
-  benefits_requested?: string;
-}
-
-export interface FacebookConfig {
-  enabled: boolean;
-  app_id: string;
-  pixel_id: string;
-  graph_api_version: string;
-  groups_api_available: false;
-}
-
-export interface FacebookProfile {
-  id: string;
-  name: string;
-  email: string;
-  picture_url: string;
-  token_expires_at?: number;
-}
-
-export interface FacebookPage {
-  id: string;
-  name: string;
-  category: string;
-  tasks: string[];
-  page_access_token: string;
-  picture_url: string;
-}
-
-export interface FacebookShareLink {
-  campaign_url: string;
-  share_dialog_url: string;
-}
-
+export interface PledgeInput { supporter_name: string; supporter_email: string; quantity: number; amount: string; idempotency_key: string; source?: string; source_label?: string; referral_code?: string; }
+export interface PledgeResult { pledge: { id: string; status: string }; client_secret: string; }
+export interface SponsorInput { sponsor_name: string; contact_name: string; contact_email: string; amount: string; benefits_requested?: string; }
+export interface FacebookConfig { enabled: boolean; app_id: string; pixel_id: string; graph_api_version: string; groups_api_available: false; }
+export interface FacebookProfile { id: string; name: string; email: string; picture_url: string; token_expires_at?: number; }
+export interface FacebookPage { id: string; name: string; category: string; tasks: string[]; page_access_token: string; picture_url: string; }
+export interface FacebookShareLink { campaign_url: string; share_dialog_url: string; }
 export interface VibesMeetConfig {
-  enabled: boolean;
-  webhook_configured: boolean;
-  base_url: string;
-  contract_status: string;
-  supports: {
-    outbound_client: boolean;
-    signed_webhook_inbox: boolean;
-    external_resource_mapping: boolean;
-    reservation_conversion: string;
-  };
+  enabled: boolean; webhook_configured: boolean; base_url: string; contract_status: string;
+  supports: { outbound_client: boolean; signed_webhook_inbox: boolean; external_resource_mapping: boolean; reservation_conversion: string; };
 }
 
-/** Temporary primary-profile values kept for backward compatibility. */
 export type AccountType = "fan" | "band" | "venue" | "organizer" | "rental" | "sponsor";
-
-/** Stable multiple-role codes used by the Phase 1 role API. */
-export type RoleCode =
-  | "fan"
-  | "artist"
-  | "venue"
-  | "organizer"
-  | "sponsor"
-  | "vendor"
-  | "equipment_rental"
-  | "administrator";
-
+export type RoleCode = "fan" | "artist" | "venue" | "organizer" | "sponsor" | "vendor" | "equipment_rental" | "administrator";
 export type RoleVerificationStatus = "pending" | "verified" | "rejected";
-
-export interface RoleDefinition {
-  code: Exclude<RoleCode, "administrator">;
-  display_name: string;
-  description: string;
-  requires_verification: boolean;
-}
-
+export interface RoleDefinition { code: Exclude<RoleCode, "administrator">; display_name: string; description: string; requires_verification: boolean; }
 export interface UserRoleAssignment {
-  id: number;
-  user_id: number;
-  user_display_name: string;
-  role: {
-    code: RoleCode;
-    display_name: string;
-    description: string;
-    requires_verification: boolean;
-  };
-  organization_name: string;
-  profile_data: Record<string, unknown>;
-  verification_status: RoleVerificationStatus;
-  verified_by_id: number | null;
-  verified_at: string | null;
-  created_at: string;
-  updated_at: string;
+  id: number; user_id: number; user_display_name: string;
+  role: { code: RoleCode; display_name: string; description: string; requires_verification: boolean; };
+  organization_name: string; profile_data: Record<string, unknown>; verification_status: RoleVerificationStatus;
+  verified_by_id: number | null; verified_at: string | null; created_at: string; updated_at: string;
 }
-
-export interface RoleConfig {
-  roles: RoleDefinition[];
-  assignments: UserRoleAssignment[];
-  can_verify_roles: boolean;
-  review_queue: UserRoleAssignment[];
-}
-
-export interface RoleRequestInput {
-  role_code: Exclude<RoleCode, "administrator">;
-  organization_name?: string;
-  profile_data?: Record<string, unknown>;
-}
-
-export interface CredentialLoginInput {
-  identifier: string;
-  password: string;
-}
-
-export interface UserRegistrationInput {
-  display_name: string;
-  email: string;
-  password: string;
-  password_confirm: string;
-}
-
-export interface AuthProvider {
-  id: "google" | "facebook" | "instagram" | "tiktok";
-  label: string;
-  icon: string;
-  enabled: boolean;
-  login_url: string;
-  callback_path: string;
-}
+export interface RoleConfig { roles: RoleDefinition[]; assignments: UserRoleAssignment[]; can_verify_roles: boolean; review_queue: UserRoleAssignment[]; }
+export interface RoleRequestInput { role_code: Exclude<RoleCode, "administrator">; organization_name?: string; profile_data?: Record<string, unknown>; }
+export interface CredentialLoginInput { identifier: string; password: string; }
+export interface UserRegistrationInput { display_name: string; email: string; password: string; password_confirm: string; }
+export interface AuthProvider { id: "google" | "facebook" | "instagram" | "tiktok"; label: string; icon: string; enabled: boolean; login_url: string; callback_path: string; }
 
 export interface AuthUser {
   id: number;
   username: string;
   email: string;
+  email_verified: boolean;
+  verification_sent?: boolean;
   first_name: string;
   last_name: string;
   display_name: string;
@@ -348,7 +157,9 @@ export interface AuthUser {
   company_name: string;
   bio: string;
   city: string;
+  state: string;
   country: string;
+  preferred_cities: string[];
   verified: boolean;
   linked_providers: string[];
 }
@@ -360,4 +171,21 @@ export interface AuthConfig {
   csrf_token: string;
   password_auth_enabled: boolean;
   account_types: Array<{ value: AccountType; label: string }>;
+}
+
+export type ProfileMediaType = "avatar" | "cover" | "image" | "video";
+export interface ProfileMedia {
+  id: string;
+  media_type: ProfileMediaType;
+  url: string;
+  caption: string;
+  created_at: string;
+}
+export interface DiscoveryProfile {
+  state: string;
+  preferred_cities: string[];
+  home_latitude: string | null;
+  home_longitude: string | null;
+  email_verified: boolean;
+  media: ProfileMedia[];
 }
