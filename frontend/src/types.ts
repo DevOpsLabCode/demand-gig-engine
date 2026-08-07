@@ -181,11 +181,28 @@ export interface ProfileMedia {
   caption: string;
   created_at: string;
 }
+export type SocialLinkKey = "website" | "youtube" | "instagram" | "facebook" | "tiktok" | "spotify" | "soundcloud" | "bandcamp" | "x";
+export type SocialLinks = Partial<Record<SocialLinkKey, string>>;
 export interface DiscoveryProfile {
   state: string;
   preferred_cities: string[];
   home_latitude: string | null;
   home_longitude: string | null;
+  headline: string;
+  genres: string[];
+  social_links: SocialLinks;
+  external_video_urls: string[];
   email_verified: boolean;
   media: ProfileMedia[];
+}
+export interface PublicProfile extends Omit<DiscoveryProfile, "email_verified"> {
+  username: string;
+  display_name: string;
+  account_type: AccountType;
+  company_name: string;
+  bio: string;
+  city: string;
+  country: string;
+  verified: boolean;
+  linked_providers: string[];
 }
