@@ -9,13 +9,18 @@ from rest_framework.response import Response
 
 
 def email_is_verified(user) -> bool:
-    """Return True only when the authenticated user's current email is verified by django-allauth."""
+    """Return True for trusted staff or when django-allauth verified the user's current email."""
 
-    if not getattr(user, "is_authenticated", False) or not getattr(user, "email", ""):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+        return True
+    email = str(getattr(user, "email", "") or "").strip()
+    if not email:
         return False
     return EmailAddress.objects.filter(
         user=user,
-        email__iexact=user.email,
+        email__iexact=email,
         verified=True,
     ).exists()
 
