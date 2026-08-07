@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Bootstraps React and loads base, authentication, owner-edit, discovery, stabilization, Build 13, and final professional UI layers.
+ * Purpose: Bootstraps React and loads base, authentication, owner-edit, discovery, stabilization, Build 13, professional, and acceptance-fix visual layers.
  */
 
 import React from "react";
@@ -15,6 +15,7 @@ import "./phase2-discovery.css";
 import "./lucky13.css";
 import "./build13.css";
 import "./professional-system.css";
+import "./build13-acceptance.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
