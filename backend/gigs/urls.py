@@ -24,12 +24,12 @@ from .campaign_preference_views import (
     campaign_price_options,
     campaign_supporter_preference,
 )
+from .email_views import email_delivery_status_view, resend_email_verification
 from .profile_views import (
     discovery_profile,
     profile_media_collection,
     profile_media_detail,
     public_profile,
-    resend_email_verification,
 )
 from .role_views import reject_role, role_collection, verify_role
 from .views import (
@@ -70,6 +70,7 @@ urlpatterns = [
     path("auth/discovery-profile/", discovery_profile, name="auth-discovery-profile"),
     path("auth/profile/media/", profile_media_collection, name="auth-profile-media"),
     path("auth/profile/media/<uuid:media_id>/", profile_media_detail, name="auth-profile-media-detail"),
+    path("auth/email/status/", email_delivery_status_view, name="auth-email-delivery-status"),
     path("auth/email/resend-verification/", resend_email_verification, name="auth-email-resend-verification"),
     path("auth/roles/", role_collection, name="auth-roles"),
     path("auth/roles/<int:assignment_id>/verify/", verify_role, name="auth-role-verify"),
