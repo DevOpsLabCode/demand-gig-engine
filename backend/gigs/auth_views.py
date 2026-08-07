@@ -1,18 +1,14 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Provides credential/social authentication, registration, profile updates, logout, and service health endpoints.
+# Purpose: Provides credential/social authentication, verified-email registration, profile updates, logout, and service health endpoints.
 
-"""
-Provides credential and social authentication, account registration, profile
-updates, logout behavior, and service health endpoints.
-
-Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-"""
+"""Authentication and account endpoints for the demand-gig application."""
 
 from __future__ import annotations
 
 import logging
 from re import sub
 
+from allauth.account.models import EmailAddress
 from django.contrib.auth import (
     authenticate,
     get_user_model,
@@ -26,20 +22,14 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from redis.exceptions import RedisError
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.decorators import (
-    api_view,
-    authentication_classes,
-    permission_classes,
-)
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from .account_trust import email_is_verified
+from .discovery_models import ProfileMediaType, UserDiscoveryProfile
 from .models import AccountType, GigUserProfile
-from .serializers import (
-    CredentialLoginSerializer,
-    GigUserProfileUpdateSerializer,
-    UserRegistrationSerializer,
-)
+from .serializers import CredentialLoginSerializer, GigUserProfileUpdateSerializer, UserRegistrationSerializer
 from .social_auth import extract_avatar, provider_payload
 
 logger = logging.getLogger(__name__)
@@ -49,7 +39,6 @@ class ResilientSessionAuthentication(SessionAuthentication):
     """Treat an unavailable optional session as anonymous on public discovery endpoints."""
 
     def authenticate(self, request):
-        """Load a session when possible without allowing a backend outage to hide sign-in options."""
         try:
             return super().authenticate(request)
         except (DatabaseError, RedisError):
@@ -58,10 +47,19 @@ class ResilientSessionAuthentication(SessionAuthentication):
 
 
 def _serialize_user(user):
-    """Convert a Django user and linked social identities into the frontend profile contract."""
+    """Convert a Django user, discovery profile, and social identities into the frontend profile contract."""
+
     profile, _ = GigUserProfile.objects.get_or_create(user=user)
+    discovery, _ = UserDiscoveryProfile.objects.get_or_create(user=user)
     social_accounts = list(user.socialaccount_set.all())
     avatar_url = profile.avatar_url
+
+    avatar_media = user.profile_media.filter(media_type=ProfileMediaType.AVATAR).first()
+    if avatar_media is not None:
+        try:
+            avatar_url = avatar_media.file.url
+        except Exception:
+            logger.exception("Unable to resolve profile avatar URL for user_id=%s", user.pk)
 
     if not avatar_url:
         for account in social_accounts:
@@ -73,26 +71,24 @@ def _serialize_user(user):
         "id": user.pk,
         "username": user.get_username(),
         "email": user.email,
+        "email_verified": email_is_verified(user),
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "display_name": profile.display_name
-        or user.get_full_name()
-        or user.get_username(),
+        "display_name": profile.display_name or user.get_full_name() or user.get_username(),
         "avatar_url": avatar_url,
         "account_type": profile.account_type,
         "company_name": profile.company_name,
         "bio": profile.bio,
         "city": profile.city,
+        "state": discovery.state,
         "country": profile.country,
+        "preferred_cities": discovery.preferred_cities,
         "verified": profile.verified,
-        "linked_providers": sorted(
-            account.provider for account in social_accounts
-        ),
+        "linked_providers": sorted(account.provider for account in social_accounts),
     }
 
 
 def _safe_provider_payload():
-    """Return provider configuration without allowing URL/configuration errors to break login discovery."""
     try:
         return provider_payload()
     except Exception:
@@ -101,7 +97,6 @@ def _safe_provider_payload():
 
 
 def _unique_username(email: str) -> str:
-    """Generate a readable unique Django username from a validated email address."""
     user_model = get_user_model()
     local_part = email.split("@", 1)[0]
     base = slugify(sub(r"[^a-zA-Z0-9._-]+", "-", local_part)) or "member"
@@ -110,13 +105,10 @@ def _unique_username(email: str) -> str:
     candidate = base
     suffix = 2
 
-    while user_model._default_manager.filter(
-        **{f"{user_model.USERNAME_FIELD}__iexact": candidate}
-    ).exists():
+    while user_model._default_manager.filter(**{f"{user_model.USERNAME_FIELD}__iexact": candidate}).exists():
         suffix_text = f"-{suffix}"
         candidate = f"{base[: max_length - len(suffix_text)]}{suffix_text}"
         suffix += 1
-
     return candidate
 
 
@@ -125,16 +117,7 @@ def _unique_username(email: str) -> str:
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
 def auth_config(request):
-    """
-    Return authentication state and provider configuration.
-
-    This endpoint is intentionally failure-tolerant because it controls whether
-    the frontend can render the login panel. Provider discovery, session
-    loading, or profile serialization failures are logged, but anonymous login
-    discovery still receives valid JSON instead of an HTML 500 response.
-    """
     providers = _safe_provider_payload()
-
     try:
         csrf_token = get_token(request)
     except Exception:
@@ -143,7 +126,6 @@ def auth_config(request):
 
     authenticated = False
     serialized_user = None
-
     try:
         authenticated = bool(request.user.is_authenticated)
     except Exception:
@@ -164,10 +146,7 @@ def auth_config(request):
             "providers": providers,
             "csrf_token": csrf_token,
             "password_auth_enabled": True,
-            "account_types": [
-                {"value": value, "label": label}
-                for value, label in AccountType.choices
-            ],
+            "account_types": [{"value": value, "label": label} for value, label in AccountType.choices],
         }
     )
 
@@ -175,7 +154,6 @@ def auth_config(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def auth_login(request):
-    """Authenticate an active account by username or email and start a server session."""
     serializer = CredentialLoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -184,20 +162,14 @@ def auth_login(request):
     password = serializer.validated_data["password"]
     login_name = identifier
 
-    email_user = user_model._default_manager.filter(
-        email__iexact=identifier
-    ).only(user_model.USERNAME_FIELD).first()
+    email_user = user_model._default_manager.filter(email__iexact=identifier).only(user_model.USERNAME_FIELD).first()
     if email_user is not None:
         login_name = getattr(email_user, user_model.USERNAME_FIELD)
 
     user = authenticate(
         request,
-        **{
-            user_model.USERNAME_FIELD: login_name,
-            "password": password,
-        },
+        **{user_model.USERNAME_FIELD: login_name, "password": password},
     )
-
     if user is None or not user.is_active:
         return Response(
             {"detail": "The email/username or password is incorrect."},
@@ -211,11 +183,9 @@ def auth_login(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def auth_register(request):
-    """Create a community-member account, sign it in, and return its profile."""
-    serializer = UserRegistrationSerializer(
-        data=request.data,
-        context={"request": request},
-    )
+    """Create and sign in a community account, then send mandatory email verification."""
+
+    serializer = UserRegistrationSerializer(data=request.data, context={"request": request})
     serializer.is_valid(raise_exception=True)
 
     user_model = get_user_model()
@@ -236,34 +206,53 @@ def auth_register(request):
             profile.display_name = display_name
             profile.account_type = AccountType.FAN
             profile.save(update_fields=["display_name", "account_type", "updated_at"])
+            UserDiscoveryProfile.objects.get_or_create(user=user)
+            address = EmailAddress.objects.create(
+                user=user,
+                email=email,
+                primary=True,
+                verified=False,
+            )
     except IntegrityError:
         return Response(
             {"email": ["An account with this email already exists."]},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    django_login(
-        request,
-        user,
-        backend="django.contrib.auth.backends.ModelBackend",
-    )
-    return Response(_serialize_user(user), status=status.HTTP_201_CREATED)
+    verification_sent = True
+    try:
+        address.send_confirmation(request, signup=True)
+    except Exception:
+        verification_sent = False
+        logger.exception("Unable to send registration verification email user_id=%s", user.pk)
+
+    django_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    payload = _serialize_user(user)
+    payload["verification_sent"] = verification_sent
+    return Response(payload, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def auth_profile(request):
-    """Validate and persist the authenticated user's editable marketplace profile."""
     profile, _ = GigUserProfile.objects.get_or_create(user=request.user)
+    discovery, _ = UserDiscoveryProfile.objects.get_or_create(user=request.user)
 
     if request.method == "PATCH":
-        serializer = GigUserProfileUpdateSerializer(
-            profile,
-            data=request.data,
-            partial=True,
-        )
+        serializer = GigUserProfileUpdateSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        if "state" in request.data:
+            discovery.state = str(request.data.get("state", "")).strip()[:80]
+        if "preferred_cities" in request.data:
+            values = request.data.get("preferred_cities")
+            if not isinstance(values, list):
+                return Response(
+                    {"preferred_cities": ["Provide a JSON list of city labels."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            discovery.preferred_cities = list(dict.fromkeys(str(value).strip()[:160] for value in values if str(value).strip()))[:12]
+        discovery.save()
 
     return Response(_serialize_user(request.user))
 
@@ -271,7 +260,6 @@ def auth_profile(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def auth_logout(request):
-    """End the current Django session."""
     logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -280,7 +268,6 @@ def auth_logout(request):
 @authentication_classes([])
 @permission_classes([AllowAny])
 def health(request):
-    """Provide a dependency-light liveness endpoint."""
     return Response({"status": "ok", "service": "demand-gig-backend"})
 
 
@@ -288,7 +275,6 @@ def health(request):
 @authentication_classes([])
 @permission_classes([AllowAny])
 def readiness(request):
-    """Verify that the API task can reach the database required for login sessions."""
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
