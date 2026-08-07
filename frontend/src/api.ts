@@ -23,6 +23,7 @@ import type {
   PledgeResult,
   ProfileMedia,
   ProfileMediaType,
+  PublicProfile,
   RoleConfig,
   RoleRequestInput,
   SponsorInput,
@@ -102,8 +103,9 @@ export const api = {
   updateAuthProfile: (data: Partial<AuthUser>) =>
     request<AuthUser>("/auth/profile/", { method: "PATCH", body: JSON.stringify(data), headers: csrfHeaders() }),
   discoveryProfile: () => request<DiscoveryProfile>("/auth/discovery-profile/"),
-  updateDiscoveryProfile: (data: Partial<Pick<DiscoveryProfile, "state" | "preferred_cities">>) =>
+  updateDiscoveryProfile: (data: Partial<Pick<DiscoveryProfile, "state" | "preferred_cities" | "headline" | "genres" | "social_links" | "external_video_urls">>) =>
     request<DiscoveryProfile>("/auth/discovery-profile/", { method: "PATCH", body: JSON.stringify(data), headers: csrfHeaders() }),
+  publicProfile: (username: string) => request<PublicProfile>(`/profiles/${encodeURIComponent(username)}/`),
   resendEmailVerification: () =>
     request<{ detail: string; email_verified: boolean }>("/auth/email/resend-verification/", { method: "POST", body: "{}", headers: csrfHeaders() }),
   listProfileMedia: () => request<ProfileMedia[]>("/auth/profile/media/"),
