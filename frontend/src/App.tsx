@@ -1,11 +1,10 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Provides the mobile-first city discovery, demand map, campaign workspace, and right-side member profile experience.
+ * Purpose: Provides the Build 13 map-first discovery experience, campaign workspace, and member profile flows.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight,
   BadgeDollarSign,
   CalendarDays,
   CheckCircle2,
@@ -19,7 +18,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Sparkles,
   Sprout,
   TicketCheck,
   UserRound,
@@ -28,9 +26,10 @@ import {
 } from "lucide-react";
 import { api } from "./api";
 import { AuthPanel, type AuthState } from "./components/AuthPanel";
+import { Build13Dashboard } from "./components/Build13Dashboard";
 import { CampaignCard } from "./components/CampaignCard";
 import { CreateCampaignForm } from "./components/CreateCampaignForm";
-import { DiscoveryMap, inferState, MAJOR_US_CITIES } from "./components/DiscoveryMap";
+import { inferState, MAJOR_US_CITIES } from "./components/DiscoveryMap";
 import { EditCampaignForm } from "./components/EditCampaignForm";
 import { ProfileDrawer } from "./components/ProfileDrawer";
 import type {
@@ -130,11 +129,7 @@ export default function App() {
   }
 
   function openCreate() {
-    if (!authUser) {
-      setProfileOpen(true);
-      return;
-    }
-    if (!authUser.email_verified) {
+    if (!authUser || !authUser.email_verified) {
       setProfileOpen(true);
       return;
     }
@@ -195,21 +190,19 @@ export default function App() {
     });
   }, [campaigns, filter, query, selectedCity, selectedState]);
 
-  const selectedCityCampaigns = selectedCity
-    ? campaigns.filter((campaign) => normalizedCity(campaign.city) === normalizedCity(selectedCity))
-    : campaigns;
-  const expectedAttendance = filteredCampaigns.reduce((total, campaign) => total + campaign.preference_summary.expected_attendance, 0);
-  const activeCampaigns = filteredCampaigns.filter((campaign) => ACTIVE_STATUSES.has(campaign.status)).length;
-
   function chooseCity(city: string, state: string) {
     setSelectedState(state);
     setSelectedCity(city);
-    requestAnimationFrame(() => scrollToSection("campaigns"));
+  }
+
+  function changeState(value: string) {
+    setSelectedState(value);
+    setSelectedCity("");
   }
 
   return (
-    <main className="phase2-app" aria-busy={authState === "loading"}>
-      <header className="phase2-header" id="top">
+    <main className="phase2-app build13-app" aria-busy={authState === "loading"}>
+      <header className="phase2-header build13-header" id="top">
         <nav className="phase2-topbar" aria-label="Primary navigation">
           <button className="phase2-brand" type="button" onClick={() => scrollToSection("top")}>
             <span className="brand-mark"><Music2 aria-hidden="true" /></span>
@@ -217,8 +210,8 @@ export default function App() {
           </button>
 
           <div className={`phase2-nav-links ${mobileMenuOpen ? "is-open" : ""}`}>
-            <button type="button" onClick={() => scrollToSection("discovery-map")}><Map size={17} /> Map</button>
-            <button type="button" onClick={() => scrollToSection("campaigns")}><Compass size={17} /> Discover</button>
+            <button type="button" onClick={() => scrollToSection("discovery-map")}><Map size={17} /> Discover</button>
+            <button type="button" onClick={() => scrollToSection("campaigns")}><Compass size={17} /> Gigs</button>
             <button type="button" onClick={() => scrollToSection("how-it-works")}><TicketCheck size={17} /> How it works</button>
             {authenticated && <button type="button" onClick={openCreate}><Plus size={17} /> Create gig</button>}
           </div>
@@ -244,63 +237,27 @@ export default function App() {
             </button>
           </div>
         </nav>
-
-        <section className="phase2-hero">
-          <div className="phase2-hero-copy">
-            <span className="eyebrow"><Sparkles size={15} /> Live music starts with visible demand</span>
-            <h1>What should happen in your city?</h1>
-            <p>Choose a city, see what fans are trying to make happen, and help turn demand into a confirmed show.</p>
-
-            <div className="hero-location-picker" aria-label="Choose location">
-              <label>
-                <span>State</span>
-                <select value={selectedState} onChange={(event) => { setSelectedState(event.target.value); setSelectedCity(""); }}>
-                  <option value="">All states</option>
-                  {states.map((value) => <option value={value} key={value}>{value}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>City</span>
-                <select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}>
-                  <option value="">All cities</option>
-                  {cities.map((value) => <option value={value} key={value}>{value}</option>)}
-                </select>
-              </label>
-              <button className="button primary large" type="button" onClick={() => scrollToSection("campaigns")}>
-                See gigs <ArrowRight size={18} />
-              </button>
-            </div>
-
-            <div className="hero-quick-cities" aria-label="Popular cities">
-              {["New York", "Los Angeles", "Chicago", "Miami", "Austin"].map((city) => {
-                const marker = MAJOR_US_CITIES.find((entry) => entry.city === city)!;
-                return <button key={city} type="button" onClick={() => chooseCity(marker.city, marker.state)}>{city}</button>;
-              })}
-            </div>
-          </div>
-
-          <aside className="city-signal-card">
-            <span className="section-kicker"><MapPin size={14} /> {selectedCity || "United States"}</span>
-            <strong>{selectedCityCampaigns.length}</strong>
-            <p>{selectedCity ? "campaigns connected to this city" : "campaign ideas across the network"}</p>
-            <div className="signal-stats">
-              <span><b>{activeCampaigns}</b> active</span>
-              <span><b>{expectedAttendance.toLocaleString()}</b> forecast attendees</span>
-            </div>
-            {!authUser?.email_verified && authenticated && (
-              <button type="button" className="verify-inline" onClick={() => setProfileOpen(true)}>
-                Verify your email to create and approve gigs <ArrowRight size={15} />
-              </button>
-            )}
-          </aside>
-        </section>
       </header>
 
-      <section id="discovery-map" className="phase2-map-section">
-        <DiscoveryMap campaigns={campaigns} selectedCity={selectedCity} onSelectCity={chooseCity} />
-      </section>
+      <Build13Dashboard
+        campaigns={campaigns}
+        query={query}
+        selectedState={selectedState}
+        selectedCity={selectedCity}
+        states={states}
+        cities={cities}
+        authenticated={authenticated}
+        emailVerified={Boolean(authUser?.email_verified)}
+        onQueryChange={setQuery}
+        onStateChange={changeState}
+        onCityChange={setSelectedCity}
+        onSelectCity={chooseCity}
+        onOpenProfile={() => setProfileOpen(true)}
+        onOpenCreate={openCreate}
+        onShowCampaigns={() => scrollToSection("campaigns")}
+      />
 
-      <section className="how-it-works phase2-how" id="how-it-works">
+      <section className="how-it-works phase2-how build13-how" id="how-it-works">
         <div className="section-intro compact-intro">
           <span className="section-kicker">Demand → viable gig</span>
           <h2>Find the city. Prove the audience. Build the show.</h2>
@@ -357,7 +314,7 @@ export default function App() {
               <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Artist, city, genre idea, campaign…" />
             </label>
             <div className="phase2-location-filters">
-              <label><span>State</span><select value={selectedState} onChange={(event) => { setSelectedState(event.target.value); setSelectedCity(""); }}><option value="">All</option>{states.map((value) => <option key={value}>{value}</option>)}</select></label>
+              <label><span>State</span><select value={selectedState} onChange={(event) => changeState(event.target.value)}><option value="">All</option>{states.map((value) => <option key={value}>{value}</option>)}</select></label>
               <label><span>City</span><select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}><option value="">All</option>{cities.map((value) => <option key={value}>{value}</option>)}</select></label>
             </div>
             <div className="filter-tabs phase2-filter-tabs" aria-label="Campaign filters">
