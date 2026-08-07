@@ -110,7 +110,9 @@ SOCIALACCOUNT_REQUESTS_TIMEOUT = 10
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_EMAIL_VERIFICATION = "none"
+# Credential registration uses the application's explicit EmailAddress confirmation
+# flow, while social providers keep their provider-verified identity behavior.
+ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_LOGIN_METHODS = {"email", "username"}
 ACCOUNT_SIGNUP_FIELDS = ["username*", "email"]
 LOGIN_REDIRECT_URL = os.getenv(
