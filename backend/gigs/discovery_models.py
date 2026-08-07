@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Adds location discovery, profile discovery preferences, and user media without changing the mature campaign table.
+# Purpose: Adds location discovery, rich public-profile metadata, and user media without changing the mature campaign table.
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def profile_media_upload_to(instance: "ProfileMedia", filename: str) -> str:
 
 
 class UserDiscoveryProfile(models.Model):
-    """Location and discovery preferences layered on top of the existing marketplace profile."""
+    """Discovery preferences plus the shared public identity used by fans and professional profiles."""
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -34,6 +34,10 @@ class UserDiscoveryProfile(models.Model):
     preferred_cities = models.JSONField(default=list, blank=True)
     home_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     home_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    headline = models.CharField(max_length=180, blank=True)
+    genres = models.JSONField(default=list, blank=True)
+    social_links = models.JSONField(default=dict, blank=True)
+    external_video_urls = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
