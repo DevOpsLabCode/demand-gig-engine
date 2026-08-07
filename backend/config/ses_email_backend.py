@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Sends Django email through Amazon SES using the ECS task IAM role and exposes safe delivery-readiness diagnostics.
+# Purpose: Sends Django email through Amazon SES using the ECS task IAM role while keeping diagnostics informative instead of blocking real delivery.
 
 from __future__ import annotations
 
@@ -29,17 +29,109 @@ def _configured_identity() -> str:
     return address.lower()
 
 
+def _client_error_code(exc: Exception) -> str:
+    if isinstance(exc, ClientError):
+        return str(exc.response.get("Error", {}).get("Code") or "ClientError")
+    if isinstance(exc, BotoCoreError):
+        return exc.__class__.__name__
+    return exc.__class__.__name__
+
+
+def _client_error_message(exc: Exception) -> str:
+    if isinstance(exc, ClientError):
+        return str(exc.response.get("Error", {}).get("Message") or "")
+    return str(exc)
+
+
+def safe_ses_send_error(exc: Exception) -> tuple[str, str]:
+    """Translate provider failures into safe, actionable UI text without leaking AWS IDs."""
+
+    code = _client_error_code(exc)
+    message = _client_error_message(exc).lower()
+    normalized = code.lower()
+
+    if "accessdenied" in normalized or "unauthorized" in normalized:
+        return (
+            "send_permission_denied",
+            "Amazon SES denied the application's send request. The ECS task role or its permissions boundary must allow SES sending for the configured Open Concert sender.",
+        )
+
+    if "mailfromdomainnotverified" in normalized:
+        return (
+            "mail_from_not_verified",
+            "Amazon SES rejected the message because the configured MAIL FROM domain is not verified.",
+        )
+
+    if "messagerejected" in normalized or "message rejected" in message:
+        if "not verified" in message or "identity" in message and "verified" in message:
+            return (
+                "identity_not_verified",
+                "Amazon SES rejected the verification email because a required sender or recipient identity is not verified. If this AWS account is still in the SES sandbox, ordinary public recipient addresses must also be verified or the account must be moved to production access.",
+            )
+        if "suppression" in message or "suppressed" in message:
+            return (
+                "recipient_suppressed",
+                "Amazon SES rejected the recipient because the address is on the account suppression list.",
+            )
+        return (
+            "message_rejected",
+            "Amazon SES rejected the verification email. Check the sender identity, SES account access, and recipient suppression status.",
+        )
+
+    if "throttl" in normalized or "toomanyrequests" in normalized:
+        return (
+            "ses_throttled",
+            "Amazon SES is temporarily rate-limiting email delivery. Please retry shortly.",
+        )
+
+    if isinstance(exc, BotoCoreError):
+        return (
+            "ses_unavailable",
+            "Amazon SES could not be reached from the application. Please retry shortly.",
+        )
+
+    return (
+        "ses_send_failed",
+        "Amazon SES could not accept the verification email. Check the Open Concert sender identity and SES account status.",
+    )
+
+
+def _diagnostic_error(operation: str, exc: Exception) -> tuple[str, str]:
+    """Return a safe diagnostic reason while preserving the real AWS error only in logs."""
+
+    code = _client_error_code(exc)
+    normalized = code.lower()
+    logger.warning("SES diagnostic failed operation=%s code=%s", operation, code)
+
+    if "accessdenied" in normalized or "unauthorized" in normalized:
+        return (
+            f"{operation}_diagnostic_denied",
+            "SES diagnostic access is limited for this task role. Open Concert will still test delivery directly when you resend the verification email.",
+        )
+    if "notfound" in normalized:
+        return (
+            f"{operation}_not_found",
+            "The configured Open Concert sender identity was not found in this SES region. Verify the sender identity and AWS region.",
+        )
+    return (
+        f"{operation}_diagnostic_unavailable",
+        "Amazon SES diagnostic status is temporarily unavailable. Open Concert will still test delivery directly when you resend the verification email.",
+    )
+
+
 def ses_delivery_status() -> dict[str, object]:
-    """Return a safe readiness summary for public verification-email delivery."""
+    """Return safe SES readiness diagnostics; diagnostic failure never prevents a direct send."""
 
     backend = str(getattr(settings, "EMAIL_BACKEND", ""))
     if backend != SES_BACKEND:
         return {
             "provider": "non_ses",
             "ready": True,
+            "diagnostics_complete": True,
             "sending_enabled": True,
             "production_access": True,
             "sender_verified": True,
+            "reason": "non_ses_backend",
             "detail": "Email delivery is using the configured non-SES backend.",
         }
 
@@ -49,51 +141,81 @@ def ses_delivery_status() -> dict[str, object]:
         return {
             "provider": "ses",
             "ready": False,
+            "diagnostics_complete": True,
             "sending_enabled": False,
             "production_access": False,
             "sender_verified": False,
+            "reason": "sender_not_configured",
             "detail": "Verification email is unavailable because the sender identity is not configured.",
         }
 
     try:
         client = boto3.client("sesv2", region_name=region_name)
-        account = client.get_account()
-        identity_result = client.get_email_identity(EmailIdentity=identity)
     except (BotoCoreError, ClientError) as exc:
-        error_code = "ses_unavailable"
-        if isinstance(exc, ClientError):
-            error_code = str(exc.response.get("Error", {}).get("Code") or error_code)
-        logger.exception("Unable to verify SES delivery readiness identity=%s code=%s", identity, error_code)
+        reason, detail = _diagnostic_error("client", exc)
         return {
             "provider": "ses",
             "ready": False,
+            "diagnostics_complete": False,
             "sending_enabled": False,
             "production_access": False,
             "sender_verified": False,
-            "detail": "Amazon SES could not validate the Open Concert sender. Check the SES identity and account status.",
-            "code": error_code,
+            "reason": reason,
+            "detail": detail,
         }
 
-    sending_enabled = bool(account.get("SendingEnabled"))
-    production_access = bool(account.get("ProductionAccessEnabled"))
-    sender_verified = bool(identity_result.get("VerifiedForSendingStatus"))
-    ready = sending_enabled and production_access and sender_verified
+    account: dict[str, object] | None = None
+    identity_result: dict[str, object] | None = None
+    diagnostic_reasons: list[tuple[str, str]] = []
 
-    if not sender_verified:
-        detail = "The Open Concert sender identity is not verified in Amazon SES."
-    elif not sending_enabled:
-        detail = "Amazon SES sending is disabled for this AWS account."
-    elif not production_access:
-        detail = "Amazon SES is still in sandbox mode. Public verification emails require SES production access."
+    try:
+        account = client.get_account()
+    except (BotoCoreError, ClientError) as exc:
+        diagnostic_reasons.append(_diagnostic_error("account", exc))
+
+    try:
+        identity_result = client.get_email_identity(EmailIdentity=identity)
+    except (BotoCoreError, ClientError) as exc:
+        diagnostic_reasons.append(_diagnostic_error("identity", exc))
+
+    sending_enabled = bool(account.get("SendingEnabled")) if account is not None else False
+    production_access = bool(account.get("ProductionAccessEnabled")) if account is not None else False
+    sender_verified = (
+        bool(identity_result.get("VerifiedForSendingStatus"))
+        if identity_result is not None
+        else False
+    )
+    diagnostics_complete = account is not None and identity_result is not None
+
+    if diagnostics_complete:
+        if not sender_verified:
+            reason = "sender_unverified"
+            detail = "The Open Concert sender identity is not verified in Amazon SES."
+        elif not sending_enabled:
+            reason = "sending_disabled"
+            detail = "Amazon SES sending is disabled for this AWS account."
+        elif not production_access:
+            reason = "ses_sandbox"
+            detail = "Amazon SES is still in sandbox mode. Public verification emails require SES production access or a verified recipient address."
+        else:
+            reason = "ready"
+            detail = "Amazon SES diagnostics are healthy. Verification email can be submitted for delivery."
+        ready = sending_enabled and production_access and sender_verified
     else:
-        detail = "Amazon SES is ready for public verification-email delivery."
+        reason, detail = diagnostic_reasons[0] if diagnostic_reasons else (
+            "diagnostic_unavailable",
+            "Amazon SES diagnostic status is incomplete. Open Concert will test delivery directly when you resend the verification email.",
+        )
+        ready = False
 
     return {
         "provider": "ses",
         "ready": ready,
+        "diagnostics_complete": diagnostics_complete,
         "sending_enabled": sending_enabled,
         "production_access": production_access,
         "sender_verified": sender_verified,
+        "reason": reason,
         "detail": detail,
     }
 
@@ -106,42 +228,40 @@ class EmailBackend(BaseEmailBackend):
         self.region_name = getattr(settings, "AWS_REGION", None) or "us-east-1"
 
     def send_messages(self, email_messages):
+        """Submit messages directly to SES; read-only diagnostics must never gate delivery."""
+
         if not email_messages:
             return 0
-
-        delivery = ses_delivery_status()
-        if not delivery["ready"]:
-            error = RuntimeError(str(delivery["detail"]))
-            logger.error("SES delivery is not ready: %s", delivery["detail"])
-            if self.fail_silently:
-                return 0
-            raise error
 
         client = boto3.client("ses", region_name=self.region_name)
         sent = 0
         for message in email_messages:
-            if not message.recipients():
+            recipients = message.recipients()
+            if not recipients:
                 continue
             try:
                 raw_message = message.message().as_bytes(linesep="\r\n")
                 response = client.send_raw_email(
                     Source=message.from_email or settings.DEFAULT_FROM_EMAIL,
-                    Destinations=message.recipients(),
+                    Destinations=recipients,
                     RawMessage={"Data": raw_message},
                 )
                 message_id = str(response.get("MessageId") or "")
                 logger.info(
                     "SES accepted email recipients=%s subject=%s message_id=%s",
-                    message.recipients(),
+                    recipients,
                     message.subject,
                     message_id,
                 )
                 sent += 1
-            except Exception:
+            except Exception as exc:
+                reason, detail = safe_ses_send_error(exc)
                 logger.exception(
-                    "SES email delivery failed recipients=%s subject=%s",
-                    message.recipients(),
+                    "SES email delivery failed recipients=%s subject=%s reason=%s detail=%s",
+                    recipients,
                     message.subject,
+                    reason,
+                    detail,
                 )
                 if not self.fail_silently:
                     raise
