@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Gives every member and professional role a complete profile with identity, location, social links, photos, uploaded videos, and external media.
+ * Purpose: Gives every member and professional role a complete profile with identity, location, social links, photos, uploaded videos, external media, and visible verification-email delivery status.
  */
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
@@ -27,11 +27,22 @@ import { api } from "../api";
 import type { AuthUser, ProfileMedia, ProfileMediaType, SocialLinkKey, SocialLinks } from "../types";
 import { RoleManager } from "./RoleManager";
 
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+
 interface Props {
   user: AuthUser;
   open: boolean;
   onClose: () => void;
   onUserChange: (user: AuthUser) => void;
+}
+
+interface EmailDeliveryStatus {
+  ready: boolean;
+  provider: string;
+  sending_enabled: boolean;
+  production_access: boolean;
+  sender_verified: boolean;
+  detail: string;
 }
 
 const SOCIAL_FIELDS: Array<{ key: SocialLinkKey; label: string; placeholder: string }> = [
@@ -54,6 +65,22 @@ function profileLabel(user: AuthUser) {
   return "Community member profile";
 }
 
+async function fetchEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
+  const response = await fetch(`${API_BASE}/auth/email/status/`, { credentials: "include" });
+  const body = await response.json().catch(() => ({})) as Partial<EmailDeliveryStatus> & { detail?: string };
+  if (!response.ok) {
+    throw new Error(body.detail || `Email status request failed (${response.status}).`);
+  }
+  return {
+    ready: Boolean(body.ready),
+    provider: String(body.provider || "unknown"),
+    sending_enabled: Boolean(body.sending_enabled),
+    production_access: Boolean(body.production_access),
+    sender_verified: Boolean(body.sender_verified),
+    detail: String(body.detail || "Email delivery status is unavailable."),
+  };
+}
+
 export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
   const [displayName, setDisplayName] = useState(user.display_name);
   const [bio, setBio] = useState(user.bio);
@@ -71,6 +98,8 @@ export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryStatus | null>(null);
+  const [emailStatusLoading, setEmailStatusLoading] = useState(false);
 
   useEffect(() => {
     setDisplayName(user.display_name);
@@ -96,6 +125,29 @@ export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Profile could not be loaded."));
   }, [open, user.state]);
+
+  useEffect(() => {
+    if (!open || user.email_verified) {
+      setEmailDelivery(null);
+      setEmailStatusLoading(false);
+      return;
+    }
+
+    setEmailStatusLoading(true);
+    void fetchEmailDeliveryStatus()
+      .then((status) => setEmailDelivery(status))
+      .catch((err) => {
+        setEmailDelivery({
+          ready: false,
+          provider: "unknown",
+          sending_enabled: false,
+          production_access: false,
+          sender_verified: false,
+          detail: err instanceof Error ? err.message : "Email delivery status could not be loaded.",
+        });
+      })
+      .finally(() => setEmailStatusLoading(false));
+  }, [open, user.email_verified]);
 
   const avatar = useMemo(
     () => media.find((item) => item.media_type === "avatar")?.url || user.avatar_url,
@@ -156,7 +208,7 @@ export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
       if (config.user) onUserChange(config.user);
       setMessage(mediaType === "video" ? "Video uploaded." : "Image uploaded.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setBusy(false);
     }
@@ -183,8 +235,15 @@ export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
     try {
       const result = await api.resendEmailVerification();
       setMessage(result.detail);
+      const status = await fetchEmailDeliveryStatus();
+      setEmailDelivery(status);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification email could not be sent.");
+      try {
+        setEmailDelivery(await fetchEmailDeliveryStatus());
+      } catch {
+        // Keep the resend error as the primary user-facing diagnostic.
+      }
     } finally {
       setBusy(false);
     }
@@ -243,8 +302,19 @@ export function ProfileDrawer({ user, open, onClose, onUserChange }: Props) {
         {!user.email_verified && (
           <div className="verification-callout">
             <MailCheck aria-hidden="true" />
-            <div><strong>Verify before Stage 2 approval</strong><p>Verification protects fans, artists, venues, and organizers from impersonation and fake campaigns.</p></div>
-            <button className="button secondary compact" type="button" onClick={() => void resendVerification()} disabled={busy}>Resend email</button>
+            <div>
+              <strong>Verify before Stage 2 approval</strong>
+              <p>Verification protects fans, artists, venues, and organizers from impersonation and fake campaigns.</p>
+              <div
+                className={`verification-delivery-status ${emailDelivery?.ready ? "is-ready" : "is-blocked"}`}
+                role="status"
+                aria-live="polite"
+              >
+                <span>{emailStatusLoading ? "Checking email delivery…" : emailDelivery?.ready ? "Email service ready" : "Email delivery blocked"}</span>
+                {!emailStatusLoading && emailDelivery && <small>{emailDelivery.detail}</small>}
+              </div>
+            </div>
+            <button className="button secondary compact" type="button" onClick={() => void resendVerification()} disabled={busy || emailStatusLoading}>{busy ? "Sending…" : "Resend email"}</button>
           </div>
         )}
 
