@@ -51,6 +51,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
             .flat()
             .filter((value): value is string => typeof value === "string")
             .join(" ");
+    if (response.status >= 500 && detail) {
+      throw new Error(`Request failed (${response.status}): ${detail}`);
+    }
     throw new Error(detail || `Request failed (${response.status})`);
   }
   return body as T;
