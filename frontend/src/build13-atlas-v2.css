@@ -1,0 +1,639 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Build 13.4 final art layer — museum-like monochrome product shell plus a true SVG live-demand night atlas.
+ */
+
+:root {
+  --oc-paper: #f4f4f0;
+  --oc-surface: #ffffff;
+  --oc-ink: #101114;
+  --oc-ink-soft: #34363b;
+  --oc-muted: #71747b;
+  --oc-line: #dcdcd6;
+  --oc-line-strong: #c8c8c0;
+  --oc-violet: #7047ff;
+  --oc-violet-deep: #5430d8;
+  --oc-gold: #f2b744;
+  --oc-gold-soft: #fff3d7;
+  --oc-night: #08090d;
+  --oc-night-2: #13151d;
+  --oc-success: #16643c;
+  --oc-danger: #b42318;
+}
+
+html,
+body,
+#root,
+.phase2-app.build13-app {
+  background: var(--oc-paper) !important;
+  color: var(--oc-ink) !important;
+}
+
+/* The app is intentionally quiet. The map is the artwork. */
+.phase2-app.build13-app .build13-header.phase2-header,
+.phase2-app.build13-app .build13-intro,
+.phase2-app.build13-app .build13-network-stats,
+.phase2-app.build13-app .build13-side-card,
+.phase2-app.build13-app .build13-map-toolbar,
+.phase2-app.build13-app .build13-events-strip,
+.phase2-app.build13-app .phase2-campaign-section,
+.phase2-app.build13-app .campaign-card-shell,
+.profile-drawer-layer .rich-profile-drawer,
+.profile-drawer-layer .profile-identity-card,
+.profile-drawer-layer .profile-form,
+.profile-drawer-layer .profile-media-section,
+.profile-drawer-layer .profile-role-section {
+  background: var(--oc-surface) !important;
+  color: var(--oc-ink) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.phase2-app.build13-app .build13-header.phase2-header {
+  box-shadow: 0 1px 0 var(--oc-line), 0 8px 26px rgba(16, 17, 20, .035) !important;
+}
+
+.phase2-app.build13-app .phase2-brand .brand-mark {
+  color: #fff !important;
+  background: var(--oc-ink) !important;
+  border-color: var(--oc-ink) !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .phase2-brand strong,
+.phase2-app.build13-app .build13-intro h1,
+.phase2-app.build13-app .build13-side-card strong,
+.phase2-app.build13-app .build13-card-title,
+.phase2-app.build13-app .build13-featured-card h3,
+.phase2-app.build13-app .section-heading-row h2 {
+  color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .phase2-brand small,
+.phase2-app.build13-app .build13-intro p,
+.phase2-app.build13-app .build13-community-card p,
+.phase2-app.build13-app .build13-side-card small,
+.phase2-app.build13-app .build13-featured-card p,
+.phase2-app.build13-app .section-heading-row p {
+  color: var(--oc-muted) !important;
+}
+
+.phase2-app.build13-app .build13-eyebrow,
+.phase2-app.build13-app .section-kicker,
+.profile-drawer-layer .section-kicker {
+  color: var(--oc-ink-soft) !important;
+}
+
+.phase2-app.build13-app .build13-header .phase2-nav-links button,
+.phase2-app.build13-app .build13-header .phase2-nav-links button:first-child {
+  color: var(--oc-ink-soft) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .build13-header .phase2-nav-links button:first-child,
+.phase2-app.build13-app .build13-view-toggle button.is-active {
+  color: #fff !important;
+  background: var(--oc-ink) !important;
+  border-color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .desktop-create,
+.phase2-app.build13-app .button.primary,
+.phase2-app.build13-app .build13-primary-action,
+.profile-drawer-layer .profile-save-button,
+.profile-drawer-layer .auth-submit {
+  color: #fff !important;
+  background: var(--oc-ink) !important;
+  border-color: var(--oc-ink) !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .desktop-create:hover,
+.phase2-app.build13-app .button.primary:hover,
+.phase2-app.build13-app .build13-primary-action:hover,
+.profile-drawer-layer .profile-save-button:hover {
+  background: #292b30 !important;
+  border-color: #292b30 !important;
+}
+
+.phase2-app.build13-app .build13-search,
+.phase2-app.build13-app .build13-select,
+.phase2-app.build13-app .build13-view-toggle,
+.phase2-app.build13-app .profile-tab-button,
+.phase2-app.build13-app .build13-text-action {
+  color: var(--oc-ink) !important;
+  background: #fff !important;
+  border-color: var(--oc-line) !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .build13-search input,
+.phase2-app.build13-app .build13-select select {
+  color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .build13-text-action:hover {
+  color: #fff !important;
+  background: var(--oc-ink) !important;
+  border-color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .build13-trending-copy i {
+  background: #ecece7 !important;
+}
+
+.phase2-app.build13-app .build13-trending-copy i span {
+  background: var(--oc-violet) !important;
+}
+
+.phase2-app.build13-app .build13-trending-list button:hover,
+.phase2-app.build13-app .build13-trending-list button.is-active {
+  background: #f2f1ed !important;
+}
+
+.phase2-app.build13-app .build13-trending-list button > b {
+  background: var(--oc-ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   10/10 MAP ART: OPEN CONCERT LIVE DEMAND ATLAS
+   -------------------------------------------------------------------------- */
+.phase2-app.build13-app .build13-map-stage {
+  border: 1px solid #24262e !important;
+  border-radius: 20px !important;
+  background: var(--oc-night) !important;
+  box-shadow: 0 24px 70px rgba(8, 9, 13, .22) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .demand-map-card,
+.phase2-app.build13-app .build13-map-stage .atlas-v2-shell {
+  background: transparent !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .atlas-v2-shell {
+  position: relative !important;
+  height: clamp(560px, 43vw, 720px) !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(242,183,68,.15), transparent 16rem),
+    radial-gradient(circle at 14% 76%, rgba(112,71,255,.14), transparent 23rem),
+    radial-gradient(circle at 55% 62%, rgba(112,71,255,.055), transparent 26rem),
+    linear-gradient(180deg, #07080b 0%, #0b0c11 48%, #141720 100%) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-dawn-glow {
+  z-index: 0 !important;
+  opacity: 1 !important;
+  background:
+    radial-gradient(circle at 80% 11%, rgba(255,215,128,.12), transparent 13rem),
+    radial-gradient(circle at 21% 72%, rgba(112,71,255,.12), transparent 19rem) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-star-field {
+  z-index: 1 !important;
+  opacity: .34 !important;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.86) 0 1px, transparent 1.2px),
+    radial-gradient(circle, rgba(255,255,255,.28) 0 1px, transparent 1.25px),
+    radial-gradient(circle, rgba(242,183,68,.34) 0 1px, transparent 1.2px) !important;
+  background-size: 73px 73px, 113px 113px, 151px 151px !important;
+  background-position: 13px 17px, 47px 29px, 71px 61px !important;
+}
+
+.phase2-app.build13-app .atlas-aurora {
+  position: absolute;
+  z-index: 1;
+  width: 44%;
+  height: 48%;
+  border-radius: 50%;
+  filter: blur(52px);
+  opacity: .16;
+  pointer-events: none;
+}
+
+.phase2-app.build13-app .atlas-aurora-west {
+  left: -15%;
+  bottom: -15%;
+  background: var(--oc-violet);
+}
+
+.phase2-app.build13-app .atlas-aurora-east {
+  right: -17%;
+  top: -19%;
+  background: var(--oc-gold);
+}
+
+.phase2-app.build13-app .map-atlas-art {
+  position: absolute;
+  z-index: 3;
+  inset: 5% 2.5% 4%;
+  width: 95%;
+  height: 91%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.phase2-app.build13-app .atlas-land-halo {
+  fill: none;
+  stroke: rgba(255,255,255,.15);
+  stroke-width: 1.2;
+  filter: blur(1.8px);
+}
+
+.phase2-app.build13-app .atlas-land {
+  stroke: rgba(255,255,255,.84);
+  stroke-width: .28;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-grain {
+  opacity: .34;
+}
+
+.phase2-app.build13-app .atlas-state-lines path {
+  fill: none;
+  stroke: rgba(24,25,28,.20);
+  stroke-width: .22;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-contours path {
+  fill: none;
+  stroke: rgba(83,78,67,.12);
+  stroke-width: .18;
+  stroke-dasharray: 1.4 1.15;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-river,
+.phase2-app.build13-app .atlas-river-secondary {
+  fill: none;
+  stroke: rgba(112,71,255,.31);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-river { stroke-width: .48; }
+.phase2-app.build13-app .atlas-river-secondary { stroke-width: .3; opacity: .65; }
+
+.phase2-app.build13-app .atlas-lake {
+  fill: #13151d;
+  stroke: rgba(255,255,255,.34);
+  stroke-width: .18;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-city-halo {
+  fill: rgba(20,21,26,.10);
+  stroke: none;
+  opacity: .25;
+}
+
+.phase2-app.build13-app .atlas-city-halo.has-demand.intensity-2 {
+  fill: rgba(112,71,255,.24);
+  opacity: .7;
+}
+
+.phase2-app.build13-app .atlas-city-halo.has-demand.intensity-3 {
+  fill: rgba(112,71,255,.31);
+  opacity: .84;
+}
+
+.phase2-app.build13-app .atlas-city-halo.intensity-4,
+.phase2-app.build13-app .atlas-city-halo.has-demand.intensity-4 {
+  fill: rgba(242,183,68,.34);
+  opacity: .9;
+}
+
+.phase2-app.build13-app .atlas-route {
+  fill: none;
+  stroke-width: .27;
+  stroke-linecap: round;
+  opacity: .50;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-route.is-live {
+  stroke-width: .48;
+  opacity: .94;
+}
+
+.phase2-app.build13-app .atlas-route.route-gold {
+  opacity: .72;
+}
+
+.phase2-app.build13-app .atlas-route.route-gold.is-live {
+  opacity: 1;
+}
+
+.phase2-app.build13-app .atlas-sound-lines path {
+  fill: none;
+  stroke: rgba(255,255,255,.10);
+  stroke-width: .22;
+  stroke-dasharray: 1.2 1.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .map-music-particles {
+  z-index: 4 !important;
+  color: rgba(255,255,255,.20) !important;
+  opacity: .72 !important;
+}
+
+/* Accessible DOM markers sit above the SVG artwork. */
+.phase2-app.build13-app .build13-map-stage .map-city-marker {
+  z-index: 8 !important;
+}
+
+.phase2-app.build13-app .map-city-marker .marker-core {
+  width: 21px !important;
+  height: 21px !important;
+  color: #fff !important;
+  background: #101114 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 0 3px rgba(16,17,20,.12), 0 6px 16px rgba(0,0,0,.24) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.has-demand.intensity-1 .marker-core,
+.phase2-app.build13-app .map-city-marker.intensity-2 .marker-core {
+  background: var(--oc-violet) !important;
+  box-shadow: 0 0 0 4px rgba(112,71,255,.15), 0 0 24px rgba(112,71,255,.72) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-3 .marker-core {
+  background: var(--oc-violet-deep) !important;
+  box-shadow: 0 0 0 4px rgba(84,48,216,.18), 0 0 30px rgba(112,71,255,.78) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-4 .marker-core,
+.phase2-app.build13-app .map-city-marker.is-selected .marker-core {
+  color: #111 !important;
+  background: var(--oc-gold) !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 0 4px rgba(242,183,68,.19), 0 0 34px rgba(242,183,68,.85), 0 0 62px rgba(242,183,68,.28) !important;
+}
+
+.phase2-app.build13-app .map-city-marker .marker-label {
+  min-width: 78px;
+  padding: 7px 9px !important;
+  color: #fff !important;
+  background: rgba(8,9,13,.90) !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.phase2-app.build13-app .map-city-marker .marker-label strong {
+  color: #fff !important;
+  font-weight: 850 !important;
+}
+
+.phase2-app.build13-app .map-city-marker .marker-label small {
+  color: rgba(255,255,255,.62) !important;
+}
+
+.phase2-app.build13-app .marker-count {
+  color: #111 !important;
+  background: var(--oc-gold) !important;
+  border-color: #fff !important;
+}
+
+.phase2-app.build13-app .atlas-title {
+  position: absolute;
+  z-index: 7;
+  left: clamp(18px, 3vw, 38px);
+  bottom: clamp(16px, 2.4vw, 30px);
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+  text-shadow: 0 2px 15px rgba(0,0,0,.45);
+}
+
+.phase2-app.build13-app .atlas-title span {
+  color: var(--oc-gold);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .24em;
+}
+
+.phase2-app.build13-app .atlas-title strong {
+  color: #fff;
+  font-size: clamp(15px, 1.25vw, 20px);
+  letter-spacing: .055em;
+}
+
+.phase2-app.build13-app .atlas-title small {
+  color: rgba(255,255,255,.52);
+  font-size: 9px;
+}
+
+.phase2-app.build13-app .map-network-badge {
+  z-index: 9 !important;
+  color: #fff !important;
+  background: rgba(8,9,13,.88) !important;
+  border: 1px solid rgba(255,255,255,.14) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.24) !important;
+}
+
+.phase2-app.build13-app .build13-map-top-actions {
+  z-index: 20 !important;
+}
+
+.phase2-app.build13-app .build13-map-top-actions > span,
+.phase2-app.build13-app .build13-map-top-actions > button {
+  color: #fff !important;
+  background: rgba(8,9,13,.82) !important;
+  border-color: rgba(255,255,255,.16) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.phase2-app.build13-app .build13-demand-pill svg {
+  color: var(--oc-gold) !important;
+}
+
+/* --------------------------------------------------------------------------
+   PROFILE / VERIFICATION: neutral product UI, status colors only when useful.
+   -------------------------------------------------------------------------- */
+.profile-drawer-layer .rich-profile-drawer {
+  color: var(--oc-ink) !important;
+  background: #fff !important;
+}
+
+.profile-drawer-layer .profile-drawer-header {
+  background: rgba(255,255,255,.97) !important;
+  border-bottom-color: var(--oc-line) !important;
+}
+
+.profile-drawer-layer .profile-drawer-header .section-kicker {
+  color: var(--oc-muted) !important;
+}
+
+.profile-drawer-layer .profile-drawer-header h2,
+.profile-drawer-layer .profile-identity-card strong,
+.profile-drawer-layer .profile-form label,
+.profile-drawer-layer .profile-subheading h3 {
+  color: var(--oc-ink) !important;
+}
+
+.profile-drawer-layer .profile-cover-card {
+  background:
+    linear-gradient(145deg, #f1f1ed, #e7e7e1 53%, #f7f7f3) !important;
+  border: 1px solid var(--oc-line) !important;
+}
+
+.profile-drawer-layer .avatar-upload-button,
+.profile-drawer-layer .cover-upload-button {
+  color: #fff !important;
+  background: rgba(16,17,20,.88) !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
+
+.profile-drawer-layer .verification-callout {
+  color: var(--oc-ink-soft) !important;
+  background: #faf9f4 !important;
+  border: 1px solid #e6decb !important;
+  border-left: 4px solid var(--oc-gold) !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer-layer .verification-callout > svg {
+  color: var(--oc-ink) !important;
+}
+
+.profile-drawer-layer .verification-pill.needs-verification {
+  color: #624900 !important;
+  background: var(--oc-gold-soft) !important;
+  border-color: #ead08d !important;
+}
+
+.profile-drawer-layer .email-delivery-status,
+.profile-drawer-layer .verification-delivery-status {
+  color: var(--oc-ink-soft) !important;
+  background: #fff !important;
+  border-color: var(--oc-line) !important;
+}
+
+.profile-drawer-layer input,
+.profile-drawer-layer select,
+.profile-drawer-layer textarea {
+  color: var(--oc-ink) !important;
+  background: #fff !important;
+  border-color: var(--oc-line-strong) !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer-layer input:focus,
+.profile-drawer-layer select:focus,
+.profile-drawer-layer textarea:focus {
+  border-color: var(--oc-ink) !important;
+  outline: 3px solid rgba(16,17,20,.08) !important;
+}
+
+/* Compact auth remains one dialog, not a page inside a drawer. */
+.profile-drawer-layer:has(.auth-drawer) {
+  background: rgba(8,9,13,.58) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.profile-drawer-layer .profile-drawer.auth-drawer {
+  width: min(430px, calc(100vw - 32px)) !important;
+  border-color: var(--oc-line) !important;
+  background: #fff !important;
+  box-shadow: 0 34px 100px rgba(0,0,0,.30) !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-card,
+.profile-drawer-layer .auth-drawer .auth-gateway {
+  color: var(--oc-ink) !important;
+  background: #fff !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-card-icon,
+.profile-drawer-layer .auth-drawer .auth-tabs button.active,
+.profile-drawer-layer .auth-drawer .auth-submit {
+  color: #fff !important;
+  background: var(--oc-ink) !important;
+}
+
+/* How it works always remains editorial white, never legacy black tiles. */
+.phase2-app.build13-app .build13-how,
+.phase2-app.build13-app .build13-how .section-intro,
+.phase2-app.build13-app .build13-how .phase2-journey {
+  background: var(--oc-paper) !important;
+  color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li {
+  background: #fff !important;
+  color: var(--oc-ink) !important;
+  border: 1px solid var(--oc-line) !important;
+  box-shadow: 0 8px 26px rgba(16,17,20,.035) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > svg {
+  color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > strong {
+  color: var(--oc-ink) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > p {
+  color: var(--oc-muted) !important;
+}
+
+@media (max-width: 1260px) {
+  .phase2-app.build13-app .build13-map-stage .atlas-v2-shell {
+    height: clamp(520px, 62vw, 680px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .phase2-app.build13-app .build13-map-stage .atlas-v2-shell {
+    height: clamp(460px, 78vw, 610px) !important;
+  }
+
+  .phase2-app.build13-app .atlas-title {
+    display: none;
+  }
+
+  .phase2-app.build13-app .map-atlas-art {
+    inset: 7% 0 5%;
+    width: 100%;
+    height: 88%;
+  }
+}
+
+@media (max-width: 620px) {
+  .phase2-app.build13-app .build13-map-stage {
+    border-radius: 16px !important;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .atlas-v2-shell {
+    min-height: 440px !important;
+    height: 72vh !important;
+    max-height: 560px !important;
+  }
+
+  .phase2-app.build13-app .map-city-marker .marker-core {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  .phase2-app.build13-app .map-atlas-art {
+    inset: 8% -4% 6%;
+    width: 108%;
+    height: 86%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase2-app.build13-app .map-music-particles span,
+  .phase2-app.build13-app .marker-pulse,
+  .phase2-app.build13-app .atlas-route {
+    animation: none !important;
+  }
+}
