@@ -83,7 +83,7 @@ if AWS_XRAY_ENABLED:
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "BACKEND": "django.db.backends.django.DjangoTemplates",
         "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -196,7 +196,12 @@ if REDIS_URL:
             "TIMEOUT": 300,
         }
     }
-    SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+
+# Authentication must not depend on Redis availability. Database-backed sessions
+# keep credential/social login stable even when the optional cache is degraded.
+SESSION_ENGINE = os.getenv(
+    "SESSION_ENGINE", "django.contrib.sessions.backends.db"
+)
 
 AUTH_PASSWORD_VALIDATORS = []
 
@@ -228,14 +233,16 @@ _trusted_proxy_count = os.getenv("ALLAUTH_TRUSTED_PROXY_COUNT", "").strip()
 if _trusted_proxy_count:
     ALLAUTH_TRUSTED_PROXY_COUNT = int(_trusted_proxy_count)
 
-# Registration verification email. Production can use Amazon SES SMTP or any
-# standards-compliant SMTP provider by supplying environment variables only.
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
+# Production verification mail uses the ECS task IAM role through the SES API.
+# SMTP remains available as an explicit environment override for non-AWS deployments.
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
     (
         "django.core.mail.backends.console.EmailBackend"
         if DEBUG
-        else "django.core.mail.backends.smtp.EmailBackend"
+        else "config.ses_email_backend.EmailBackend"
     ),
 )
 EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
@@ -264,7 +271,7 @@ if AWS_STORAGE_BUCKET_NAME:
             "BACKEND": "storages.backends.s3.S3Storage",
             "OPTIONS": {
                 "bucket_name": AWS_STORAGE_BUCKET_NAME,
-                "region_name": os.getenv("AWS_REGION", "us-east-1"),
+                "region_name": AWS_REGION,
                 "default_acl": None,
                 "querystring_auth": True,
                 "file_overwrite": False,
