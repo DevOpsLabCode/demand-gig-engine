@@ -124,6 +124,15 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
     ]
 
 
+def _campaign_review_queryset():
+    """Return the approval queryset while locking only the campaign table row."""
+
+    # ``owner`` is nullable and therefore joined with LEFT OUTER JOIN. PostgreSQL
+    # rejects FOR UPDATE against the nullable side of that join. ``of=("self",)``
+    # keeps the campaign row serialized without attempting to lock the owner row.
+    return DemandCampaign.objects.select_for_update(of=("self",)).select_related("owner")
+
+
 def _record_review(
     *,
     campaign: DemandCampaign,
@@ -168,13 +177,7 @@ def _record_review(
 def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, CampaignReview]:
     """Auto-approve a passing submission or route failed checks to manual review."""
 
-    # Lock only the campaign row. The owner relation is nullable, so asking
-    # PostgreSQL to lock every row in this outer join raises NotSupportedError.
-    campaign = (
-        DemandCampaign.objects.select_for_update(of=("self",))
-        .select_related("owner")
-        .get(pk=campaign_id)
-    )
+    campaign = _campaign_review_queryset().get(pk=campaign_id)
     if (
         campaign.owner_id != getattr(actor, "id", None)
         and not getattr(actor, "is_staff", False)
