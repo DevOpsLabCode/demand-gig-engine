@@ -1,0 +1,55 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Makes verification-email readiness visible inside the member profile.
+ */
+
+.profile-drawer-layer .verification-delivery-status {
+  display: grid;
+  gap: 3px;
+  margin-top: 9px;
+  padding: 9px 10px;
+  border: 1px solid #d7d7d1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.profile-drawer-layer .verification-delivery-status > span {
+  color: #34363b !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profile-drawer-layer .verification-delivery-status > small {
+  color: #70747c !important;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.profile-drawer-layer .verification-delivery-status.is-ready {
+  border-color: #b9dcc8;
+  background: #f2faf5;
+}
+
+.profile-drawer-layer .verification-delivery-status.is-ready > span {
+  color: #17633d !important;
+}
+
+.profile-drawer-layer .verification-delivery-status.is-blocked {
+  border-color: #ead29c;
+  background: #fff9e9;
+}
+
+.profile-drawer-layer .verification-delivery-status.is-blocked > span {
+  color: #795300 !important;
+}
+
+@media (max-width: 620px) {
+  .profile-drawer-layer .verification-callout {
+    grid-template-columns: auto 1fr !important;
+  }
+
+  .profile-drawer-layer .verification-callout .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
