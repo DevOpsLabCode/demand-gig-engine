@@ -30,6 +30,7 @@ domain_name               = ""
 hosted_zone_id            = ""
 alarm_email               = ""
 ses_identity_arn          = null
+ses_sender_identity       = "devopslabinc.com"
 tags = {
   Owner      = "DevOpsLabCode"
   CostCenter = "DemandGig"
