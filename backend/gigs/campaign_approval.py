@@ -168,8 +168,10 @@ def _record_review(
 def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, CampaignReview]:
     """Auto-approve a passing submission or route failed checks to manual review."""
 
+    # Lock only the campaign row. The owner relation is nullable, so asking
+    # PostgreSQL to lock every row in this outer join raises NotSupportedError.
     campaign = (
-        DemandCampaign.objects.select_for_update()
+        DemandCampaign.objects.select_for_update(of=("self",))
         .select_related("owner")
         .get(pk=campaign_id)
     )
