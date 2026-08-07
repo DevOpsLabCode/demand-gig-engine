@@ -4,6 +4,7 @@
 from pathlib import Path
 import os
 import secrets
+from email.utils import parseaddr
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -255,6 +256,13 @@ EMAIL_TIMEOUT = float(os.getenv("EMAIL_TIMEOUT", "10"))
 DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL", "Open Concert <no-reply@devopslabinc.com>"
 )
+_default_sender_address = parseaddr(DEFAULT_FROM_EMAIL)[1].strip()
+_default_sender_domain = (
+    _default_sender_address.rsplit("@", 1)[1].lower()
+    if "@" in _default_sender_address
+    else _default_sender_address.lower()
+)
+SES_IDENTITY = os.getenv("SES_IDENTITY", _default_sender_domain).strip()
 EMAIL_SUBJECT_PREFIX = os.getenv("EMAIL_SUBJECT_PREFIX", "[Open Concert] ")
 
 LANGUAGE_CODE = "en-us"
@@ -335,9 +343,5 @@ META_DEFAULT_SHARE_IMAGE = os.getenv("META_DEFAULT_SHARE_IMAGE", "")
 VIBESMEET_BASE_URL = os.getenv("VIBESMEET_BASE_URL", "")
 VIBESMEET_ACCESS_TOKEN = os.getenv("VIBESMEET_ACCESS_TOKEN", "")
 VIBESMEET_WEBHOOK_SECRET = os.getenv("VIBESMEET_WEBHOOK_SECRET", "")
-VIBESMEET_WEBHOOK_TOLERANCE_SECONDS = int(
-    os.getenv("VIBESMEET_WEBHOOK_TOLERANCE_SECONDS", "300")
-)
-VIBESMEET_TIMEOUT_SECONDS = float(
-    os.getenv("VIBESMEET_TIMEOUT_SECONDS", "15")
-)
+VIBESMEET_WEBHOOK_TOLERANCE_SECONDS = int(os.getenv("VIBESMEET_WEBHOOK_TOLERANCE_SECONDS", "300"))
+VIBESMEET_TIMEOUT_SECONDS = float(os.getenv("VIBESMEET_TIMEOUT_SECONDS", "15"))
