@@ -28,6 +28,7 @@ from .profile_views import (
     discovery_profile,
     profile_media_collection,
     profile_media_detail,
+    public_profile,
     resend_email_verification,
 )
 from .role_views import reject_role, role_collection, verify_role
@@ -61,6 +62,7 @@ urlpatterns = [
     path("campaigns/<slug:slug>/launch/", campaign_launch, name="campaign-approved-launch"),
     path("campaigns/<slug:slug>/", campaign_detail, name="campaign-protected-detail"),
     path("", include(router.urls)),
+    path("profiles/<str:username>/", public_profile, name="public-profile"),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/login/", auth_login, name="auth-login"),
     path("auth/register/", auth_register, name="auth-register"),
