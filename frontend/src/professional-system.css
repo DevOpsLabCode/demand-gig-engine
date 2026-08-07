@@ -1,0 +1,793 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Final cross-application professional design system for Build 13.1.
+ * Direction: Uber-level restraint, Google-level clarity, Facebook-level familiarity,
+ * while preserving Open Concert's lavender/gold map as the expressive brand surface.
+ */
+
+:root {
+  --oc-bg: #f6f7f9;
+  --oc-surface: #ffffff;
+  --oc-surface-soft: #f9fafb;
+  --oc-surface-alt: #f1f3f5;
+  --oc-ink: #111318;
+  --oc-ink-soft: #2f343b;
+  --oc-muted: #667085;
+  --oc-muted-2: #8a94a3;
+  --oc-line: #e1e5ea;
+  --oc-line-strong: #d0d5dd;
+  --oc-primary: #111318;
+  --oc-blue: #1a73e8;
+  --oc-blue-soft: #eaf2ff;
+  --oc-violet: #7357ff;
+  --oc-violet-soft: #f1edff;
+  --oc-success: #168451;
+  --oc-success-soft: #eaf7f0;
+  --oc-warning: #a15c00;
+  --oc-warning-soft: #fff4df;
+  --oc-danger: #d93025;
+  --oc-danger-soft: #fcebea;
+  --oc-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px rgba(16, 24, 40, 0.04);
+  --oc-shadow-md: 0 10px 30px rgba(16, 24, 40, 0.08);
+  --oc-radius-sm: 10px;
+  --oc-radius: 14px;
+  --oc-radius-lg: 20px;
+  --oc-focus: 0 0 0 3px rgba(26, 115, 232, 0.18);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: var(--oc-bg);
+  color: var(--oc-ink);
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--oc-focus) !important;
+}
+
+.phase2-app,
+.build13-app {
+  --phase2-ink: var(--oc-ink);
+  --phase2-muted: var(--oc-muted);
+  --phase2-line: var(--oc-line);
+  --phase2-blue: var(--oc-blue);
+  --phase2-violet: var(--oc-violet);
+  color: var(--oc-ink);
+  background: var(--oc-bg);
+}
+
+/* Header and global navigation */
+.build13-header.phase2-header,
+.phase2-header {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-bottom: 1px solid var(--oc-line) !important;
+  box-shadow: 0 1px 0 rgba(16, 24, 40, 0.02) !important;
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.phase2-brand,
+.phase2-nav-links button,
+.profile-tab-button,
+.phase2-account-actions {
+  color: var(--oc-ink);
+}
+
+.build13-header .phase2-brand .brand-mark,
+.phase2-brand .brand-mark {
+  color: var(--oc-ink) !important;
+  background: #fff !important;
+  border: 1px solid var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.phase2-brand strong,
+.profile-tab-copy strong {
+  color: var(--oc-ink) !important;
+}
+
+.phase2-brand small,
+.profile-tab-copy small {
+  color: var(--oc-muted) !important;
+}
+
+.build13-header .phase2-nav-links button,
+.phase2-nav-links button {
+  color: var(--oc-ink-soft) !important;
+  background: transparent !important;
+}
+
+.build13-header .phase2-nav-links button:hover,
+.phase2-nav-links button:hover {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface-alt) !important;
+}
+
+.build13-header .phase2-nav-links button:first-child {
+  color: var(--oc-blue) !important;
+  background: var(--oc-blue-soft) !important;
+}
+
+.profile-tab-button {
+  background: var(--oc-surface) !important;
+  border: 1px solid var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.profile-tab-avatar {
+  color: var(--oc-blue) !important;
+  background: var(--oc-blue-soft) !important;
+}
+
+/* Buttons: Uber-like black primary, Google-like blue focus/link language */
+.button,
+.auth-submit,
+.auth-link,
+.icon-button,
+.build13-text-action,
+.verify-inline {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.button.primary,
+.auth-submit,
+.build13-header .desktop-create,
+.mobile-create-action {
+  color: #fff !important;
+  background: var(--oc-primary) !important;
+  border-color: var(--oc-primary) !important;
+  box-shadow: none !important;
+}
+
+.button.primary:hover,
+.auth-submit:hover:not(:disabled),
+.build13-header .desktop-create:hover {
+  background: #2a2d31 !important;
+  border-color: #2a2d31 !important;
+}
+
+.button.secondary,
+.auth-link,
+.icon-button {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line-strong) !important;
+  box-shadow: none !important;
+}
+
+.button.secondary:hover,
+.auth-link:hover:not(:disabled),
+.icon-button:hover:not(:disabled) {
+  background: var(--oc-surface-alt) !important;
+  border-color: #b7bdc7 !important;
+}
+
+button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+/* Inputs and form controls */
+.phase2-app input,
+.phase2-app select,
+.phase2-app textarea,
+.auth-gateway input,
+.auth-gateway select,
+.auth-gateway textarea,
+.profile-drawer input,
+.profile-drawer select,
+.profile-drawer textarea {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line-strong) !important;
+}
+
+.phase2-app input::placeholder,
+.phase2-app textarea::placeholder,
+.auth-gateway input::placeholder,
+.profile-drawer input::placeholder,
+.profile-drawer textarea::placeholder {
+  color: #98a2b3 !important;
+}
+
+.phase2-app label,
+.auth-gateway label,
+.profile-drawer label {
+  color: var(--oc-ink-soft) !important;
+}
+
+/* Build 13 discovery shell remains bright and distinctive */
+.build13-dashboard {
+  color: var(--oc-ink);
+}
+
+.build13-intro,
+.build13-side-card,
+.build13-network-stats,
+.build13-events-strip,
+.build13-map-toolbar {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.build13-intro h1,
+.build13-card-title > span,
+.build13-network-stats strong,
+.build13-trending-copy strong {
+  color: var(--oc-ink) !important;
+}
+
+.build13-intro p,
+.build13-community-card p,
+.build13-network-stats small,
+.build13-trending-list button > small {
+  color: var(--oc-muted) !important;
+}
+
+.build13-search,
+.build13-select {
+  background: var(--oc-surface-soft) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.build13-search input,
+.build13-select select {
+  color: var(--oc-ink) !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.build13-view-toggle {
+  background: var(--oc-surface-alt) !important;
+}
+
+.build13-view-toggle button {
+  color: var(--oc-muted) !important;
+}
+
+.build13-view-toggle button.is-active {
+  color: #fff !important;
+  background: var(--oc-blue) !important;
+  box-shadow: none !important;
+}
+
+.build13-text-action {
+  color: var(--oc-blue) !important;
+  background: var(--oc-surface) !important;
+  border-color: #cfe0fb !important;
+}
+
+.build13-text-action:hover {
+  background: var(--oc-blue-soft) !important;
+}
+
+/* How it works: remove legacy dark cards and restore contrast */
+.phase2-how,
+.how-it-works {
+  color: var(--oc-ink) !important;
+  background: var(--oc-bg) !important;
+}
+
+.phase2-how .section-kicker,
+.section-kicker,
+.eyebrow {
+  color: var(--oc-blue) !important;
+}
+
+.phase2-how h2,
+.section-intro h2,
+.workspace-heading h2,
+.profile-drawer h2,
+.profile-drawer h3,
+.section-heading h2 {
+  color: var(--oc-ink) !important;
+}
+
+.journey-grid li,
+.phase2-journey li {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border: 1px solid var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.journey-grid li > span,
+.phase2-journey li > span {
+  color: #c7ccd4 !important;
+}
+
+.journey-grid li > svg,
+.phase2-journey li > svg {
+  color: var(--oc-violet) !important;
+}
+
+.journey-grid li strong,
+.phase2-journey li strong {
+  color: var(--oc-ink) !important;
+}
+
+.journey-grid li p,
+.phase2-journey li p {
+  color: var(--oc-muted) !important;
+}
+
+/* Workspaces, campaign cards, approval and voting */
+.workspace,
+.phase2-workspace,
+.create-workspace,
+.owner-edit-workspace,
+.phase2-campaign-section {
+  color: var(--oc-ink) !important;
+  background: var(--oc-bg) !important;
+}
+
+.create-workspace,
+.owner-edit-workspace {
+  border-color: var(--oc-line) !important;
+  background: var(--oc-surface) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.campaign-card-shell,
+.phase2-app .campaign-card {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.campaign-location-ribbon,
+.owner-card-toolbar {
+  color: var(--oc-muted) !important;
+  background: var(--oc-surface-soft) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.campaign-card h3,
+.campaign-card strong,
+.campaign-identity h3,
+.progress-label strong,
+.campaign-summary-grid strong,
+.campaign-tabs button.is-active {
+  color: var(--oc-ink) !important;
+}
+
+.campaign-pitch,
+.campaign-meta,
+.progress-label span,
+.campaign-summary-grid span,
+.campaign-tabs button,
+.campaign-card small {
+  color: var(--oc-muted) !important;
+}
+
+.progress-track {
+  background: #e8ebef !important;
+}
+
+.progress-track > span {
+  background: var(--oc-violet) !important;
+}
+
+.campaign-summary-grid > div,
+.preference-stat,
+.summary-stat,
+.metric-card,
+.vote-stat,
+.funding-stat {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface-soft) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.campaign-summary-grid svg,
+.preference-stat svg,
+.summary-stat svg,
+.metric-card svg {
+  color: var(--oc-violet) !important;
+}
+
+.confirmation-strip,
+.campaign-tabs,
+.campaign-primary-actions,
+.campaign-detail-section,
+.preference-results,
+.funding-panel,
+.tools-panel {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.confirmation-strip span {
+  color: var(--oc-muted) !important;
+  background: var(--oc-surface-soft) !important;
+}
+
+.confirmation-strip .is-confirmed {
+  color: var(--oc-success) !important;
+  background: var(--oc-success-soft) !important;
+}
+
+.status-badge {
+  color: var(--oc-ink-soft) !important;
+  background: var(--oc-surface-alt) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.status-badge.success,
+.status-badge.voted {
+  color: var(--oc-success) !important;
+  background: var(--oc-success-soft) !important;
+  border-color: #bfe4cf !important;
+}
+
+.status-badge.warning {
+  color: var(--oc-warning) !important;
+  background: var(--oc-warning-soft) !important;
+  border-color: #f0d39f !important;
+}
+
+.status-badge.accent {
+  color: #5938d5 !important;
+  background: var(--oc-violet-soft) !important;
+  border-color: #d8ceff !important;
+}
+
+/* Notices and server errors */
+.notice,
+.message,
+.auth-feedback.message,
+.verification-callout {
+  color: var(--oc-success) !important;
+  background: var(--oc-success-soft) !important;
+  border-color: #bfe4cf !important;
+}
+
+.error,
+.error-notice,
+.auth-feedback.error {
+  color: var(--oc-danger) !important;
+  background: var(--oc-danger-soft) !important;
+  border-color: #f2bbb7 !important;
+}
+
+/* Profile drawer */
+.profile-drawer-layer {
+  background: rgba(17, 19, 24, 0.42) !important;
+  backdrop-filter: blur(4px);
+}
+
+.profile-drawer-layer .profile-drawer,
+.profile-drawer-layer .rich-profile-drawer,
+.profile-drawer-layer .auth-drawer {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-left: 1px solid var(--oc-line) !important;
+  box-shadow: -18px 0 48px rgba(16, 24, 40, 0.16) !important;
+}
+
+.profile-drawer-header {
+  background: var(--oc-surface) !important;
+  border-bottom-color: var(--oc-line) !important;
+}
+
+.profile-cover-card {
+  background-color: #eef2f7 !important;
+  border-color: var(--oc-line) !important;
+}
+
+.profile-identity-card,
+.profile-form,
+.profile-media-section,
+.profile-links-editor,
+.external-video-editor,
+.preferred-city-editor,
+.profile-drawer .panel,
+.profile-drawer .professional-profile {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.profile-identity-card strong,
+.profile-subheading h3,
+.profile-form strong,
+.profile-media-section strong,
+.profile-drawer .professional-profile h2,
+.profile-drawer .professional-profile h3 {
+  color: var(--oc-ink) !important;
+}
+
+.profile-identity-card span,
+.profile-helper,
+.profile-media-section span,
+.profile-drawer .professional-profile p,
+.profile-drawer .professional-profile small {
+  color: var(--oc-muted) !important;
+}
+
+.profile-avatar-large,
+.media-upload-card,
+.profile-media-item,
+.external-video-row,
+.city-chip,
+.preferred-city-input,
+.profile-url-input {
+  background: var(--oc-surface-soft) !important;
+  border-color: var(--oc-line) !important;
+  color: var(--oc-ink) !important;
+}
+
+.verification-pill.is-verified {
+  color: var(--oc-success) !important;
+  background: var(--oc-success-soft) !important;
+  border-color: #bfe4cf !important;
+}
+
+.verification-pill.needs-verification {
+  color: var(--oc-warning) !important;
+  background: var(--oc-warning-soft) !important;
+  border-color: #f0d39f !important;
+}
+
+/* Roles: remove the black marketplace blocks visible in Build 13 screenshots */
+.profile-drawer .role-preview,
+.auth-gateway .role-preview {
+  gap: 10px;
+}
+
+.profile-drawer .role-preview article,
+.auth-gateway .role-preview article,
+.professional-profile .role-preview article {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface-soft) !important;
+  border: 1px solid var(--oc-line) !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer .role-preview article strong,
+.auth-gateway .role-preview article strong,
+.professional-profile .role-preview article strong {
+  color: var(--oc-ink) !important;
+}
+
+.profile-drawer .role-preview article span,
+.auth-gateway .role-preview article span,
+.professional-profile .role-preview article span,
+.profile-drawer .role-preview article small,
+.professional-profile .role-preview article small {
+  color: var(--oc-muted) !important;
+}
+
+/* Authentication gateway */
+.auth-gateway {
+  min-height: 100vh;
+  color: var(--oc-ink) !important;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(115, 87, 255, 0.10), transparent 26rem),
+    radial-gradient(circle at 88% 82%, rgba(26, 115, 232, 0.08), transparent 30rem),
+    var(--oc-bg) !important;
+}
+
+.auth-story,
+.auth-card,
+.auth-panel.authenticated,
+.auth-loading-card,
+.auth-service-error {
+  color: var(--oc-ink) !important;
+}
+
+.auth-story h1,
+.auth-card h2,
+.auth-user strong,
+.professional-profile strong {
+  color: var(--oc-ink) !important;
+}
+
+.auth-story p,
+.auth-story span,
+.auth-card-header > div > span,
+.registration-note,
+.auth-user span,
+.professional-profile small,
+.linked-providers {
+  color: var(--oc-muted) !important;
+}
+
+.auth-card,
+.auth-panel.authenticated,
+.auth-loading-card,
+.auth-service-error {
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line) !important;
+  box-shadow: var(--oc-shadow-md) !important;
+}
+
+.auth-card-icon,
+.auth-loading-mark {
+  color: var(--oc-blue) !important;
+  background: var(--oc-blue-soft) !important;
+  box-shadow: none !important;
+}
+
+.auth-tabs {
+  background: var(--oc-surface-alt) !important;
+  border-color: var(--oc-line) !important;
+}
+
+.auth-tabs button {
+  color: var(--oc-muted) !important;
+  background: transparent !important;
+}
+
+.auth-tabs button.active {
+  color: var(--oc-ink) !important;
+  background: var(--oc-surface) !important;
+  box-shadow: var(--oc-shadow-sm) !important;
+}
+
+.input-with-icon {
+  color: var(--oc-muted) !important;
+  background: var(--oc-surface) !important;
+  border-color: var(--oc-line-strong) !important;
+}
+
+.input-with-icon input {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.auth-divider {
+  color: var(--oc-muted-2) !important;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  background: var(--oc-line) !important;
+}
+
+/* Provider-native sign-in treatment */
+.social-login {
+  min-height: 44px;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+
+.social-login.google,
+.provider-link.google {
+  color: #202124 !important;
+  background: #fff !important;
+  border-color: #dadce0 !important;
+}
+
+.social-login.google .provider-mark,
+.provider-link.google .provider-mark {
+  color: #4285f4 !important;
+}
+
+.social-login.facebook,
+.provider-link.facebook {
+  color: #fff !important;
+  background: #1877f2 !important;
+  border-color: #1877f2 !important;
+}
+
+.social-login.facebook .provider-mark,
+.provider-link.facebook .provider-mark {
+  color: #fff !important;
+}
+
+.social-login.instagram,
+.provider-link.instagram {
+  color: #c13584 !important;
+  background: #fff !important;
+  border-color: #e2d5df !important;
+}
+
+.social-login.instagram .provider-mark,
+.provider-link.instagram .provider-mark {
+  color: #c13584 !important;
+}
+
+.social-login.tiktok,
+.provider-link.tiktok {
+  color: #fff !important;
+  background: #111318 !important;
+  border-color: #111318 !important;
+}
+
+.social-login:disabled,
+.provider-link:disabled {
+  color: #98a2b3 !important;
+  background: #f2f4f7 !important;
+  border-color: #e4e7ec !important;
+}
+
+/* Mobile navigation */
+.mobile-bottom-nav {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-top-color: var(--oc-line) !important;
+  box-shadow: 0 -8px 24px rgba(16, 24, 40, 0.08) !important;
+}
+
+.mobile-bottom-nav button {
+  color: var(--oc-muted) !important;
+}
+
+.mobile-bottom-nav button:hover,
+.mobile-bottom-nav button:focus-visible {
+  color: var(--oc-ink) !important;
+}
+
+.mobile-bottom-nav .mobile-create-action {
+  color: #fff !important;
+}
+
+/* Consistent selection/highlight behavior */
+::selection {
+  color: var(--oc-ink);
+  background: #d9e7ff;
+}
+
+@media (max-width: 900px) {
+  .profile-drawer-layer .profile-drawer,
+  .profile-drawer-layer .rich-profile-drawer,
+  .profile-drawer-layer .auth-drawer {
+    width: min(100vw, 640px) !important;
+  }
+
+  .journey-grid li,
+  .phase2-journey li,
+  .campaign-card-shell,
+  .phase2-app .campaign-card {
+    border-radius: 16px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .build13-header.phase2-header,
+  .phase2-header {
+    background: rgba(255, 255, 255, 0.98) !important;
+  }
+
+  .auth-card,
+  .auth-panel.authenticated,
+  .profile-drawer-layer .profile-drawer {
+    box-shadow: none !important;
+  }
+
+  .profile-drawer-layer {
+    background: rgba(17, 19, 24, 0.28) !important;
+  }
+}
