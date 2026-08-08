@@ -1,0 +1,54 @@
+{
+  "pipeline": "cbgb-historical-twin",
+  "version": "0.1",
+  "default_state": "cbgb-2006-closing",
+  "rights": {
+    "usable_classes": ["A", "B", "C"],
+    "reference_only_classes": ["D"],
+    "blocked_classes": ["E"],
+    "ambiguous_license_default": "D",
+    "require_rights_approval_before_reconstruction": true,
+    "require_publish_approval": true
+  },
+  "geometry": {
+    "verified_threshold": 0.9,
+    "strong_reconstruction_threshold": 0.75,
+    "public_minimum_threshold": 0.75,
+    "critical_anchors": [
+      "entrance",
+      "historic_bar",
+      "stage",
+      "rear_transition"
+    ],
+    "auto_create_capture_mission_below": 0.75
+  },
+  "qa": {
+    "prohibited_source_inputs_max": 0,
+    "unresolved_rights_max": 0,
+    "missing_attribution_max": 0,
+    "allow_unknown_historical_features_in_public_mode": false,
+    "require_evidence_ids_for_nontrivial_objects": true,
+    "require_build_manifest": true,
+    "require_content_hashes": true,
+    "require_versioned_output": true
+  },
+  "automation": {
+    "retry_failed_network_collectors": true,
+    "network_retry_count": 3,
+    "idempotent_jobs_required": true,
+    "immutable_evidence_snapshots": true,
+    "immutable_published_versions": true,
+    "auto_resume_after_gate_approval": true,
+    "auto_generate_gap_tasks": true,
+    "auto_generate_rights_tasks": true,
+    "auto_generate_conflict_tasks": true
+  },
+  "publication": {
+    "allowed_only_after": [
+      "QA_PASSED",
+      "HISTORICAL_APPROVED",
+      "PUBLISH_APPROVED"
+    ],
+    "main_branch_merge": "forbidden_without_explicit_manual_approval"
+  }
+}
