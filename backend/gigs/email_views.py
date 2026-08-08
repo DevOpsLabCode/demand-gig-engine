@@ -26,6 +26,7 @@ def _safe_delivery(delivery: dict[str, object]) -> dict[str, object]:
         "sending_enabled": bool(delivery.get("sending_enabled")),
         "production_access": bool(delivery.get("production_access")),
         "sender_verified": bool(delivery.get("sender_verified")),
+        "recipient_verified": bool(delivery.get("recipient_verified")),
         "reason": str(delivery.get("reason") or "unknown"),
         "detail": str(delivery.get("detail") or "Email delivery status is unavailable."),
     }
@@ -34,9 +35,10 @@ def _safe_delivery(delivery: dict[str, object]) -> dict[str, object]:
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def email_delivery_status_view(request):
-    """Return a safe user-facing summary without exposing AWS account data or credentials."""
+    """Return a safe user-facing summary for this signed-in email address."""
 
-    return Response(_safe_delivery(ses_delivery_status()))
+    recipient = str(request.user.email or "").strip()
+    return Response(_safe_delivery(ses_delivery_status(recipient)))
 
 
 @api_view(["POST"])
@@ -64,10 +66,10 @@ def resend_email_verification(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Read-only SES diagnostics are useful to explain sandbox/identity state, but
-    # they must never stop a send attempt. IAM boundaries can intentionally deny
-    # diagnostic APIs while still allowing ses:SendRawEmail.
-    diagnostics = _safe_delivery(ses_delivery_status())
+    # Diagnostics now evaluate the actual destination address. In the SES sandbox,
+    # a recipient covered by a verified email/domain identity is still deliverable.
+    # The direct provider send below remains the final source of truth.
+    diagnostics = _safe_delivery(ses_delivery_status(email))
 
     address, _ = EmailAddress.objects.get_or_create(
         user=request.user,
