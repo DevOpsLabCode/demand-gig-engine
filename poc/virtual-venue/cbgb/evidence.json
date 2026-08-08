@@ -1,0 +1,125 @@
+{
+  "subject": {
+    "name": "CBGB & OMFUG",
+    "historic_address": "315 Bowery, New York, NY 10003",
+    "active_period": "1973-2006",
+    "poc_goal": "Build a provenance-first historical digital twin using only reusable assets for reconstruction and reference-only records for corroboration."
+  },
+  "rights_classes": {
+    "A": "Owned or newly captured by the project; suitable for commercial reconstruction.",
+    "B": "Partner supplied with explicit commercial derivative rights.",
+    "C": "Open/public-domain material; usable only under the exact source license and attribution/share-alike obligations.",
+    "D": "Reference-only evidence. Keep metadata/link; do not copy into reconstruction training or textures without additional permission.",
+    "E": "Restricted/prohibited source. Do not scrape, download, train on, or derive production geometry/textures from it."
+  },
+  "sources": [
+    {
+      "id": "nps-bowery-historic-district",
+      "title": "The Bowery Historic District - National Register of Historic Places registration report",
+      "url": "https://media.villagepreservation.org/wp-content/uploads/2020/03/15123205/The-Bowery-Historic-District-State-and-National-Register-Report.pdf",
+      "rights_class": "D",
+      "use": "Authoritative geometry/history corroboration. The report identifies 313-315 Bowery as two 1878 tenements joined in 1934, with a four-story four-bay Art Deco facade; it also documents the Palace Bar/Hotel and CBGB history and states the club interior was largely preserved after closure.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-cbgb-interior-2009",
+      "title": "Wikimedia Commons - CBGB 2009 interior category",
+      "url": "https://commons.wikimedia.org/wiki/Category:CBGB_2009_(interior)",
+      "rights_class": "C",
+      "use": "Primary open-licensed interior visual evidence. Category currently contains 12 photographs. The collector verifies each file license before download.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-cbgb-category",
+      "title": "Wikimedia Commons - CBGB category",
+      "url": "https://commons.wikimedia.org/wiki/Category:CBGB",
+      "rights_class": "C",
+      "use": "Exterior, stage, post-closure and performance evidence. Licenses vary by file; collector downloads only an allow-listed open license and records attribution.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-interior-example",
+      "title": "CBGB 2009 Interior.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_2009_Interior.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "creator": "Angie Garrett",
+      "use": "Interior spatial/layout evidence and feature matching.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-stage-example",
+      "title": "CBGB 2009 Display stage.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_2009_Display_stage.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "creator": "Angie Garrett",
+      "use": "Stage location, wall details and room orientation evidence.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-facade-2005",
+      "title": "CBGB club facade.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_club_facade.jpg",
+      "rights_class": "C",
+      "license": "CC BY-SA 3.0 / GFDL",
+      "creator": "Adam Di Carlo",
+      "use": "Pre-closure facade evidence.",
+      "confidence": "high"
+    },
+    {
+      "id": "commons-ex-cbgb-2008",
+      "title": "ExCBGB.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:ExCBGB.jpg",
+      "rights_class": "C",
+      "license": "Public domain",
+      "creator": "Sbazzone",
+      "use": "Post-closure facade comparison and registration evidence.",
+      "confidence": "high"
+    },
+    {
+      "id": "cornell-punk-flyer-1974-05-05",
+      "title": "CBGB, 1974 May 05 - Cornell Punk Flyers",
+      "url": "https://digital.library.cornell.edu/catalog/ss:21494628",
+      "rights_class": "D",
+      "use": "Timeline, signage, typography, performers and event graph. Cornell states the image is protected by copyright and made available for non-profit educational use; do not ingest into commercial reconstruction without permission.",
+      "confidence": "high"
+    },
+    {
+      "id": "nypl-cbgb-1986",
+      "title": "CBGB - Cynthia MacAdams, 1986 - NYPL Digital Collections",
+      "url": "https://digitalcollections.nypl.org/items/df9fbae0-c6f3-012f-efbe-58d385a7bc34",
+      "rights_class": "D",
+      "use": "Historical visual reference and timeline corroboration. NYPL identifies the item as copyright protected; metadata only unless permission is obtained.",
+      "confidence": "high"
+    },
+    {
+      "id": "mcny-roberta-bayley",
+      "title": "Punk Photographer Roberta Bayley - Museum of the City of New York",
+      "url": "https://www.mcny.org/story/punk-photographer-roberta-bayley",
+      "rights_class": "D",
+      "use": "Oral-history/context evidence about the room, performances and 1970s scene; linked photographs remain reference-only unless separately licensed.",
+      "confidence": "high"
+    },
+    {
+      "id": "official-cbgb-history",
+      "title": "CBGB History",
+      "url": "https://www.cbgb.com/pages/cbgb-history",
+      "rights_class": "D",
+      "use": "Official-brand timeline and historical corroboration.",
+      "confidence": "medium-high"
+    }
+  ],
+  "prohibited_reconstruction_sources": [
+    {
+      "source": "Google Maps / Street View imagery",
+      "rights_class": "E",
+      "rule": "May be used only as allowed by its terms for viewing/navigation; do not scrape or create production 3D derived assets from it."
+    },
+    {
+      "source": "Unlicensed social-media, press, YouTube or commercial photography",
+      "rights_class": "D",
+      "rule": "Keep URL, date, creator and observations as reference evidence only until commercial derivative permission is documented."
+    }
+  ]
+}
