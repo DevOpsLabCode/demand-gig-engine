@@ -1,0 +1,159 @@
+{
+  "purpose": "High-recall discovery queue. These records are research leads, not automatically validated facts or reusable reconstruction media.",
+  "leads": [
+    {
+      "id": "nycma-tax-photo-ca1985",
+      "type": "municipal_photo",
+      "title": "315 Bowery, CBGB, ca. 1985 - DOF Tax Photo Collection",
+      "url": "https://www.archives.nyc/blog/2018/1/25/the-grammys-return-to-the-big-apple",
+      "rights_class": "D",
+      "value": "Very high: official circa-1985 facade/building record tied to the address.",
+      "rights_note": "NYC Municipal Archives requires licensing for commercial publication/use; metadata/reference until permission obtained.",
+      "next_action": "Locate exact digital object for block 457 lot 5 and request publication/derivative-use terms if needed."
+    },
+    {
+      "id": "nycma-tax-photo-1940s",
+      "type": "municipal_photo_collection",
+      "title": "NYC Municipal Archives 1940s Tax Department photographs",
+      "url": "https://a860-collectionguides.nyc.gov/repositories/2/resources/64",
+      "rights_class": "D",
+      "value": "High: pre-CBGB Palace Hotel/storefront and full-building facade state, parcel-indexed by block/lot.",
+      "next_action": "Search Manhattan series for block 457 lot 5 and compare 1940s facade/storefront to later Palace/CBGB states."
+    },
+    {
+      "id": "nycma-tax-photo-1980s",
+      "type": "municipal_photo_collection",
+      "title": "NYC Department of Finance 1980s property tax photo collection",
+      "url": "https://portal.311.nyc.gov/article/?kanumber=KA-02939",
+      "rights_class": "D",
+      "value": "Very high: standardized street-facing CBGB-era building photo likely near the 1985 example already surfaced.",
+      "next_action": "Obtain exact 313/315 Bowery image record and licensing terms."
+    },
+    {
+      "id": "peter-dougherty-mss213",
+      "type": "audio_video_archive",
+      "title": "Peter Dougherty Collection, NYU Fales MSS.213",
+      "url": "https://findingaids.library.nyu.edu/fales/mss_213/",
+      "rights_class": "D",
+      "value": "Very high: sound/video/ephemera archive created by a frequent CBGB attendee and recorder.",
+      "examples": [
+        "Television Feb 15 1975 CBGB - Media ID 213.0203",
+        "Television June 15 1975 CBGB - Media ID 213.0204",
+        "Television Live CBGB May 26 1976 - Media ID 213.0475",
+        "Television Live CBGB Jan 23 1976 - Media ID 213.0476",
+        "Television Live CBGB Mar 11 1976 - Media ID 213.0477",
+        "Suicide CBGB June 2 1979 second set - Media IDs 213.0042/213.0043"
+      ],
+      "next_action": "Add exact CBGB items to archive index; request research access and determine rights holders before any media reuse."
+    },
+    {
+      "id": "joseph-holmes-2006-interior-series",
+      "type": "photographer_series",
+      "title": "Joseph O. Holmes CBGB interior series, September 2006",
+      "url": "https://20x200.com/products/joseph-o-holmes-cbgb-mixing-board-and-bench",
+      "rights_class": "D",
+      "value": "Exceptional: photographer states he spent 10 days photographing the quiet/empty club in September 2006, immediately before closure. This may be one of the best closing-era geometry sources available.",
+      "next_action": "Contact photographer/rightsholder about licensing a spatially useful subset or providing research-resolution wide shots."
+    },
+    {
+      "id": "sidney-lumet-q-and-a-1990",
+      "type": "feature_film_location",
+      "title": "Q&A (1990) - CBGB interior/exterior filming location",
+      "url": "https://www.imdb.com/title/tt0100442/locations/",
+      "rights_class": "D",
+      "value": "High geometry lead: production metadata says interior bar scenes and exterior were filmed at CBGB during 1989 production period.",
+      "next_action": "Verify scene/timecodes from legitimate viewing source; pursue studio rights only if frames need public display/derived use."
+    },
+    {
+      "id": "official-cbgb-313-gallery-history",
+      "type": "official_history",
+      "title": "Official CBGB history - CB's 313 Gallery",
+      "url": "https://www.cbgb.com/pages/cbgb-history",
+      "rights_class": "D",
+      "value": "High: says the record store was replaced in the late 1980s by a second performance/art gallery called CB's 313 Gallery.",
+      "next_action": "Resolve timeline, door connections and basement/ground-floor plans for 313 vs main 315 room."
+    },
+    {
+      "id": "313-gallery-2011-real-estate",
+      "type": "secondary_real_estate_record",
+      "title": "Former CBGB Gallery space up for grabs",
+      "url": "https://therealdeal.com/new-york/2011/04/12/former-cbgb-gallery-space-at-313-bowery-up-for-grabs/",
+      "rights_class": "D",
+      "value": "Medium-high: reports roughly 3,300 sq ft ground floor plus 5,500 sq ft basement for former 313 Gallery, next door to 315 club.",
+      "next_action": "Find original listing/floorplan or DOB plan rather than treating article dimensions as surveyed historical geometry."
+    },
+    {
+      "id": "chad-davis-2006-313-315",
+      "type": "photographer_image",
+      "title": "CBGB and CB's 313 Gallery, January 2 2006",
+      "url": "https://www.flickr.com/photos/chaddavisphotography/55184896237/",
+      "rights_class": "D",
+      "value": "High: both 313 Gallery and 315 CBGB facade in the same closing-era view.",
+      "rights_note": "All rights reserved on Flickr result; reference-only until licensed.",
+      "next_action": "Request a display/reconstruction license if the image materially improves facade registration."
+    },
+    {
+      "id": "chris-frantz-personal-history",
+      "type": "oral_history_published",
+      "title": "Chris Frantz - The Two Sides of the Bowery",
+      "url": "https://www.newyorker.com/culture/personal-history/the-two-sides-of-the-bowery",
+      "rights_class": "D",
+      "value": "Medium-high: first-person 1974 account includes club atmosphere, uneven floor and a pool-game area toward the back.",
+      "next_action": "Convert spatial details into low/medium-confidence observations and seek corroborating visual evidence."
+    },
+    {
+      "id": "palace-hotel-historic-photo-leads",
+      "type": "historical_photo_lead",
+      "title": "Palace Hotel / pre-CBGB 315 Bowery photographs",
+      "url": "https://villagepreservation.org/2024/08/16/the-beginnings-of-punk-in-the-east-village-how-the-ramones-came-to-cbgb/",
+      "rights_class": "D",
+      "value": "High for pre-1973 state and inherited bar/storefront geometry.",
+      "next_action": "Trace the underlying image sources and rights rather than copying secondary-page illustrations."
+    },
+    {
+      "id": "sanborn-maps-loc",
+      "type": "historic_map_collection",
+      "title": "Library of Congress Sanborn Maps",
+      "url": "https://www.loc.gov/collections/sanborn-maps/",
+      "rights_class": "C",
+      "value": "High: LOC states its online Sanborn Maps Collection is public domain; exact Manhattan sheet for block 457 still needs identification.",
+      "next_action": "Locate sheets covering Bowery/East 1st-East 2nd for relevant years and register building footprints/occupancies."
+    },
+    {
+      "id": "palace-renaissance-v-sareb",
+      "type": "court_record",
+      "title": "Palace Renaissance, Inc. v. Sareb Restaurant Corp. d/b/a C.B.G.B.",
+      "url": "https://law.justia.com/cases/new-york/other-courts/2005/2005-25508.html",
+      "rights_class": "D",
+      "value": "Medium: lease/dispute chronology, landlord/tenant structure and possible premises descriptions.",
+      "next_action": "Review pleadings/exhibits if publicly obtainable; flag any floor plans/lease descriptions for rights review."
+    },
+    {
+      "id": "grammy-museum-cbgb-50",
+      "type": "oral_history_panel",
+      "title": "GRAMMY Museum - Celebrating CBGB's 50th Anniversary",
+      "url": "https://watch.grammymuseum.org/videos/celebrating-cbgb-s-50th-anniversary",
+      "rights_class": "D",
+      "value": "Medium: panel includes photographer Bob Gruen, Miriam Linna, former CBGB manager BG Hacker and other scene witnesses.",
+      "next_action": "Index layout/operations statements as oral-history observations; do not copy stream media."
+    },
+    {
+      "id": "rock-hall-cbgb-artifacts",
+      "type": "museum_artifact_lead",
+      "title": "CBGB awning and related artifact leads at Rock & Roll Hall of Fame",
+      "url": "https://rockhall.com/",
+      "rights_class": "D",
+      "value": "High if permissioned: surviving physical signage can be measured/photogrammetrically documented.",
+      "next_action": "Identify exact artifact catalog records and request research measurement/photo permission."
+    },
+    {
+      "id": "current-dob-permits",
+      "type": "government_building_records",
+      "title": "NYC DOB records for BBL 1004570005 / BIN 1006536",
+      "url": "https://www.nyc.gov/site/buildings/index.page",
+      "rights_class": "D",
+      "value": "Very high: alteration/egress/floor-plan history may solve modern and post-closure geometry.",
+      "next_action": "Enumerate BIS/DOB NOW jobs, identify plan sets around 1934 (historic records), 2006-2009 conversion and later alterations."
+    }
+  ]
+}

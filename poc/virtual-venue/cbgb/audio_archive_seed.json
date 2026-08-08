@@ -1,0 +1,51 @@
+{
+  "purpose": "Seed known archival audio records that can anchor historical events/acoustics. Metadata/reference only until rights are cleared.",
+  "archives": [
+    {
+      "archive": "Peter Dougherty Collection",
+      "institution": "NYU Fales Library and Special Collections",
+      "call_number": "MSS.213",
+      "url": "https://findingaids.library.nyu.edu/fales/mss_213/",
+      "full_finding_aid_url": "https://findingaids.library.nyu.edu/fales/mss_213/all/",
+      "rights_class": "D",
+      "collection_note": "Peter Dougherty attended CBGB and other downtown clubs from the mid-1970s and recorded shows; the collection contains audio/video/ephemera documenting punk and related scenes. This seed is intentionally non-exhaustive; the full finding aid contains additional CBGB records and should be harvested as metadata in the next collector pass.",
+      "cbgb_items": [
+        {"media_id":"213.0216","title":"Television - Jan 17 / Mar 20 1975 live at CBGB","date":"1975-01-17 / 1975-03-20","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0203","title":"Television Feb 15th 1975 CBGB","date":"1975-02-15","duration":"60 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0206","title":"Television / The Mumps live at CBGB","date":"1975-02-22","duration":"60 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0207","title":"Television live at CBGB","date":"1975-02-22","duration":"60 minutes","format":"1/4 inch audiocassette","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0139","title":"Patti Smith late show at CBGB / The Other End","date":"1975-03-22","duration":"90 minutes","format":"audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0205","title":"Television / Patti Smith live","date":"1975-03-22","duration":"60 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0201","title":"Television live June 15th 1975 CBGB","date":"1975-06-15","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0204","title":"Television June 15th 1975 CBGB 1st with Fred Smith / August 8th 1975 RnR fest","date":"1975-06-15","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0189","title":"Talking Heads / Blondie / Ramones live at CBGB","date":"1975-07-18","duration":"86 minutes","format":"audiocassette","event_value":"exceptional","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0190","title":"Ramones July 18 1975 at CBGB / Television at Mother's","date":"1975-07-18","duration":"60 minutes","format":"1/4 inch audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0193","title":"Television August 8 1975 CBGB copy / Bruce Springsteen album","date":"1975-08-08","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0138","title":"Television / Patti Smith CBGB 1975 tape","date":"1975","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"high","spatial_value":"low","acoustic_value":"high","date_precision":"year_only"},
+        {"media_id":"213.0063","title":"Television at CBGB - two sets","date":"1975-12-07","duration":"94 minutes","format":"audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0476","title":"Television Live CBGB","date":"1976-01-23","duration":"75 minutes","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0477","title":"Television Live CBGB","date":"1976-03-11","duration":"93 minutes","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0475","title":"Television Live CBGB","date":"1976-05-26","duration":"88 minutes","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0219","title":"Television live CBGB with Talking Heads","date":"1976-07-30","duration":null,"event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0215","title":"John Cale / Television at CBGB","date":"1976-12-27","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0218","title":"Television live CBGB early show","date":"1976-12-30","duration":"90 minutes","format":"1/4 inch audiocassette","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0422","title":"B-52's June 1 1978 CBGB / Nervus Rex at Max's","date":"1978-06-01","duration":"96 minutes","format":"audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0423","title":"B-52's late set at CBGB / Hurrah","date":"1978-09-23","duration":null,"format":"audiocassette","event_value":"very_high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0042","title":"Suicide Max's Dec 28 1978 / CBGB June 2 1979 second set","date":"1979-06-02","duration":"90 minute tape containing multiple performances","event_value":"high","spatial_value":"low","acoustic_value":"high"},
+        {"media_id":"213.0043","title":"Suicide / CBGB June 2 1979 second set","date":"1979-06-02","duration":"90 minute tape","event_value":"high","spatial_value":"low","acoustic_value":"high"}
+      ],
+      "use_rule": "Do not reproduce audio or train/display it in the commercial twin without rights. Catalog records can seed the event graph and rights-acquisition queue. If licensed, original live recordings could later power a historically synchronized performance mode."
+    }
+  ],
+  "future_audio_hunts": [
+    "complete metadata harvest of every CBGB occurrence in NYU Fales MSS.213",
+    "artist/tour soundboard archives",
+    "former CBGB sound engineer board tapes",
+    "commercial live albums recorded at CBGB",
+    "radio broadcasts and station archives",
+    "NYU Fales related Downtown collections",
+    "label/artist vaults",
+    "fan audience recordings whose rights holders can be identified"
+  ],
+  "acoustic_research_note": "Audio recordings alone cannot establish precise room geometry, but once a metric shell exists, multiple known-source recordings may help tune plausible room reverberation/ambience. Never present an inferred acoustic model as measured without impulse-response or equivalent data."
+}

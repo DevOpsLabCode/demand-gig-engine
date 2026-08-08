@@ -1,0 +1,106 @@
+{
+  "venue": "CBGB & OMFUG",
+  "canonical_historic_address": "315 Bowery, New York, NY 10003",
+  "building_resource": "313-315 Bowery",
+  "parcel_identity": {
+    "bbl": "1004570005",
+    "bin": "1006536",
+    "official_address": "313 BOWERY",
+    "source": "NYC Department of Buildings Local Law 97 Covered Buildings list (CY 2025)",
+    "source_url": "https://home4.nyc.gov/assets/buildings/pdf/cbl_cy25.pdf",
+    "confidence": 0.99
+  },
+  "historic_building": {
+    "original_construction_year": 1878,
+    "major_combination_and_facade_change_year": 1934,
+    "description": "Two 1878 tenement buildings joined/altered into a four-story, four-bay lodging-house resource with a modest yellow/orange-brick Art Deco facade.",
+    "source": "Bowery Historic District National Register report",
+    "source_url": "https://media.villagepreservation.org/wp-content/uploads/2020/03/15123205/The-Bowery-Historic-District-State-and-National-Register-Report.pdf",
+    "confidence": 0.98,
+    "conflict_note": "Modern property aggregators often expose 1920 as a DOB/DOF year-built field. Do not overwrite the National Register's better-documented 1878/1934 historical chronology with that administrative value."
+  },
+  "modern_envelope_secondary": {
+    "lot_area_sq_ft": 8168,
+    "lot_width_ft": 50.92,
+    "lot_depth_ft": 166,
+    "building_area_sq_ft": 32358,
+    "building_width_ft": 51,
+    "building_depth_ft": 162,
+    "stories": 4,
+    "sources": [
+      "https://www.propertyshark.com/mason/Property/5087/313-315-Bowery-New-York-NY-10003/",
+      "https://regwatch.nyc/address/313-bowery-manhattan-ny"
+    ],
+    "confidence": 0.76,
+    "production_use": false,
+    "note": "Useful for sanity checking the full parcel/building shell only. Verify dimensions against NYC PLUTO/DOB survey records before treating as measured geometry. These dimensions describe the whole building/lot, not the historic CBGB tenant footprint."
+  },
+  "retail_envelope_secondary": {
+    "reported_gla_sq_ft": 14700,
+    "reported_bowery_frontage_ft": 40,
+    "source": "Acadia Realty 313-315 Bowery marketing brochure",
+    "source_url": "https://www.acadiarealty.com/images/brochures/313-315Bowery.pdf",
+    "confidence": 0.72,
+    "production_use": false,
+    "note": "This is a retail/lease marketing envelope and must not be interpreted as the historic CBGB room width. It conflicts in scope, not necessarily fact, with whole-parcel dimensions."
+  },
+  "club_history": {
+    "floor": "ground floor",
+    "predecessor": "Palace Bar / Palace Hotel lodging-house bar",
+    "hilly_lease_start": 1969,
+    "cbgb_period": "1973-2006-10-15",
+    "original_features_note": "National Register documentation says Hilly Kristal retained the original bar and many original fixtures.",
+    "preservation_note": "National Register documentation states the club interior was largely preserved after CBGB closed.",
+    "current_tenant_lead": "John Varvatos currently lists a Bowery store at 315 Bowery; seek permission for a non-invasive survey rather than assuming current retail geometry equals 2006 CBGB.",
+    "confidence": 0.98
+  },
+  "historic_tenant_footprint": {
+    "status": "UNSOLVED",
+    "former_poc_width_ft": 25,
+    "former_poc_depth_ft": 75,
+    "former_estimate_disposition": "deprecated_as_geometry_fact",
+    "rule": "Do not use the old 25x75 secondary-description estimate as authoritative geometry. The POC may use a clearly labeled placeholder shell only until dimensions/camera solves support a better footprint.",
+    "confidence": 0.2
+  },
+  "spatial_hypotheses_to_test": [
+    {
+      "claim": "The public room was long and narrow with the stage toward the rear.",
+      "evidence_type": "multiple prose/photo/video references",
+      "confidence": 0.65,
+      "status": "hypothesis"
+    },
+    {
+      "claim": "The bar occupied a longitudinal side of the room and was inherited from the Palace Bar era.",
+      "evidence_type": "National Register plus visual/anecdotal references",
+      "confidence": 0.7,
+      "status": "orientation_not_yet_solved"
+    },
+    {
+      "claim": "Bathroom/stair access was near the stage/rear zone.",
+      "evidence_type": "anecdotal memories plus available imagery",
+      "confidence": 0.4,
+      "status": "unverified"
+    }
+  ],
+  "anchors_to_solve": [
+    "Bowery facade plane and curb plane",
+    "315 storefront/entrance center and width",
+    "313/315 storefront relationship and internal boundary",
+    "public-room clear width at front/middle/rear",
+    "front door to stage distance",
+    "stage center, plane, width, depth and height by historical period",
+    "historic bar start/end, face plane and wall offset",
+    "rear wall and backstage/rear-room transition",
+    "bathroom and stair access",
+    "ceiling height and level changes",
+    "columns, beams and wall offsets",
+    "CB's Gallery / adjacent-space relationship where historically relevant",
+    "camera stations visible repeatedly across 1975-1980 archive footage"
+  ],
+  "camera_solve_strategy": {
+    "description": "Treat repeated archival video/photo viewpoints as bundle-adjustment constraints. Human researchers may annotate homologous fixed features from reference-only media without copying the media into production training.",
+    "target_features": ["door corners", "bar corners", "ceiling fixtures", "stage corners", "wall/column intersections", "bathroom/stair openings", "signage mounting points"],
+    "output": "period-specific camera poses and geometry observations with source IDs, not extracted copyrighted textures"
+  },
+  "confidence_rule": "Any dimension or placement below 0.85 confidence remains an estimate in the public POC. Debug/research mode must expose confidence and supporting evidence IDs."
+}

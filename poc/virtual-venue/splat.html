@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Open Concert — Gaussian Splat Viewer</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.21.1/build/playcanvas.mjs"
+      }
+    }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.8.2/dist/pwc.mjs"></script>
+</head>
+<body>
+  <div class="hud">
+    <section class="brand-panel">
+      <p class="eyebrow">Reality layer</p>
+      <h1>Gaussian-splat viewer</h1>
+      <p>This page proves the photoreal rendering path. The public toy sample is only a placeholder; replace the asset URL with our first venue <code>.sog</code>.</p>
+      <div class="status-row"><span class="status-dot"></span><a class="secondary-link" href="./index.html">Back to virtual club</a></div>
+    </section>
+  </div>
+
+  <pc-app antialias="false" high-resolution="false">
+    <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas/scripts/esm/camera-controls.mjs"></pc-asset>
+    <pc-asset id="venue" src="https://developer.playcanvas.com/assets/toy-cat.sog"></pc-asset>
+    <pc-scene>
+      <pc-entity position="0 0 2.5">
+        <pc-camera clear-color="0.01 0.012 0.018 1"></pc-camera>
+        <pc-scripts><pc-script name="cameraControls"></pc-script></pc-scripts>
+      </pc-entity>
+      <pc-entity position="0 -0.7 0" rotation="0 0 180">
+        <pc-gsplat asset="venue"></pc-gsplat>
+      </pc-entity>
+    </pc-scene>
+  </pc-app>
+</body>
+</html>

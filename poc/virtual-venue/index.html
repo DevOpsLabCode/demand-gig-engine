@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="description" content="Open Concert Network virtual venue proof of concept." />
+  <title>Open Concert — Virtual Venue POC</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.21.1/build/playcanvas.mjs",
+        "@playcanvas/web-components": "https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.8.2/dist/pwc.mjs"
+      }
+    }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.8.2/dist/pwc.mjs"></script>
+</head>
+<body>
+  <div class="hud">
+    <section class="brand-panel">
+      <p class="eyebrow">Open Concert Network / VibesMeet</p>
+      <h1>Virtual Venue POC</h1>
+      <p>Walk the room, jump to a virtual seat, and put a real camera feed on the stage.</p>
+      <div class="status-row">
+        <span class="status-dot"></span>
+        <span id="stage-status">Stage feed ready</span>
+      </div>
+    </section>
+
+    <section class="controls-panel" aria-label="Venue controls">
+      <button id="camera-button" type="button">Use my camera as live stage</button>
+      <label class="file-button">
+        Play a video file on stage
+        <input id="video-file" type="file" accept="video/*" />
+      </label>
+      <a class="secondary-link" href="./splat.html">Open Gaussian-splat viewer</a>
+      <button id="help-button" class="quiet" type="button">Controls</button>
+    </section>
+
+    <section class="seat-panel" aria-label="Virtual seats">
+      <strong>Virtual seats</strong>
+      <div class="seat-grid">
+        <button type="button" data-seat="front-left">Front L</button>
+        <button type="button" data-seat="front-center">Front C</button>
+        <button type="button" data-seat="front-right">Front R</button>
+        <button type="button" data-seat="balcony">Digital balcony</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="help" class="help-card" hidden>
+    <button id="help-close" aria-label="Close controls">×</button>
+    <h2>Walk the venue</h2>
+    <p><kbd>WASD</kbd> or arrow keys move. Click the 3D scene to capture the mouse, then move the mouse to look around. Press <kbd>Esc</kbd> to release it.</p>
+    <p>The room is intentionally simple. The next scan replaces the white geometry with a photoreal Gaussian-splat digital twin.</p>
+  </div>
+
+  <pc-app antialias="false" high-resolution="false">
+    <pc-asset src="./walk-controls.mjs"></pc-asset>
+    <pc-asset src="./live-stage.mjs"></pc-asset>
+
+    <pc-scene>
+      <pc-entity id="camera" name="visitor camera" position="0 1.65 7.5">
+        <pc-camera clear-color="0.015 0.018 0.025 1"></pc-camera>
+        <pc-scripts>
+          <pc-script name="walkControls"></pc-script>
+        </pc-scripts>
+      </pc-entity>
+
+      <pc-entity name="key light" rotation="55 25 0">
+        <pc-light type="directional" intensity="2.1"></pc-light>
+      </pc-entity>
+      <pc-entity name="stage light left" position="-3 4 -6">
+        <pc-light type="point" intensity="5" range="12"></pc-light>
+      </pc-entity>
+      <pc-entity name="stage light right" position="3 4 -6">
+        <pc-light type="point" intensity="5" range="12"></pc-light>
+      </pc-entity>
+
+      <pc-entity name="floor" position="0 -0.08 0" scale="15 0.15 20"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity name="left wall" position="-7.4 2.5 0" scale="0.2 5 20"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity name="right wall" position="7.4 2.5 0" scale="0.2 5 20"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity name="back wall" position="0 2.5 -9.8" scale="15 5 0.2"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity name="ceiling beam" position="0 5 0" scale="15 0.15 20"><pc-render type="box"></pc-render></pc-entity>
+
+      <pc-entity name="stage" position="0 0.35 -7.9" scale="8 0.7 3"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity name="live stage screen" position="0 2.8 -9.55" scale="6.4 3.45 0.08">
+        <pc-render type="box"></pc-render>
+        <pc-scripts><pc-script name="liveStage"></pc-script></pc-scripts>
+      </pc-entity>
+
+      <pc-entity position="-3 0.55 -3.7" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+      <pc-entity position="0 0.55 -3.7" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+      <pc-entity position="3 0.55 -3.7" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+      <pc-entity position="-3 0.55 0" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+      <pc-entity position="0 0.55 0" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+      <pc-entity position="3 0.55 0" scale="1.5 0.15 1.5"><pc-render type="cylinder"></pc-render></pc-entity>
+
+      <pc-entity position="-3 0.48 -2.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity position="0 0.48 -2.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity position="3 0.48 -2.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity position="-3 0.48 1.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity position="0 0.48 1.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+      <pc-entity position="3 0.48 1.4" scale="0.75 0.95 0.75"><pc-render type="box"></pc-render></pc-entity>
+    </pc-scene>
+  </pc-app>
+
+  <script type="module" src="./main.mjs"></script>
+</body>
+</html>

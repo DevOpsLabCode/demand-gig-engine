@@ -1,0 +1,285 @@
+{
+  "subject": {
+    "name": "CBGB & OMFUG",
+    "historic_address": "315 Bowery, New York, NY 10003",
+    "building_resource": "313-315 Bowery",
+    "active_period": "1973-2006",
+    "musicbrainz_place_id": "011e4ebb-590c-4686-8282-d831a96a903c",
+    "poc_goal": "Build a provenance-first, time-versioned historical digital twin from reusable visual assets, public metadata, archival references, verified geometry and permissioned current capture."
+  },
+  "rights_classes": {
+    "A": "Owned or newly captured by the project; preferred for commercial reconstruction.",
+    "B": "Partner supplied with explicit commercial derivative/model-training rights.",
+    "C": "Open/public-domain material; usable only under the exact item license and attribution/share-alike obligations.",
+    "D": "Reference-only evidence. Store metadata, observations and links; do not copy into reconstruction training, textures or redistributed media without permission.",
+    "E": "Restricted/prohibited source for derivative reconstruction. Do not scrape, bypass controls, download contrary to terms, train on, or derive production geometry/textures from it."
+  },
+  "source_groups": [
+    {
+      "id": "nrhp-bowery",
+      "kind": "government_historic_record",
+      "title": "The Bowery Historic District - National Register of Historic Places registration report",
+      "url": "https://media.villagepreservation.org/wp-content/uploads/2020/03/15123205/The-Bowery-Historic-District-State-and-National-Register-Report.pdf",
+      "rights_class": "D",
+      "coverage": ["building history", "tenant chronology", "architectural description", "preservation status", "bibliography"],
+      "observations": [
+        "313-315 Bowery consists of two 1878 tenements joined and substantially altered in 1934 into a four-story four-bay lodging house with a modest Art Deco facade.",
+        "Hilly Kristal began leasing the Palace Bar ground-floor space in 1969, retained the old bar and many existing fixtures, and returned in 1973 under the CBGB name.",
+        "CBGB closed in 2006 and the National Register narrative states the club interior was largely preserved by the post-closure retail tenant.",
+        "The report cites an unpublished July 24, 2006 Historical documentation of 313-315 Bowery letter report by Lisa Kersavage and Marci Reaven as a key underlying source."
+      ],
+      "confidence": "very_high"
+    },
+    {
+      "id": "nyc-ll97-building-list",
+      "kind": "nyc_building_record",
+      "title": "NYC Department of Buildings Local Law 97 Covered Buildings list",
+      "url": "https://home4.nyc.gov/assets/buildings/pdf/cbl_cy25.pdf",
+      "rights_class": "D",
+      "coverage": ["parcel identifier", "building identifier", "official address"],
+      "observations": ["BBL 1004570005", "BIN 1006536", "DOB/DOF address 313 BOWERY, NY 10003"],
+      "confidence": "very_high"
+    },
+    {
+      "id": "commons-cbgb-interior-2009",
+      "kind": "open_image_collection",
+      "title": "Wikimedia Commons - CBGB 2009 interior category",
+      "url": "https://commons.wikimedia.org/wiki/Category:CBGB_2009_(interior)",
+      "rights_class": "C",
+      "coverage": ["post-closure preserved interior", "stage", "walls", "fixtures", "camera geometry"],
+      "observations": ["Category contains 12 photographs; individual file licensing must be checked independently."],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-cbgb-category",
+      "kind": "open_image_collection",
+      "title": "Wikimedia Commons - CBGB category",
+      "url": "https://commons.wikimedia.org/wiki/Category:CBGB",
+      "rights_class": "C",
+      "coverage": ["exterior", "stage", "toilet", "performances", "post-closure", "artifacts"],
+      "observations": ["Category currently exposes 23 files plus the 12-file interior subcategory; licenses vary per file."],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-interior-angie-garrett",
+      "kind": "open_image",
+      "title": "CBGB 2009 Interior.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_2009_Interior.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "creator": "Angie Garrett",
+      "coverage": ["interior spatial evidence", "feature matching"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-stage-angie-garrett",
+      "kind": "open_image",
+      "title": "CBGB 2009 Display stage.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_2009_Display_stage.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "creator": "Angie Garrett",
+      "coverage": ["stage plane", "wall details", "room orientation"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-metropolis-1975",
+      "kind": "open_image",
+      "title": "Metropolis Video at CBGB's 1975.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:Metropolis_Video_at_CBGB%27s_1975.jpg",
+      "rights_class": "C",
+      "license": "CC BY-SA 3.0",
+      "coverage": ["early-room geometry", "camera/production position", "1975 historical state"],
+      "confidence": "high",
+      "note": "Share-alike implications must be kept isolated and reviewed before incorporating derivative pixels into a proprietary production asset."
+    },
+    {
+      "id": "commons-toilet-2005",
+      "kind": "open_image",
+      "title": "CBGB toilet.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_toilet.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "coverage": ["bathroom visual evidence", "late-club state"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-facade-2004",
+      "kind": "open_image",
+      "title": "CBGB Front Facade.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_Front_Facade.jpg",
+      "rights_class": "C",
+      "license": "CC BY-SA 2.5",
+      "coverage": ["2004 facade", "signage", "door/storefront registration"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-facade-2005",
+      "kind": "open_image",
+      "title": "CBGB club facade.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:CBGB_club_facade.jpg",
+      "rights_class": "C",
+      "license": "CC BY-SA 3.0 / GFDL",
+      "creator": "Adam Di Carlo",
+      "coverage": ["pre-closure facade"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-ramones-facade-2005",
+      "kind": "open_image",
+      "title": "RamonesCBGB.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:RamonesCBGB.jpg",
+      "rights_class": "C",
+      "license": "CC BY 2.0",
+      "coverage": ["late-club exterior", "georegistration", "camera heading"],
+      "confidence": "high"
+    },
+    {
+      "id": "commons-ex-cbgb-2008",
+      "kind": "open_image",
+      "title": "ExCBGB.jpg",
+      "url": "https://commons.wikimedia.org/wiki/File:ExCBGB.jpg",
+      "rights_class": "C",
+      "license": "Public domain",
+      "creator": "Sbazzone",
+      "coverage": ["post-closure facade comparison"],
+      "confidence": "high"
+    },
+    {
+      "id": "nyu-nightclubbing-mss305",
+      "kind": "moving_image_archive",
+      "title": "NIGHTCLUBBING Archive by Pat Ivers and Emily Armstrong, MSS.305",
+      "url": "https://findingaids.library.nyu.edu/fales/mss_305/",
+      "rights_class": "D",
+      "coverage": ["1975-1980 club video", "stage", "audience", "backstage", "bathroom ambience", "camera viewpoints", "event chronology"],
+      "observations": [
+        "Collection includes 161 U-matic tapes, 24 Betacam tapes, 26 half-inch reels and 21 MiniDV items, with bulk dates 1975-1980.",
+        "Specific CBGB items include Dead Boys (Oct 1977), multiple May 1978 Blitz Benefit reels, Voidoids/Destroy All Monsters/Only Ones/Revelons (1979), Bad Brains (Dec 1979), Pin-ups and Student Teachers (Feb 1980), among others.",
+        "NYU states copyright/publicity/privacy rights were not transferred; permission to use materials must be secured from the copyright holder."
+      ],
+      "confidence": "very_high"
+    },
+    {
+      "id": "cornell-punk-flyers",
+      "kind": "flyer_archive",
+      "title": "Cornell Punk Flyers Collection",
+      "url": "https://digital.library.cornell.edu/collections/punk-flyers",
+      "rights_class": "D",
+      "coverage": ["show chronology", "reported addresses", "lineups", "signage/graphic context"],
+      "observations": [
+        "Collection contains thousands of flyer records and includes CBGB-specific items.",
+        "Examples include Television and The Stilettos on May 5, 1974 at 315 Bowery and later flyers cataloged with 317 Bowery; address variants must remain observations rather than silently changing canonical geometry.",
+        "Cornell collection materials require item-level copyright assessment and are not commercial reconstruction inputs by default."
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "nypl-cynthia-macadams-1986",
+      "kind": "photo_archive_item",
+      "title": "CBGB - Cynthia MacAdams, 1986 - NYPL Digital Collections",
+      "url": "https://digitalcollections.nypl.org/items/df9fbae0-c6f3-012f-efbe-58d385a7bc34",
+      "rights_class": "D",
+      "coverage": ["1986 visual state"],
+      "observations": ["Copyright protected; keep metadata/observations only unless licensed."],
+      "confidence": "high"
+    },
+    {
+      "id": "village-preservation-image-archive",
+      "kind": "historical_photo_archive",
+      "title": "Village Preservation Historic Image Archive / CBGB and Bowery records",
+      "url": "https://www.villagepreservation.org/",
+      "rights_class": "D",
+      "coverage": ["Bowery streetscape", "side/rear building walls", "1970s-2000s context", "Palace/CBGB history"],
+      "observations": ["Carole Teller and Meredith Marciano collections contain useful Bowery/CBGB views; individual reproduction permissions apply."],
+      "confidence": "high"
+    },
+    {
+      "id": "godlis-archive",
+      "kind": "photographer_archive",
+      "title": "GODLIS photographic archive",
+      "url": "https://www.godlis.com/",
+      "rights_class": "D",
+      "coverage": ["1970s CBGB performers", "audience", "room visual evidence"],
+      "observations": ["High-value licensing/outreach target; photographs are rights-reserved unless separately licensed."],
+      "confidence": "high"
+    },
+    {
+      "id": "mcny-roberta-bayley",
+      "kind": "museum_story_and_photo_reference",
+      "title": "Punk Photographer Roberta Bayley - Museum of the City of New York",
+      "url": "https://www.mcny.org/story/punk-photographer-roberta-bayley",
+      "rights_class": "D",
+      "coverage": ["1970s oral-history/context", "photographic leads"],
+      "confidence": "high"
+    },
+    {
+      "id": "musicbrainz-cbgb",
+      "kind": "open_music_metadata",
+      "title": "MusicBrainz CBGB place",
+      "url": "https://musicbrainz.org/place/011e4ebb-590c-4686-8282-d831a96a903c",
+      "rights_class": "C",
+      "license": "MusicBrainz data licenses vary by dataset; verify exact endpoint/data before redistribution",
+      "coverage": ["place identity", "coordinates", "opened/closed dates", "event links", "artist relationships"],
+      "observations": ["Place coordinates 40.725278, -73.991944; opened 1973; closed 2006-10-15."],
+      "confidence": "medium_high"
+    },
+    {
+      "id": "setlistfm-cbgb",
+      "kind": "community_event_metadata",
+      "title": "setlist.fm CBGB venue records",
+      "url": "https://www.setlist.fm/venue/cbgb-new-york-ny-usa-3bd6c00c.html",
+      "rights_class": "D",
+      "coverage": ["show dates", "lineups", "songs/setlists"],
+      "observations": ["Community-edited chronology; cross-check material events against flyers, press, artist archives or primary records."],
+      "confidence": "medium"
+    },
+    {
+      "id": "official-cbgb-history",
+      "kind": "brand_history",
+      "title": "CBGB History",
+      "url": "https://www.cbgb.com/pages/cbgb-history",
+      "rights_class": "D",
+      "coverage": ["official-brand chronology", "artist/photographer leads"],
+      "confidence": "medium_high"
+    },
+    {
+      "id": "john-varvatos-bowery-current",
+      "kind": "current_tenant_reference",
+      "title": "John Varvatos Bowery store",
+      "url": "https://www.johnvarvatos.com/storedetails?storeID=258008",
+      "rights_class": "D",
+      "coverage": ["current occupancy", "permissioned survey outreach target"],
+      "observations": ["As of the current store listing, John Varvatos still lists a Bowery store at 315 Bowery."],
+      "confidence": "high"
+    },
+    {
+      "id": "kersavage-reaven-2006",
+      "kind": "unpublished_research_report",
+      "title": "Historical documentation of 313-315 Bowery",
+      "date": "2006-07-24",
+      "creators": ["Lisa Kersavage", "Marci Reaven"],
+      "rights_class": "D",
+      "coverage": ["building history", "CBGB history", "potential geometry/fixtures evidence"],
+      "observations": ["Unpublished letter report to the Landmarks Preservation Commission from Municipal Art Society / Place Matters; cited by the National Register report. High-priority acquisition request."],
+      "confidence": "very_high_as_citation_target"
+    }
+  ],
+  "prohibited_or_reference_only_rules": [
+    {
+      "source": "Google Maps / Street View imagery",
+      "rights_class": "E",
+      "rule": "Do not scrape or create production 3D derived assets from Google imagery. Use it only to the extent its terms permit normal viewing/navigation, and replace missing geometry with owned/open/partner capture."
+    },
+    {
+      "source": "Unlicensed social-media, press, commercial photography, documentary video, YouTube/Vimeo uploads",
+      "rights_class": "D",
+      "rule": "Store URLs, dates, creators, observations and human-created geometry notes only until derivative/commercial permission is documented. Do not download or train the production reconstruction from the media merely because it is publicly viewable."
+    },
+    {
+      "source": "CC BY-SA / other share-alike media",
+      "rights_class": "C",
+      "rule": "Keep source-derived outputs isolated and record derivation. Review share-alike obligations before combining their pixels into a proprietary production texture/model. Prefer project-owned, CC BY or public-domain assets where practical."
+    }
+  ],
+  "collection_rule": "Collect every discoverable digital footprint as metadata and evidence, but only copy/reconstruct from media whose rights permit the exact intended use. Every produced geometric or visual assertion must retain evidence IDs, time validity and confidence."
+}
