@@ -7,7 +7,7 @@ import logging
 from email.utils import parseaddr
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, ParamValidationError
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
 
@@ -17,12 +17,9 @@ SES_BACKEND = "config.ses_email_backend.EmailBackend"
 
 
 def _configured_identity() -> str:
-    """Return the SES identity to validate without exposing account information."""
-
     configured = str(getattr(settings, "SES_IDENTITY", "") or "").strip()
     if configured:
         return configured
-
     address = parseaddr(str(getattr(settings, "DEFAULT_FROM_EMAIL", "")))[1].strip()
     if "@" in address:
         return address.rsplit("@", 1)[1].lower()
@@ -34,8 +31,6 @@ def _normalize_address(value: str | None) -> str:
 
 
 def _identity_covers_recipient(identity: str, recipient: str) -> bool:
-    """Return True when a verified SES identity inherently covers the recipient."""
-
     normalized_identity = _normalize_address(identity) or str(identity or "").strip().lower()
     normalized_recipient = _normalize_address(recipient)
     if not normalized_identity or not normalized_recipient:
@@ -60,11 +55,17 @@ def _client_error_message(exc: Exception) -> str:
 
 
 def safe_ses_send_error(exc: Exception) -> tuple[str, str]:
-    """Translate provider failures into safe, actionable UI text without leaking AWS IDs."""
+    """Translate provider/pipeline failures into safe, actionable UI text."""
 
     code = _client_error_code(exc)
     message = _client_error_message(exc).lower()
     normalized = code.lower()
+
+    if isinstance(exc, NoCredentialsError) or "nocredentials" in normalized:
+        return (
+            "aws_credentials_unavailable",
+            "Open Concert could not obtain AWS credentials for the email service. Check the ECS task role attachment and retry.",
+        )
 
     if "accessdenied" in normalized or "unauthorized" in normalized:
         return (
@@ -79,10 +80,10 @@ def safe_ses_send_error(exc: Exception) -> tuple[str, str]:
         )
 
     if "messagerejected" in normalized or "message rejected" in message:
-        if "not verified" in message or "identity" in message and "verified" in message:
+        if "not verified" in message or ("identity" in message and "verified" in message):
             return (
                 "identity_not_verified",
-                "Amazon SES rejected the verification email because a required sender or recipient identity is not verified. If this AWS account is still in the SES sandbox, ordinary public recipient addresses must also be verified or the account must be moved to production access.",
+                "Amazon SES rejected this destination because a required identity is not verified. While SES is in sandbox, the recipient email/domain must be verified or the account must receive production access.",
             )
         if "suppression" in message or "suppressed" in message:
             return (
@@ -91,7 +92,19 @@ def safe_ses_send_error(exc: Exception) -> tuple[str, str]:
             )
         return (
             "message_rejected",
-            "Amazon SES rejected the verification email. Check the sender identity, SES account access, and recipient suppression status.",
+            "Amazon SES rejected the verification message. Check SES account sending status, sender identity, recipient verification, and suppression status.",
+        )
+
+    if "invalidparametervalue" in normalized or isinstance(exc, ParamValidationError):
+        return (
+            "invalid_email_parameters",
+            "The email request was rejected before delivery because its sender or recipient envelope was invalid. Open Concert now normalizes these addresses before calling SES; redeploy and retry.",
+        )
+
+    if "configurationnotfound" in normalized or "configurationsetdoesnotexist" in normalized:
+        return (
+            "ses_configuration_missing",
+            "Amazon SES rejected the message because a referenced SES configuration is missing in this AWS region.",
         )
 
     if "throttl" in normalized or "toomanyrequests" in normalized:
@@ -103,18 +116,29 @@ def safe_ses_send_error(exc: Exception) -> tuple[str, str]:
     if isinstance(exc, BotoCoreError):
         return (
             "ses_unavailable",
-            "Amazon SES could not be reached from the application. Please retry shortly.",
+            "Amazon SES could not be reached from the application. Check AWS region/network credentials and retry.",
         )
 
+    if isinstance(exc, ValueError):
+        return (
+            "verification_message_invalid",
+            "Open Concert could not construct a valid verification email. The message envelope or verification address is invalid.",
+        )
+
+    if isinstance(exc, RuntimeError):
+        return (
+            "email_backend_no_delivery",
+            "The configured email backend did not accept the verification message. Check the backend task logs for the exact provider response.",
+        )
+
+    logger.error("Unhandled verification email exception type=%s", exc.__class__.__name__)
     return (
-        "ses_send_failed",
-        "Amazon SES could not accept the verification email. Check the Open Concert sender identity and SES account status.",
+        "verification_pipeline_failed",
+        "The verification-email pipeline failed before Amazon SES confirmed delivery. Check the backend task log entry for the exact exception type.",
     )
 
 
 def _diagnostic_error(operation: str, exc: Exception) -> tuple[str, str]:
-    """Return a safe diagnostic reason while preserving the real AWS error only in logs."""
-
     code = _client_error_code(exc)
     normalized = code.lower()
     logger.warning("SES diagnostic failed operation=%s code=%s", operation, code)
@@ -186,7 +210,6 @@ def ses_delivery_status(recipient: str | None = None) -> dict[str, object]:
 
     account: dict[str, object] | None = None
     identity_result: dict[str, object] | None = None
-    recipient_result: dict[str, object] | None = None
     diagnostic_reasons: list[tuple[str, str]] = []
 
     try:
@@ -263,7 +286,7 @@ class EmailBackend(BaseEmailBackend):
         self.region_name = getattr(settings, "AWS_REGION", None) or "us-east-1"
 
     def send_messages(self, email_messages):
-        """Submit messages directly to SES; read-only diagnostics must never gate delivery."""
+        """Submit messages directly to SES using normalized envelope addresses."""
 
         if not email_messages:
             return 0
@@ -271,20 +294,27 @@ class EmailBackend(BaseEmailBackend):
         client = boto3.client("ses", region_name=self.region_name)
         sent = 0
         for message in email_messages:
-            recipients = message.recipients()
+            recipients = [_normalize_address(value) for value in message.recipients()]
+            recipients = [value for value in recipients if value]
             if not recipients:
                 continue
+
+            source = _normalize_address(message.from_email or settings.DEFAULT_FROM_EMAIL)
+            if not source:
+                raise ValueError("DEFAULT_FROM_EMAIL does not contain a valid email address.")
+
             try:
                 raw_message = message.message().as_bytes(linesep="\r\n")
                 response = client.send_raw_email(
-                    Source=message.from_email or settings.DEFAULT_FROM_EMAIL,
+                    Source=source,
                     Destinations=recipients,
                     RawMessage={"Data": raw_message},
                 )
                 message_id = str(response.get("MessageId") or "")
                 logger.info(
-                    "SES accepted email recipients=%s subject=%s message_id=%s",
-                    recipients,
+                    "SES accepted email source_domain=%s recipient_count=%s subject=%s message_id=%s",
+                    source.rsplit("@", 1)[-1],
+                    len(recipients),
                     message.subject,
                     message_id,
                 )
@@ -292,11 +322,13 @@ class EmailBackend(BaseEmailBackend):
             except Exception as exc:
                 reason, detail = safe_ses_send_error(exc)
                 logger.exception(
-                    "SES email delivery failed recipients=%s subject=%s reason=%s detail=%s",
-                    recipients,
+                    "SES email delivery failed source_domain=%s recipient_count=%s subject=%s reason=%s detail=%s provider_code=%s",
+                    source.rsplit("@", 1)[-1],
+                    len(recipients),
                     message.subject,
                     reason,
                     detail,
+                    _client_error_code(exc),
                 )
                 if not self.fail_silently:
                     raise
