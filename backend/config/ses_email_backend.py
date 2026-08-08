@@ -29,6 +29,22 @@ def _configured_identity() -> str:
     return address.lower()
 
 
+def _normalize_address(value: str | None) -> str:
+    return parseaddr(str(value or ""))[1].strip().lower()
+
+
+def _identity_covers_recipient(identity: str, recipient: str) -> bool:
+    """Return True when a verified SES identity inherently covers the recipient."""
+
+    normalized_identity = _normalize_address(identity) or str(identity or "").strip().lower()
+    normalized_recipient = _normalize_address(recipient)
+    if not normalized_identity or not normalized_recipient:
+        return False
+    if "@" in normalized_identity:
+        return normalized_identity == normalized_recipient
+    return normalized_recipient.endswith(f"@{normalized_identity}")
+
+
 def _client_error_code(exc: Exception) -> str:
     if isinstance(exc, ClientError):
         return str(exc.response.get("Error", {}).get("Code") or "ClientError")
@@ -119,8 +135,8 @@ def _diagnostic_error(operation: str, exc: Exception) -> tuple[str, str]:
     )
 
 
-def ses_delivery_status() -> dict[str, object]:
-    """Return safe SES readiness diagnostics; diagnostic failure never prevents a direct send."""
+def ses_delivery_status(recipient: str | None = None) -> dict[str, object]:
+    """Return safe SES readiness diagnostics for the actual recipient when known."""
 
     backend = str(getattr(settings, "EMAIL_BACKEND", ""))
     if backend != SES_BACKEND:
@@ -131,12 +147,14 @@ def ses_delivery_status() -> dict[str, object]:
             "sending_enabled": True,
             "production_access": True,
             "sender_verified": True,
+            "recipient_verified": True,
             "reason": "non_ses_backend",
             "detail": "Email delivery is using the configured non-SES backend.",
         }
 
     region_name = str(getattr(settings, "AWS_REGION", "") or "us-east-1")
     identity = _configured_identity()
+    normalized_recipient = _normalize_address(recipient)
     if not identity:
         return {
             "provider": "ses",
@@ -145,6 +163,7 @@ def ses_delivery_status() -> dict[str, object]:
             "sending_enabled": False,
             "production_access": False,
             "sender_verified": False,
+            "recipient_verified": False,
             "reason": "sender_not_configured",
             "detail": "Verification email is unavailable because the sender identity is not configured.",
         }
@@ -160,12 +179,14 @@ def ses_delivery_status() -> dict[str, object]:
             "sending_enabled": False,
             "production_access": False,
             "sender_verified": False,
+            "recipient_verified": False,
             "reason": reason,
             "detail": detail,
         }
 
     account: dict[str, object] | None = None
     identity_result: dict[str, object] | None = None
+    recipient_result: dict[str, object] | None = None
     diagnostic_reasons: list[tuple[str, str]] = []
 
     try:
@@ -180,12 +201,22 @@ def ses_delivery_status() -> dict[str, object]:
 
     sending_enabled = bool(account.get("SendingEnabled")) if account is not None else False
     production_access = bool(account.get("ProductionAccessEnabled")) if account is not None else False
-    sender_verified = (
-        bool(identity_result.get("VerifiedForSendingStatus"))
-        if identity_result is not None
-        else False
-    )
+    sender_verified = bool(identity_result.get("VerifiedForSendingStatus")) if identity_result is not None else False
     diagnostics_complete = account is not None and identity_result is not None
+
+    recipient_verified = False
+    if normalized_recipient and sender_verified and _identity_covers_recipient(identity, normalized_recipient):
+        recipient_verified = True
+    elif normalized_recipient and not production_access:
+        try:
+            recipient_result = client.get_email_identity(EmailIdentity=normalized_recipient)
+            recipient_verified = bool(recipient_result.get("VerifiedForSendingStatus"))
+        except (BotoCoreError, ClientError) as exc:
+            logger.info(
+                "SES recipient identity diagnostic unavailable recipient_domain=%s code=%s",
+                normalized_recipient.rsplit("@", 1)[-1] if "@" in normalized_recipient else "unknown",
+                _client_error_code(exc),
+            )
 
     if diagnostics_complete:
         if not sender_verified:
@@ -194,13 +225,16 @@ def ses_delivery_status() -> dict[str, object]:
         elif not sending_enabled:
             reason = "sending_disabled"
             detail = "Amazon SES sending is disabled for this AWS account."
-        elif not production_access:
-            reason = "ses_sandbox"
-            detail = "Amazon SES is still in sandbox mode. Public verification emails require SES production access or a verified recipient address."
-        else:
+        elif production_access:
             reason = "ready"
             detail = "Amazon SES diagnostics are healthy. Verification email can be submitted for delivery."
-        ready = sending_enabled and production_access and sender_verified
+        elif normalized_recipient and recipient_verified:
+            reason = "ready_sandbox_verified_recipient"
+            detail = "Amazon SES is in sandbox mode, but this email address is covered by a verified SES identity and can receive the verification message."
+        else:
+            reason = "ses_sandbox"
+            detail = "Amazon SES is still in sandbox mode. This recipient must be verified in SES or the account must have production access."
+        ready = sending_enabled and sender_verified and (production_access or recipient_verified)
     else:
         reason, detail = diagnostic_reasons[0] if diagnostic_reasons else (
             "diagnostic_unavailable",
@@ -215,6 +249,7 @@ def ses_delivery_status() -> dict[str, object]:
         "sending_enabled": sending_enabled,
         "production_access": production_access,
         "sender_verified": sender_verified,
+        "recipient_verified": recipient_verified,
         "reason": reason,
         "detail": detail,
     }
