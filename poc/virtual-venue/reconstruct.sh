@@ -38,7 +38,7 @@ echo "[2/4] Training Gaussian splat..."
 ns-train splatfacto \
   --data "$DATA_DIR" \
   --output-dir "$TRAIN_DIR" \
-  --pipeline.model.use-scale-regularization True
+  --pipeline.model.use_scale_regularization True
 
 CONFIG="$(find "$TRAIN_DIR" -type f -name config.yml -print0 | xargs -0 ls -1t | head -n 1)"
 if [[ -z "$CONFIG" ]]; then
