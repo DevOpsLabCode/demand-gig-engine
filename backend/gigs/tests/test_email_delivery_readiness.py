@@ -28,7 +28,7 @@ def test_non_ses_backend_is_ready_without_aws_calls():
     DEFAULT_FROM_EMAIL="Open Concert <no-reply@devopslabinc.com>",
     SES_IDENTITY="devopslabinc.com",
 )
-def test_ses_sandbox_is_not_ready():
+def test_ses_sandbox_is_not_ready_for_unknown_recipient():
     sesv2 = Mock()
     sesv2.get_account.return_value = {
         "SendingEnabled": True,
@@ -43,8 +43,61 @@ def test_ses_sandbox_is_not_ready():
     assert result["diagnostics_complete"] is True
     assert result["production_access"] is False
     assert result["sender_verified"] is True
+    assert result["recipient_verified"] is False
     assert result["reason"] == "ses_sandbox"
     assert "sandbox" in result["detail"].lower()
+
+
+@override_settings(
+    EMAIL_BACKEND=SES_BACKEND,
+    AWS_REGION="us-east-1",
+    DEFAULT_FROM_EMAIL="Open Concert <no-reply@devopslabinc.com>",
+    SES_IDENTITY="devopslabinc.com",
+)
+def test_ses_sandbox_allows_recipient_covered_by_verified_domain():
+    sesv2 = Mock()
+    sesv2.get_account.return_value = {
+        "SendingEnabled": True,
+        "ProductionAccessEnabled": False,
+    }
+    sesv2.get_email_identity.return_value = {"VerifiedForSendingStatus": True}
+
+    with patch("config.ses_email_backend.boto3.client", return_value=sesv2):
+        result = ses_delivery_status("hello@devopslabinc.com")
+
+    assert result["ready"] is True
+    assert result["production_access"] is False
+    assert result["sender_verified"] is True
+    assert result["recipient_verified"] is True
+    assert result["reason"] == "ready_sandbox_verified_recipient"
+    assert "can receive" in result["detail"].lower()
+    assert sesv2.get_email_identity.call_count == 1
+
+
+@override_settings(
+    EMAIL_BACKEND=SES_BACKEND,
+    AWS_REGION="us-east-1",
+    DEFAULT_FROM_EMAIL="Open Concert <no-reply@devopslabinc.com>",
+    SES_IDENTITY="devopslabinc.com",
+)
+def test_ses_sandbox_checks_external_recipient_identity():
+    sesv2 = Mock()
+    sesv2.get_account.return_value = {
+        "SendingEnabled": True,
+        "ProductionAccessEnabled": False,
+    }
+    sesv2.get_email_identity.side_effect = [
+        {"VerifiedForSendingStatus": True},
+        {"VerifiedForSendingStatus": True},
+    ]
+
+    with patch("config.ses_email_backend.boto3.client", return_value=sesv2):
+        result = ses_delivery_status("verified@example.com")
+
+    assert result["ready"] is True
+    assert result["recipient_verified"] is True
+    assert result["reason"] == "ready_sandbox_verified_recipient"
+    assert sesv2.get_email_identity.call_count == 2
 
 
 @override_settings(
@@ -116,11 +169,12 @@ def test_resend_attempts_real_send_when_diagnostics_are_unavailable(db):
         "sending_enabled": False,
         "production_access": False,
         "sender_verified": True,
+        "recipient_verified": False,
         "reason": "account_diagnostic_denied",
         "detail": "SES diagnostic access is limited. Direct delivery will still be attempted.",
     }
 
-    with patch("gigs.email_views.ses_delivery_status", return_value=delivery), patch.object(
+    with patch("gigs.email_views.ses_delivery_status", return_value=delivery) as diagnostic, patch.object(
         EmailAddress,
         "send_confirmation",
     ) as send_confirmation:
@@ -130,6 +184,7 @@ def test_resend_attempts_real_send_when_diagnostics_are_unavailable(db):
     assert response.data["email_verified"] is False
     assert response.data["delivery"]["accepted"] is True
     assert response.data["delivery"]["reason"] == "accepted"
+    diagnostic.assert_called_once_with("delivery@example.com")
     send_confirmation.assert_called_once()
 
 
@@ -142,6 +197,7 @@ def test_resend_returns_503_only_when_actual_ses_send_is_rejected(db):
         "sending_enabled": True,
         "production_access": False,
         "sender_verified": True,
+        "recipient_verified": False,
         "reason": "ses_sandbox",
         "detail": "Amazon SES is still in sandbox mode.",
     }
@@ -178,6 +234,7 @@ def test_resend_returns_202_after_provider_accepts_message(db):
         "sending_enabled": True,
         "production_access": True,
         "sender_verified": True,
+        "recipient_verified": True,
         "reason": "ready",
         "detail": "Amazon SES diagnostics are healthy.",
     }
@@ -196,7 +253,7 @@ def test_resend_returns_202_after_provider_accepts_message(db):
     assert EmailAddress.objects.get(user=user).verified is False
 
 
-def test_email_delivery_status_endpoint_is_safe(db):
+def test_email_delivery_status_endpoint_uses_signed_in_recipient_and_is_safe(db):
     client, _user = _signed_in_client("status@example.com")
     delivery = {
         "provider": "ses",
@@ -205,19 +262,22 @@ def test_email_delivery_status_endpoint_is_safe(db):
         "sending_enabled": False,
         "production_access": False,
         "sender_verified": False,
+        "recipient_verified": False,
         "reason": "identity_diagnostic_denied",
         "detail": "SES diagnostic access is limited for this task role.",
         "code": "AccessDeniedException",
     }
 
-    with patch("gigs.email_views.ses_delivery_status", return_value=delivery):
+    with patch("gigs.email_views.ses_delivery_status", return_value=delivery) as diagnostic:
         response = client.get("/api/auth/email/status/")
 
     assert response.status_code == 200
     assert response.data["ready"] is False
     assert response.data["reason"] == "identity_diagnostic_denied"
     assert response.data["detail"] == delivery["detail"]
+    assert response.data["recipient_verified"] is False
     assert "code" not in response.data
+    diagnostic.assert_called_once_with("status@example.com")
 
 
 def test_safe_ses_send_error_classifies_access_denied():
