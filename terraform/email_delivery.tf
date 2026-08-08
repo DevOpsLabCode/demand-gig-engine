@@ -55,9 +55,9 @@ resource "terraform_data" "request_ses_production_access" {
     command = "bash ${path.module}/../scripts/request_ses_production_access.sh"
 
     environment = {
-      AWS_REGION          = var.aws_region
-      SES_WEBSITE_URL     = "https://devopslabinc.com"
-      SES_CONTACT_EMAIL   = "hello@devopslabinc.com"
+      AWS_REGION        = var.aws_region
+      SES_WEBSITE_URL   = "https://devopslabinc.com"
+      SES_CONTACT_EMAIL = "hello@devopslabinc.com"
     }
   }
 }
