@@ -31,6 +31,7 @@ hosted_zone_id            = ""
 alarm_email               = ""
 ses_identity_arn          = null
 ses_sender_identity       = "devopslabinc.com"
+request_ses_production_access = true
 tags = {
   Owner      = "DevOpsLabCode"
   CostCenter = "DemandGig"
