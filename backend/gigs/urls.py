@@ -24,6 +24,7 @@ from .campaign_preference_views import (
     campaign_price_options,
     campaign_supporter_preference,
 )
+from .email_verification import verify_email_token_view
 from .email_views import email_delivery_status_view, resend_email_verification
 from .profile_views import (
     discovery_profile,
@@ -72,6 +73,7 @@ urlpatterns = [
     path("auth/profile/media/<uuid:media_id>/", profile_media_detail, name="auth-profile-media-detail"),
     path("auth/email/status/", email_delivery_status_view, name="auth-email-delivery-status"),
     path("auth/email/resend-verification/", resend_email_verification, name="auth-email-resend-verification"),
+    path("auth/email/verify/<str:token>/", verify_email_token_view, name="auth-email-verify-token"),
     path("auth/roles/", role_collection, name="auth-roles"),
     path("auth/roles/<int:assignment_id>/verify/", verify_role, name="auth-role-verify"),
     path("auth/roles/<int:assignment_id>/reject/", reject_role, name="auth-role-reject"),
