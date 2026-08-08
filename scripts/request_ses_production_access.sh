@@ -31,8 +31,10 @@ case "$review_status" in
     exit 0
     ;;
   DENIED)
-    echo "SES production access was denied previously. Review the AWS Support case before submitting another request."
-    exit 3
+    echo "WARNING: SES production access was denied previously in $REGION."
+    echo "WARNING: Terraform will continue; review the AWS Support case before requesting production access again."
+    echo "WARNING: While SES remains in sandbox, verification email can only be sent to SES-verified recipient addresses."
+    exit 0
     ;;
   FAILED)
     echo "Previous SES production-access request failed; submitting a fresh request."
