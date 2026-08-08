@@ -1,0 +1,188 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Build 14.1 atlas art layer. Restores visible watercolor, ink, and fantasy detail inside the native SVG shapes.
+ */
+
+.phase2-app.build13-app .atlas-v6-shell {
+  background:
+    radial-gradient(circle at 15% 16%, rgba(198, 159, 255, .20), transparent 25%),
+    radial-gradient(circle at 78% 12%, rgba(255, 218, 145, .28), transparent 22%),
+    radial-gradient(circle at 87% 72%, rgba(225, 180, 236, .18), transparent 24%),
+    linear-gradient(135deg, #fffaf6 0%, #f7ecff 40%, #efe9ff 72%, #fff2e5 100%) !important;
+}
+
+.phase2-app.build13-app .atlas-v7-sky-washes {
+  mix-blend-mode: multiply;
+  opacity: .86;
+}
+
+.phase2-app.build13-app .atlas-v7-paint-blooms {
+  mix-blend-mode: soft-light;
+  opacity: .98;
+}
+
+.phase2-app.build13-app .atlas-v7-grain {
+  mix-blend-mode: soft-light;
+  opacity: .34 !important;
+}
+
+.phase2-app.build13-app .atlas-v7-fibers {
+  mix-blend-mode: screen;
+  opacity: .62;
+}
+
+.phase2-app.build13-app .atlas-v7-brush-strokes path {
+  fill: none;
+  stroke: rgba(255, 233, 249, .22);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: blur(.35px);
+}
+
+.phase2-app.build13-app .atlas-v7-brush-strokes path:nth-child(2n) {
+  stroke: rgba(80, 69, 165, .16);
+  stroke-width: 3.1;
+}
+
+.phase2-app.build13-app .atlas-v6-land {
+  stroke: rgba(255, 243, 255, .90) !important;
+  stroke-width: .65 !important;
+  filter: drop-shadow(0 16px 26px rgba(56, 42, 117, .18));
+}
+
+.phase2-app.build13-app .atlas-v6-land-wash {
+  opacity: .72 !important;
+  mix-blend-mode: screen !important;
+}
+
+.phase2-app.build13-app .atlas-v6-state-lines path {
+  stroke: rgba(255, 255, 255, .22) !important;
+  stroke-width: .28 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-contours path {
+  stroke: rgba(235, 215, 255, .25) !important;
+  stroke-width: .28 !important;
+  stroke-dasharray: 1.1 1.55 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-spark {
+  fill: #ffe7a8 !important;
+  opacity: .96 !important;
+  filter: drop-shadow(0 0 1.2px rgba(255, 216, 119, .92));
+}
+
+.phase2-app.build13-app .atlas-v6-route {
+  stroke-width: .46 !important;
+  opacity: .62 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-route.is-live {
+  stroke-width: .62 !important;
+  opacity: .94 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-route.is-selected {
+  stroke-width: .78 !important;
+  opacity: 1 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-rock {
+  fill: #61527e !important;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-watercolor {
+  fill: rgba(188, 153, 222, .28) !important;
+  mix-blend-mode: screen;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-ridges {
+  fill: none !important;
+  stroke: rgba(230, 210, 247, .30) !important;
+  stroke-width: .34 !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-grass {
+  fill: #9181a6 !important;
+  opacity: .94 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-city,
+.phase2-app.build13-app .atlas-v6-island .island-tree {
+  stroke: rgba(81, 67, 117, .72) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-body {
+  fill: url(#guitarLiquid) !important;
+  stroke: rgba(255, 221, 157, .88) !important;
+  stroke-width: .44 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-watercolor {
+  mix-blend-mode: screen;
+  opacity: .82;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-inner {
+  fill: rgba(54, 40, 121, .38) !important;
+  stroke: rgba(255, 217, 143, .55) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-inner.accent {
+  fill: rgba(210, 128, 184, .34) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-head {
+  fill: #4b38a4 !important;
+  stroke: rgba(255, 210, 122, .74) !important;
+  stroke-width: .30 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-swirl {
+  fill: none !important;
+  stroke: rgba(229, 199, 255, .78) !important;
+  stroke-width: .38 !important;
+  stroke-linecap: round !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-swirl.gold {
+  stroke: rgba(255, 195, 88, .88) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-drip {
+  fill: #c57db3 !important;
+  stroke: rgba(255, 193, 101, .58) !important;
+  stroke-width: .24 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-aura {
+  width: 34px !important;
+  height: 34px !important;
+  background: radial-gradient(circle, rgba(239, 214, 255, .78) 0%, rgba(157, 95, 255, .34) 44%, transparent 72%) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-core {
+  width: 10px !important;
+  height: 10px !important;
+  background: #a25cff !important;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.78), 0 0 0 5px rgba(163, 92, 255, .14), 0 0 22px rgba(163, 92, 255, .86) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city[data-prominent="true"] .atlas-v6-city-label {
+  background: linear-gradient(135deg, rgba(70, 48, 144, .95), rgba(102, 60, 176, .91)) !important;
+  border-color: rgba(255,255,255,.34) !important;
+  box-shadow: 0 9px 26px rgba(55, 35, 112, .22), 0 0 24px rgba(145, 89, 255, .22) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-title strong {
+  text-shadow: 0 2px 14px rgba(255,255,255,.48);
+}
+
+@media (max-width: 760px) {
+  .phase2-app.build13-app .atlas-v7-brush-strokes path {
+    stroke-width: 1.4;
+  }
+}
