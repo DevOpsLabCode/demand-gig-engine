@@ -82,13 +82,13 @@ Consult current Nerfstudio installation documentation for the GPU environment ra
 Video:
 
 ```bash
-./reconstruct.sh ./capture/venue-walkthrough.mp4 ./work/venue-001
+bash ./reconstruct.sh ./capture/venue-walkthrough.mp4 ./work/venue-001
 ```
 
 Still-image directory:
 
 ```bash
-./reconstruct.sh ./capture/photos ./work/venue-001
+bash ./reconstruct.sh ./capture/photos ./work/venue-001
 ```
 
 The last step produces:
