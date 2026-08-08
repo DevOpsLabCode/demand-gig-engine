@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from config.ses_email_backend import safe_ses_send_error, ses_delivery_status
 
 from .account_trust import email_is_verified
+from .email_verification import send_verification_email
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def email_delivery_status_view(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def resend_email_verification(request):
-    """Attempt the real confirmation send; SES diagnostics are informative, not a delivery gate."""
+    """Attempt the real confirmation send; diagnostics explain state but never gate the send."""
 
     if email_is_verified(request.user):
         return Response(
@@ -59,16 +60,13 @@ def resend_email_verification(request):
             }
         )
 
-    email = str(request.user.email or "").strip()
+    email = str(request.user.email or "").strip().lower()
     if not email:
         return Response(
             {"detail": "Add an email address before requesting verification."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Diagnostics now evaluate the actual destination address. In the SES sandbox,
-    # a recipient covered by a verified email/domain identity is still deliverable.
-    # The direct provider send below remains the final source of truth.
     diagnostics = _safe_delivery(ses_delivery_status(email))
 
     address, _ = EmailAddress.objects.get_or_create(
@@ -81,13 +79,14 @@ def resend_email_verification(request):
         address.save(update_fields=["primary"])
 
     try:
-        address.send_confirmation(request, signup=False)
+        send_verification_email(request, address, signup=False)
     except Exception as exc:
         reason, detail = safe_ses_send_error(exc)
         logger.exception(
-            "Unable to resend email verification user_id=%s reason=%s",
+            "Unable to resend email verification user_id=%s reason=%s error_type=%s",
             request.user.pk,
             reason,
+            exc.__class__.__name__,
         )
         return Response(
             {
