@@ -21,6 +21,9 @@ REQUIRED_FILES = {
     "CAPTURE_GAPS.md",
     "FOOTPRINT_RESEARCH.md",
     "EVIDENCE_GRAPH.md",
+    "AUTOMATION.md",
+    "automation_policy.json",
+    "run_pipeline.py",
     "collect_open_assets.py",
     "collect_public_metadata.py",
     "collect_nyu_fales_metadata.py",
@@ -70,6 +73,7 @@ def main() -> int:
     reference = load_json("reference_catalog_seed.json")
     audio = load_json("audio_archive_seed.json")
     research_leads = load_json("research_leads.json")
+    automation = load_json("automation_policy.json")
 
     rights_classes = set(evidence.get("rights_classes", {}))
     if rights_classes != VALID_RIGHTS:
@@ -169,6 +173,24 @@ def main() -> int:
     if missing_sources:
         fail(errors, f"critical source groups are missing: {', '.join(missing_sources)}")
 
+    rights_policy = automation.get("rights", {})
+    publication_policy = automation.get("publication", {})
+    automation_policy = automation.get("automation", {})
+    if set(rights_policy.get("usable_classes", [])) != {"A", "B", "C"}:
+        fail(errors, "automation policy must allow only A/B/C as reconstruction inputs")
+    if rights_policy.get("ambiguous_license_default") != "D":
+        fail(errors, "ambiguous licenses must default to D/reference-only")
+    if rights_policy.get("require_rights_approval_before_reconstruction") is not True:
+        fail(errors, "rights approval gate must be required before reconstruction")
+    if rights_policy.get("require_publish_approval") is not True:
+        fail(errors, "publication approval gate must be required")
+    if publication_policy.get("main_branch_merge") != "forbidden_without_explicit_manual_approval":
+        fail(errors, "automation policy must forbid automatic main-branch merge")
+    if automation_policy.get("auto_resume_after_gate_approval") is not True:
+        fail(errors, "pipeline should automatically resume after explicit gate approval")
+    if automation_policy.get("idempotent_jobs_required") is not True:
+        fail(errors, "automated jobs must be idempotent/retry-safe")
+
     if errors:
         print("CBGB POC validation FAILED")
         for error in errors:
@@ -179,7 +201,7 @@ def main() -> int:
         "CBGB POC validation passed: "
         f"{len(source_groups)} source groups, {len(timeline)} timeline rows, "
         f"{len(leads)} research leads, {sum(len(a.get('cbgb_items', [])) for a in archives)} audio references; "
-        "JSON/CSV provenance checks OK."
+        "automation guardrails and provenance checks OK."
     )
     return 0
 
