@@ -1,0 +1,41 @@
+{
+  "venue": "CBGB & OMFUG",
+  "address": "315 Bowery, New York, NY 10003",
+  "building": {
+    "historic_resource": "313-315 Bowery",
+    "construction_year": 1878,
+    "major_facade_change_year": 1934,
+    "description": "Two 1878 tenement buildings joined to create a four-story, four-bay lodging house; 1934 yellow-brick modest Art Deco facade.",
+    "source": "Bowery Historic District National Register report, Section 7 p.62",
+    "confidence": 0.98
+  },
+  "club": {
+    "floor": "ground floor",
+    "predecessor": "Palace Bar / Palace Hotel lodging house",
+    "cbgb_period": "1973-2006",
+    "original_features_note": "Hilly Kristal retained the original bar and many original fixtures when operating the space.",
+    "preservation_note": "National Register documentation states the club interior was largely preserved by the post-closure commercial tenant.",
+    "source": "Bowery Historic District National Register report, Section 8 pp.74-75",
+    "confidence": 0.98
+  },
+  "poc_room_estimate": {
+    "width_ft": 25,
+    "depth_ft": 75,
+    "source": "Secondary published descriptions of the narrow shotgun-style storefront; treat as an estimate until verified by survey, plans or a current capture.",
+    "confidence": 0.55,
+    "production_use": false
+  },
+  "anchors_to_solve": [
+    "front-door center",
+    "historic bar start/end",
+    "stage center and stage plane",
+    "rear wall",
+    "bathroom/stair access",
+    "ceiling height",
+    "room width at front/middle/rear",
+    "column/wall offsets",
+    "313/315 internal boundary",
+    "street curb and facade plane"
+  ],
+  "rule": "Any dimension below 0.85 confidence remains an estimated POC value and must not be presented as historically exact."
+}
