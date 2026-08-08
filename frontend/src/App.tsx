@@ -64,6 +64,11 @@ function normalizedCity(value: string) {
   return value.trim().toLowerCase();
 }
 
+function accountLabel(user: AuthUser | null) {
+  if (!user) return "Sign in";
+  return user.display_name?.trim() || user.first_name?.trim() || user.email?.trim() || user.username?.trim() || "Account";
+}
+
 export default function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [authState, setAuthState] = useState<AuthState>("loading");
@@ -227,7 +232,7 @@ export default function App() {
                 {authUser?.avatar_url ? <img src={authUser.avatar_url} alt="" /> : <UserRound />}
               </span>
               <span className="profile-tab-copy">
-                <strong>{authUser?.display_name || "Sign in"}</strong>
+                <strong>{accountLabel(authUser)}</strong>
                 <small>{authUser ? (authUser.email_verified ? "Verified member" : "Verify email") : "Profile"}</small>
               </span>
               {authUser?.email_verified && <CheckCircle2 className="profile-verified-icon" size={16} />}
