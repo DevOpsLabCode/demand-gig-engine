@@ -1,0 +1,372 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Build 13.2 acceptance fixes for viewport safety, map legibility, and one consistent professional visual language.
+ */
+
+html,
+body,
+#root,
+.phase2-app.build13-app {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.phase2-app.build13-app {
+  --oc-accent: #6d4aff;
+  --oc-accent-2: #8b5cf6;
+  --oc-interaction: #1769e0;
+  --oc-gold: #f5b942;
+  --oc-text: #121722;
+  --oc-muted-text: #667085;
+  --oc-border: #e2e7ee;
+  --oc-card: #ffffff;
+  background: #f7f8fb !important;
+  color: var(--oc-text) !important;
+}
+
+/* Never let a minimum grid track make the desktop page wider than the viewport. */
+.phase2-app.build13-app .build13-dashboard {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 1720px !important;
+  margin: 16px auto 0 !important;
+  padding-inline: clamp(12px, 1.8vw, 28px) !important;
+  grid-template-columns: minmax(210px, 230px) minmax(0, 1fr) minmax(230px, 270px) !important;
+  gap: 14px !important;
+}
+
+.phase2-app.build13-app .build13-left-panel,
+.phase2-app.build13-app .build13-right-panel,
+.phase2-app.build13-app .build13-map-column,
+.phase2-app.build13-app .build13-events-strip,
+.phase2-app.build13-app .build13-map-toolbar,
+.phase2-app.build13-app .build13-map-stage {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.phase2-app.build13-app .build13-intro,
+.phase2-app.build13-app .build13-side-card,
+.phase2-app.build13-app .build13-network-stats,
+.phase2-app.build13-app .build13-events-strip,
+.phase2-app.build13-app .build13-map-toolbar {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid var(--oc-border) !important;
+  box-shadow: 0 8px 24px rgba(18, 23, 34, 0.055) !important;
+}
+
+.phase2-app.build13-app .build13-intro h1 {
+  color: #111827 !important;
+  font-size: clamp(30px, 2.2vw, 40px) !important;
+  line-height: 0.98 !important;
+}
+
+.phase2-app.build13-app .build13-intro p,
+.phase2-app.build13-app .build13-community-card p {
+  color: #5f6b7c !important;
+}
+
+/* Map: keep the magic, but make demand information unmistakable. */
+.phase2-app.build13-app .build13-map-stage {
+  border: 1px solid #cfd6f7 !important;
+  box-shadow: 0 16px 42px rgba(71, 67, 154, 0.15) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+  background:
+    radial-gradient(circle at 79% 7%, rgba(255, 239, 194, 0.98) 0 1.4%, rgba(255, 207, 190, 0.58) 3.5%, transparent 16%),
+    radial-gradient(circle at 16% 76%, rgba(214, 180, 255, 0.38), transparent 24%),
+    linear-gradient(180deg, #dbe4ff 0%, #afc4ff 20%, #7e8ce0 43%, #626fc7 66%, #5261ad 100%) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-coast-shape {
+  background:
+    radial-gradient(circle at 72% 18%, rgba(255, 207, 191, 0.28), transparent 20rem),
+    radial-gradient(circle at 50% 67%, rgba(229, 179, 255, 0.25), transparent 24rem),
+    linear-gradient(145deg, #6976cf 0%, #4f5eb5 48%, #5558ad 100%) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 239, 255, 0.36),
+    inset 0 -36px 78px rgba(35, 32, 103, 0.25),
+    0 24px 50px rgba(55, 52, 129, 0.18) !important;
+}
+
+/* Fix the white-node bug: marker core colors must come from demand intensity. */
+.phase2-app.build13-app .map-city-marker .marker-core {
+  color: #fff !important;
+  background: #7f67ea !important;
+  border: 2px solid rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 0 0 4px rgba(127, 103, 234, 0.18), 0 0 22px rgba(127, 103, 234, 0.88), 0 0 46px rgba(127, 103, 234, 0.42) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-2 .marker-core {
+  background: #9968f2 !important;
+  box-shadow: 0 0 0 4px rgba(153, 104, 242, 0.20), 0 0 24px rgba(153, 104, 242, 0.9), 0 0 52px rgba(153, 104, 242, 0.48) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-3 .marker-core {
+  background: #6d4aff !important;
+  box-shadow: 0 0 0 4px rgba(109, 74, 255, 0.22), 0 0 28px rgba(109, 74, 255, 0.95), 0 0 58px rgba(109, 74, 255, 0.55) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-4 .marker-core {
+  background: #f2b642 !important;
+  box-shadow: 0 0 0 4px rgba(255, 236, 190, 0.68), 0 0 30px rgba(242, 182, 66, 0.98), 0 0 64px rgba(242, 182, 66, 0.64) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.is-selected .marker-core {
+  transform: scale(1.18);
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 4px;
+}
+
+.phase2-app.build13-app .map-route {
+  stroke-width: 1.05 !important;
+  opacity: 0.74 !important;
+}
+
+.phase2-app.build13-app .map-route.route-gold {
+  stroke-width: 1.25 !important;
+  opacity: 0.82 !important;
+}
+
+/* A city-discovery map needs names even before the first campaign exists. */
+@media (min-width: 1181px) {
+  .phase2-app.build13-app .build13-map-stage .marker-label {
+    opacity: 0.88 !important;
+    transform: translateX(0) !important;
+    background: rgba(38, 43, 101, 0.72) !important;
+  }
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label {
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  box-shadow: 0 6px 18px rgba(26, 25, 77, 0.16) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label strong {
+  color: #fff !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label small {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+/* How it works must belong to the same product, never the old black theme. */
+.phase2-app.build13-app .build13-how,
+.phase2-app.build13-app .build13-how .section-intro,
+.phase2-app.build13-app .build13-how .phase2-journey {
+  background: #f7f8fb !important;
+  color: var(--oc-text) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li {
+  position: relative;
+  color: var(--oc-text) !important;
+  background: #fff !important;
+  border: 1px solid var(--oc-border) !important;
+  box-shadow: 0 8px 24px rgba(18, 23, 34, 0.055) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > span {
+  color: #d4d9e1 !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > svg {
+  color: var(--oc-accent) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > strong {
+  color: #151a24 !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > p {
+  color: #667085 !important;
+}
+
+/* Transactional UI: one neutral professional palette across cards/forms. */
+.phase2-app.build13-app .campaign-card,
+.phase2-app.build13-app .create-workspace,
+.phase2-app.build13-app .owner-edit-workspace,
+.profile-drawer-layer .rich-profile-drawer .panel,
+.profile-drawer-layer .rich-profile-drawer .professional-profile,
+.profile-drawer-layer .rich-profile-drawer .role-preview > article {
+  background: #fff !important;
+  color: #151a24 !important;
+  border-color: var(--oc-border) !important;
+  box-shadow: 0 6px 20px rgba(18, 23, 34, 0.045) !important;
+}
+
+.phase2-app.build13-app .campaign-card *,
+.profile-drawer-layer .rich-profile-drawer .professional-profile * {
+  text-shadow: none !important;
+}
+
+.phase2-app.build13-app .campaign-card input,
+.phase2-app.build13-app .campaign-card select,
+.phase2-app.build13-app .campaign-card textarea,
+.profile-drawer-layer .rich-profile-drawer input,
+.profile-drawer-layer .rich-profile-drawer select,
+.profile-drawer-layer .rich-profile-drawer textarea {
+  background: #fff !important;
+  color: #151a24 !important;
+  border: 1px solid #cfd6df !important;
+}
+
+.phase2-app.build13-app .campaign-card .campaign-tabs,
+.phase2-app.build13-app .campaign-card .campaign-summary-grid > div,
+.phase2-app.build13-app .campaign-card .confirmation-strip span {
+  background: #f8f9fb !important;
+  color: #3d4654 !important;
+  border-color: #e2e7ee !important;
+}
+
+/* Profile: less form-wall, more familiar account surface. */
+.profile-drawer-layer .rich-profile-drawer {
+  width: min(680px, 100vw) !important;
+  background: #fff !important;
+}
+
+.profile-drawer-layer .profile-drawer-header {
+  min-height: 88px;
+  padding-inline: clamp(20px, 3vw, 32px) !important;
+}
+
+.profile-drawer-layer .profile-cover-card {
+  margin: 18px 24px 0 !important;
+  border-radius: 18px !important;
+  background:
+    radial-gradient(circle at 82% 20%, rgba(109, 74, 255, 0.16), transparent 35%),
+    linear-gradient(135deg, #eef3ff, #f3efff) !important;
+}
+
+.profile-drawer-layer .profile-identity-card {
+  margin-inline: 34px !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+}
+
+.profile-drawer-layer .verification-callout {
+  margin-inline: 24px !important;
+  border-radius: 14px !important;
+  color: #17603b !important;
+  background: #eef9f3 !important;
+  border: 1px solid #bfe8d0 !important;
+}
+
+/* Keep all content visibly inside the viewport at laptop widths. */
+@media (max-width: 1500px) {
+  .phase2-app.build13-app .build13-dashboard {
+    grid-template-columns: minmax(190px, 210px) minmax(0, 1fr) minmax(210px, 235px) !important;
+    padding-inline: 12px !important;
+    gap: 10px !important;
+  }
+
+  .phase2-app.build13-app .build13-intro {
+    padding: 18px 14px !important;
+  }
+
+  .phase2-app.build13-app .build13-intro h1 {
+    font-size: clamp(27px, 2.2vw, 35px) !important;
+  }
+}
+
+@media (max-width: 1260px) {
+  .phase2-app.build13-app .build13-dashboard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-areas:
+      "map map"
+      "left right"
+      "events events" !important;
+    padding-inline: 14px !important;
+  }
+
+  .phase2-app.build13-app .build13-left-panel,
+  .phase2-app.build13-app .build13-right-panel {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+    height: clamp(520px, 62vw, 680px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .phase2-app.build13-app .build13-dashboard {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    padding: 10px !important;
+    margin-top: 8px !important;
+  }
+
+  .phase2-app.build13-app .build13-map-column { order: 1; }
+  .phase2-app.build13-app .build13-left-panel { order: 2; }
+  .phase2-app.build13-app .build13-right-panel { order: 3; }
+  .phase2-app.build13-app .build13-events-strip { order: 4; }
+
+  .phase2-app.build13-app .build13-left-panel,
+  .phase2-app.build13-app .build13-right-panel {
+    display: flex !important;
+  }
+
+  .phase2-app.build13-app .build13-map-toolbar {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .phase2-app.build13-app .build13-search {
+    grid-column: 1 / -1;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+    height: clamp(430px, 76vw, 590px) !important;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .marker-label {
+    opacity: 0 !important;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .map-city-marker.has-demand .marker-label,
+  .phase2-app.build13-app .build13-map-stage .map-city-marker.is-selected .marker-label,
+  .phase2-app.build13-app .build13-map-stage .map-city-marker:hover .marker-label {
+    opacity: 0.96 !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .phase2-app.build13-app .build13-map-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .phase2-app.build13-app .build13-search,
+  .phase2-app.build13-app .build13-select,
+  .phase2-app.build13-app .build13-view-toggle {
+    width: 100% !important;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+    height: 430px !important;
+  }
+
+  .phase2-app.build13-app .build13-how .phase2-journey {
+    grid-template-columns: 1fr !important;
+  }
+
+  .profile-drawer-layer .rich-profile-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+
+  .profile-drawer-layer .profile-cover-card,
+  .profile-drawer-layer .verification-callout {
+    margin-inline: 14px !important;
+  }
+
+  .profile-drawer-layer .profile-identity-card {
+    margin-inline: 18px !important;
+  }
+}

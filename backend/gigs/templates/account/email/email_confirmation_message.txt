@@ -1,0 +1,10 @@
+Open Concert
+
+Confirm your email address to protect your account and unlock trust-sensitive actions such as creating, approving, and managing gigs.
+
+Verify your email:
+{{ activate_url }}
+
+If you did not request this, you can ignore this message.
+
+Open Concert with VibesMeet

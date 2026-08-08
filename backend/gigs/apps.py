@@ -13,12 +13,13 @@ class GigsConfig(AppConfig):
     name = "gigs"
 
     def import_models(self):
-        """Load primary and modular Phase 1, Phase 1B, and Phase 2 models."""
+        """Load primary and modular Phase 1, Phase 1B, Phase 2, and discovery/profile models."""
 
         super().import_models()
         from . import (  # noqa: F401
             campaign_preference_models,
             campaign_review_models,
+            discovery_models,
             role_models,
         )
 

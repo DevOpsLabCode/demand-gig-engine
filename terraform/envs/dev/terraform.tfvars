@@ -30,6 +30,11 @@ domain_name               = ""
 hosted_zone_id            = ""
 alarm_email               = ""
 ses_identity_arn          = null
+ses_sender_identity       = "devopslabinc.com"
+# AWS previously denied this account-level request. Keep normal application
+# deploys independent from AWS Support review; the helper remains available for
+# a deliberate retry after the Support case is resolved.
+request_ses_production_access = false
 tags = {
   Owner      = "DevOpsLabCode"
   CostCenter = "DemandGig"

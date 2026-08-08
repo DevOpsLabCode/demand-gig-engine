@@ -1,0 +1,426 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Premium watercolor atlas acceptance layer matching the approved Open Concert art direction.
+ */
+
+.phase2-app.build13-app .build13-map-stage {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 1px solid #e8e0ed !important;
+  border-radius: 22px !important;
+  background: #fbf7fc !important;
+  box-shadow: 0 24px 65px rgba(64, 44, 94, .12) !important;
+}
+
+.phase2-app.build13-app .build13-map-top-actions {
+  z-index: 20 !important;
+  top: 14px !important;
+  right: 14px !important;
+}
+
+.phase2-app.build13-app .build13-map-top-actions > * {
+  border-color: rgba(255, 255, 255, .74) !important;
+  background: rgba(255, 255, 255, .90) !important;
+  color: #29234f !important;
+  box-shadow: 0 8px 24px rgba(65, 47, 100, .12) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+.phase2-app.build13-app .atlas-v6 {
+  margin: 0 !important;
+  background: transparent !important;
+}
+
+.phase2-app.build13-app .atlas-v6-shell {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 560px !important;
+  height: clamp(560px, 43vw, 700px) !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  border-radius: 20px !important;
+  background:
+    radial-gradient(circle at 78% 9%, rgba(255, 225, 167, .42), transparent 20%),
+    radial-gradient(circle at 18% 17%, rgba(179, 137, 255, .20), transparent 28%),
+    radial-gradient(circle at 51% 72%, rgba(126, 91, 221, .12), transparent 34%),
+    linear-gradient(135deg, #fffaf5 0%, #f5eafd 42%, #eee7ff 70%, #fff2e3 100%) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .34;
+  background-image:
+    radial-gradient(circle at 15% 22%, rgba(255,255,255,.88) 0 1px, transparent 1.25px),
+    radial-gradient(circle at 63% 52%, rgba(255,224,159,.54) 0 1px, transparent 1.3px),
+    radial-gradient(circle at 83% 72%, rgba(255,255,255,.66) 0 1px, transparent 1.2px);
+  background-size: 93px 83px, 121px 117px, 157px 133px;
+}
+
+.phase2-app.build13-app .atlas-v6-art {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
+  pointer-events: none !important;
+}
+
+.phase2-app.build13-app .atlas-v6-cloud {
+  fill: rgba(255,255,255,.68);
+}
+
+.phase2-app.build13-app .atlas-v6-cloud.lower {
+  fill: rgba(255,249,244,.78);
+}
+
+.phase2-app.build13-app .atlas-v6-land {
+  stroke: rgba(255, 245, 255, .94);
+  stroke-width: .48;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-land-wash {
+  mix-blend-mode: screen;
+  opacity: .60;
+}
+
+.phase2-app.build13-app .atlas-v6-state-lines path,
+.phase2-app.build13-app .atlas-v6-contours path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-state-lines path {
+  stroke: rgba(255,255,255,.17);
+  stroke-width: .22;
+}
+
+.phase2-app.build13-app .atlas-v6-contours path {
+  stroke: rgba(248, 225, 255, .23);
+  stroke-width: .22;
+  stroke-dasharray: 1.35 1.65;
+}
+
+.phase2-app.build13-app .atlas-v6-spark {
+  fill: #ffe4a0;
+  opacity: .92;
+  filter: drop-shadow(0 0 2px rgba(255, 207, 113, .75));
+}
+
+.phase2-app.build13-app .atlas-v6-route {
+  fill: none;
+  stroke-width: .36;
+  stroke-linecap: round;
+  opacity: .62;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-route.is-live {
+  stroke-width: .54;
+  opacity: .92;
+}
+
+.phase2-app.build13-app .atlas-v6-route.is-selected {
+  stroke-width: .70;
+  opacity: 1;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-rock {
+  fill: #635482;
+  opacity: .70;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-grass {
+  fill: #8170a1;
+  opacity: .95;
+}
+
+.phase2-app.build13-app .atlas-v6-island .island-city,
+.phase2-app.build13-app .atlas-v6-island .island-tree {
+  fill: none;
+  stroke: rgba(76, 65, 111, .72);
+  stroke-width: .54;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-crescent > circle:first-child {
+  fill: rgba(255, 237, 168, .68);
+  filter: drop-shadow(0 0 12px rgba(255, 224, 149, .52));
+}
+
+.phase2-app.build13-app .atlas-v6-crescent .crescent-cut {
+  fill: #f2eaff;
+}
+
+.phase2-app.build13-app .atlas-v6-skyline path {
+  fill: none;
+  stroke: rgba(88, 70, 135, .52);
+  stroke-width: .58;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-birds {
+  fill: none;
+  stroke: rgba(76, 61, 118, .55);
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-music path {
+  fill: none;
+  stroke: rgba(214, 145, 71, .30);
+  stroke-width: .32;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-music text {
+  fill: rgba(176, 96, 207, .54);
+  font-size: 2.9px;
+  font-weight: 800;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-body {
+  fill: url(#guitarLiquid);
+  stroke: rgba(255, 221, 158, .92);
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-inner {
+  fill: rgba(67, 45, 137, .42);
+  stroke: rgba(255, 218, 148, .58);
+  stroke-width: .30;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-inner.accent {
+  fill: rgba(228, 151, 67, .30);
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-neck {
+  fill: #4e3a9f;
+  stroke: #d79a45;
+  stroke-width: .28;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-head {
+  fill: #573ca6;
+  stroke: #dda24d;
+  stroke-width: .26;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-string {
+  fill: none;
+  stroke: rgba(255, 229, 171, .94);
+  stroke-width: .16;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-hole {
+  fill: #302468;
+  stroke: rgba(255, 220, 145, .85);
+  stroke-width: .22;
+  vector-effect: non-scaling-stroke;
+}
+
+.phase2-app.build13-app .atlas-v6-guitar .guitar-drip {
+  fill: url(#guitarLiquid);
+  opacity: .96;
+}
+
+.phase2-app.build13-app .atlas-v6-hotspots {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 8 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city {
+  position: absolute !important;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  transform: translate(-50%, -50%) !important;
+  cursor: pointer !important;
+  overflow: visible !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-aura,
+.phase2-app.build13-app .atlas-v6-city-core {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  border-radius: 999px !important;
+  transform: translate(-50%, -50%) !important;
+  pointer-events: none !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-aura {
+  width: 34px !important;
+  height: 34px !important;
+  background: radial-gradient(circle, rgba(237, 215, 255, .82) 0%, rgba(161, 99, 255, .36) 45%, transparent 72%) !important;
+  opacity: .86 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-core {
+  width: 10px !important;
+  height: 10px !important;
+  background: #9c61ff !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 0 2px rgba(156, 97, 255, .30), 0 0 21px rgba(156, 97, 255, .78) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city.is-high .atlas-v6-city-core,
+.phase2-app.build13-app .atlas-v6-city.is-very-high .atlas-v6-city-core,
+.phase2-app.build13-app .atlas-v6-city.is-selected .atlas-v6-city-core {
+  background: #f0b24d !important;
+  box-shadow: 0 0 0 2px rgba(240, 178, 77, .27), 0 0 23px rgba(240, 178, 77, .78) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city:not([data-prominent="true"]):not(.has-demand):not(.is-selected) {
+  opacity: .12 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city:not([data-prominent="true"]):hover,
+.phase2-app.build13-app .atlas-v6-city:not([data-prominent="true"]):focus-visible {
+  opacity: 1 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-label {
+  position: absolute !important;
+  left: 18px !important;
+  top: 50% !important;
+  display: grid !important;
+  gap: 1px !important;
+  width: max-content !important;
+  min-width: 72px !important;
+  max-width: 130px !important;
+  padding: 7px 9px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, rgba(67, 45, 137, .94), rgba(91, 55, 166, .90)) !important;
+  border: 1px solid rgba(255,255,255,.30) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 10px 24px rgba(58, 38, 110, .23), 0 0 19px rgba(141, 91, 255, .18) !important;
+  transform: translateY(-50%) translateX(-3px) !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-label strong {
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city-label small {
+  color: rgba(255,255,255,.78) !important;
+  font-size: 8px !important;
+  line-height: 1.05 !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city[data-prominent="true"] .atlas-v6-city-label,
+.phase2-app.build13-app .atlas-v6-city:hover .atlas-v6-city-label,
+.phase2-app.build13-app .atlas-v6-city:focus-visible .atlas-v6-city-label,
+.phase2-app.build13-app .atlas-v6-city.has-demand .atlas-v6-city-label,
+.phase2-app.build13-app .atlas-v6-city.is-selected .atlas-v6-city-label {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(-50%) translateX(0) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-city:focus-visible {
+  outline: 3px solid rgba(90, 69, 187, .30) !important;
+  outline-offset: 5px !important;
+}
+
+.phase2-app.build13-app .atlas-v6-title {
+  position: absolute !important;
+  z-index: 10 !important;
+  left: 28px !important;
+  bottom: 25px !important;
+  display: grid !important;
+  gap: 2px !important;
+  pointer-events: none !important;
+}
+
+.phase2-app.build13-app .atlas-v6-title strong {
+  color: #25204f !important;
+  font-size: clamp(23px, 2vw, 32px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -.045em !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.6) !important;
+}
+
+.phase2-app.build13-app .atlas-v6-title span {
+  color: #4e4777 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+
+@media (max-width: 1180px) {
+  .phase2-app.build13-app .atlas-v6-shell {
+    min-height: 535px !important;
+    height: 535px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .phase2-app.build13-app .atlas-v6-shell {
+    min-height: 470px !important;
+    height: 470px !important;
+  }
+
+  .phase2-app.build13-app .atlas-v6-city[data-prominent="true"] .atlas-v6-city-label {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  .phase2-app.build13-app .atlas-v6-city:hover .atlas-v6-city-label,
+  .phase2-app.build13-app .atlas-v6-city:focus-visible .atlas-v6-city-label,
+  .phase2-app.build13-app .atlas-v6-city.has-demand .atlas-v6-city-label,
+  .phase2-app.build13-app .atlas-v6-city.is-selected .atlas-v6-city-label {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .phase2-app.build13-app .atlas-v6-title {
+    left: 18px !important;
+    bottom: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .phase2-app.build13-app .atlas-v6-city-aura {
+    animation: atlas-pulse 3.4s ease-in-out infinite;
+  }
+
+  @keyframes atlas-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(.92); opacity: .68; }
+    50% { transform: translate(-50%, -50%) scale(1.12); opacity: .98; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase2-app.build13-app .atlas-v6-route,
+  .phase2-app.build13-app .atlas-v6-city,
+  .phase2-app.build13-app .atlas-v6-city-label,
+  .phase2-app.build13-app .atlas-v6-city-aura {
+    transition: none !important;
+    animation: none !important;
+  }
+}

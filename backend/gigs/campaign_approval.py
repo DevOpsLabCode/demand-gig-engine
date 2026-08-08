@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from .account_trust import email_is_verified
 from .campaign_review_models import CampaignReview, CampaignReviewDecision
 from .models import CampaignEvent, DemandCampaign
 
@@ -61,7 +62,7 @@ def can_review_campaigns(user) -> bool:
 
 
 def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticCheck]:
-    """Evaluate transparent, deterministic checks without AI or owner overrides."""
+    """Evaluate transparent Stage 2 checks without AI or owner overrides."""
 
     try:
         campaign.clean()
@@ -81,6 +82,7 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
     )
     required_complete = all(bool(value) for value in required_values)
     owner_active = bool(campaign.owner_id and campaign.owner.is_active)
+    owner_email_verified = bool(campaign.owner_id and email_is_verified(campaign.owner))
     future_deadline = campaign.deadline > timezone.now()
     no_early_support = not campaign.pledges.exists() and not campaign.sponsorships.exists()
 
@@ -88,30 +90,27 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
         AutomaticCheck(
             "owner_present",
             bool(campaign.owner_id),
-            "Campaign has an authenticated owner."
-            if campaign.owner_id
-            else "An authenticated campaign owner is required.",
+            "Campaign has an authenticated owner." if campaign.owner_id else "An authenticated campaign owner is required.",
         ),
         AutomaticCheck(
             "owner_account_active",
             owner_active,
-            "Campaign owner account is active."
-            if owner_active
-            else "Campaign owner account must be active.",
+            "Campaign owner account is active." if owner_active else "Campaign owner account must be active.",
+        ),
+        AutomaticCheck(
+            "owner_email_verified",
+            owner_email_verified,
+            "Campaign owner email is verified." if owner_email_verified else "Campaign owner must verify their email before public approval.",
         ),
         AutomaticCheck(
             "required_content",
             required_complete,
-            "Required campaign and organizer fields are complete."
-            if required_complete
-            else "Required campaign or organizer information is missing.",
+            "Required campaign and organizer fields are complete." if required_complete else "Required campaign or organizer information is missing.",
         ),
         AutomaticCheck(
             "future_deadline",
             future_deadline,
-            "Campaign deadline is in the future."
-            if future_deadline
-            else "Campaign deadline must be in the future.",
+            "Campaign deadline is in the future." if future_deadline else "Campaign deadline must be in the future.",
         ),
         AutomaticCheck("model_validation", model_valid, model_message),
         AutomaticCheck(
@@ -127,9 +126,6 @@ def run_automatic_campaign_checks(campaign: DemandCampaign) -> list[AutomaticChe
 def _campaign_review_queryset():
     """Return the approval queryset while locking only the campaign table row."""
 
-    # ``owner`` is nullable and therefore joined with LEFT OUTER JOIN. PostgreSQL
-    # rejects FOR UPDATE against the nullable side of that join. ``of=("self",)``
-    # keeps the campaign row serialized without attempting to lock the owner row.
     return DemandCampaign.objects.select_for_update(of=("self",)).select_related("owner")
 
 
@@ -145,10 +141,7 @@ def _record_review(
 ) -> CampaignReview:
     """Create one immutable review and matching campaign audit event."""
 
-    serialized_checks = [
-        check.as_dict() if isinstance(check, AutomaticCheck) else dict(check)
-        for check in checks
-    ]
+    serialized_checks = [check.as_dict() if isinstance(check, AutomaticCheck) else dict(check) for check in checks]
     review = CampaignReview.objects.create(
         campaign=campaign,
         decision=decision,
@@ -178,13 +171,8 @@ def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, Camp
     """Auto-approve a passing submission or route failed checks to manual review."""
 
     campaign = _campaign_review_queryset().get(pk=campaign_id)
-    if (
-        campaign.owner_id != getattr(actor, "id", None)
-        and not getattr(actor, "is_staff", False)
-    ):
-        raise CampaignApprovalPermissionError(
-            "Only the campaign owner or an administrator may submit it for review."
-        )
+    if campaign.owner_id != getattr(actor, "id", None) and not getattr(actor, "is_staff", False):
+        raise CampaignApprovalPermissionError("Only the campaign owner or an administrator may submit it for review.")
     if campaign.status not in [DRAFT, REJECTED]:
         raise CampaignApprovalError("Only a draft or rejected campaign can be submitted.")
 
@@ -195,9 +183,7 @@ def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, Camp
     if failed:
         campaign.status = PENDING_REVIEW
         campaign.save(update_fields=["status", "updated_at"])
-        notes = "Automatic checks requiring administrator review: " + "; ".join(
-            check.message for check in failed
-        )
+        notes = "Automatic checks requiring administrator review: " + "; ".join(check.message for check in failed)
         review = _record_review(
             campaign=campaign,
             decision=CampaignReviewDecision.MANUAL_REVIEW_REQUIRED,
@@ -222,11 +208,7 @@ def submit_campaign_for_review(campaign_id, actor) -> tuple[DemandCampaign, Camp
 
 
 @transaction.atomic
-def approve_campaign_manually(
-    campaign_id,
-    reviewer,
-    notes: str,
-) -> tuple[DemandCampaign, CampaignReview]:
+def approve_campaign_manually(campaign_id, reviewer, notes: str) -> tuple[DemandCampaign, CampaignReview]:
     """Allow an administrator to approve a failed auto-review with written notes."""
 
     if not can_review_campaigns(reviewer):
@@ -253,11 +235,7 @@ def approve_campaign_manually(
 
 
 @transaction.atomic
-def reject_campaign_manually(
-    campaign_id,
-    reviewer,
-    notes: str,
-) -> tuple[DemandCampaign, CampaignReview]:
+def reject_campaign_manually(campaign_id, reviewer, notes: str) -> tuple[DemandCampaign, CampaignReview]:
     """Return a pending campaign to its owner with mandatory rejection notes."""
 
     if not can_review_campaigns(reviewer):
@@ -309,9 +287,7 @@ def launch_approved_campaign(campaign_id, actor) -> DemandCampaign:
         payload={
             "actor_id": actor.id,
             "previous_status": previous_status,
-            "approval_review_id": campaign.reviews.order_by("-reviewed_at", "-id")
-            .values_list("id", flat=True)
-            .first(),
+            "approval_review_id": campaign.reviews.order_by("-reviewed_at", "-id").values_list("id", flat=True).first(),
         },
     )
     return campaign

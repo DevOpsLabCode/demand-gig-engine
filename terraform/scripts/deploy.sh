@@ -268,6 +268,54 @@ restore_secret_if_scheduled_for_deletion() {
   done
 }
 
+cancel_kms_key_deletion_idempotently() {
+  local key_id="$1"
+  local context="${2:-KMS recovery}"
+  local cancel_output
+  local cancel_status
+  local key_state
+
+  set +e
+  cancel_output="$(
+    aws kms cancel-key-deletion \
+      --region "$REGION" \
+      --key-id "$key_id" \
+      2>&1
+  )"
+  cancel_status="$?"
+  set -e
+
+  if [[ "$cancel_status" -eq 0 ]]; then
+    return 0
+  fi
+
+  # Multiple restored secrets can share one customer-managed KMS key. AWS may
+  # return a stale PendingDeletion state to one loop iteration after another
+  # iteration has already cancelled deletion. Re-read the state before deciding
+  # whether KMSInvalidStateException is a real failure.
+  if grep -Fq 'KMSInvalidStateException' <<<"$cancel_output" &&
+     grep -Fq 'is not pending deletion' <<<"$cancel_output"; then
+    key_state="$(
+      aws kms describe-key \
+        --region "$REGION" \
+        --key-id "$key_id" \
+        --query 'KeyMetadata.KeyState' \
+        --output text
+    )"
+
+    case "$key_state" in
+      Enabled|Disabled|Creating|Updating)
+        echo "KMS deletion was already cancelled for ${key_id} (${context}); current state is ${key_state}. Continuing."
+        return 0
+        ;;
+    esac
+  fi
+
+  echo "Unable to cancel scheduled deletion for KMS key ${key_id} (${context})." >&2
+  printf '%s\n' "$cancel_output" >&2
+  return "$cancel_status"
+}
+
 recover_secret_kms_keys_preflight() {
   # The Go orchestration fixture sets MOCK_LOG and does not emulate AWS
   # Secrets Manager restoration or KMS recovery.
@@ -357,11 +405,9 @@ recover_secret_kms_keys_preflight() {
 
       if [[ "$key_state" == "PendingDeletion" ]]; then
         echo "Cancelling scheduled deletion for KMS key ${kms_key_id} used by ${secret_name}."
-
-        aws kms cancel-key-deletion \
-          --region "$REGION" \
-          --key-id "$kms_key_id" \
-          >/dev/null
+        cancel_kms_key_deletion_idempotently \
+          "$kms_key_id" \
+          "secret ${secret_name}"
       fi
 
       for attempt in $(seq 1 30); do
@@ -498,12 +544,9 @@ ensure_kms_key_enabled() {
       PendingDeletion)
         if [[ "$cancel_requested" != "true" ]]; then
           echo "Cancelling scheduled deletion for preserved KMS key ${key_id}."
-
-          aws kms cancel-key-deletion \
-            --region "$REGION" \
-            --key-id "$key_id" \
-            >/dev/null
-
+          cancel_kms_key_deletion_idempotently \
+            "$key_id" \
+            "preserved KMS dependency"
           cancel_requested=true
         fi
         ;;

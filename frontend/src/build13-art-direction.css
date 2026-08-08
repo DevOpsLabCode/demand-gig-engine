@@ -1,0 +1,474 @@
+/*
+ * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
+ * Purpose: Build 13.3 art direction — monochrome product shell, expressive night-atlas map, and compact account modal.
+ */
+
+.phase2-app.build13-app {
+  --oc33-paper: #f5f5f2;
+  --oc33-surface: #ffffff;
+  --oc33-ink: #0d0e10;
+  --oc33-soft-ink: #34363b;
+  --oc33-muted: #6f737b;
+  --oc33-line: #deded8;
+  --oc33-line-strong: #c9c9c2;
+  --oc33-violet: #7147ff;
+  --oc33-violet-deep: #5630db;
+  --oc33-gold: #f4b942;
+  --oc33-map-night: #090a0e;
+  --oc33-map-night-2: #141722;
+  color: var(--oc33-ink) !important;
+  background: var(--oc33-paper) !important;
+}
+
+/* Product shell: black/white does the work; color is reserved for meaning. */
+.phase2-app.build13-app .build13-header.phase2-header,
+.phase2-app.build13-app .build13-intro,
+.phase2-app.build13-app .build13-side-card,
+.phase2-app.build13-app .build13-network-stats,
+.phase2-app.build13-app .build13-events-strip,
+.phase2-app.build13-app .build13-map-toolbar,
+.phase2-app.build13-app .campaign-card-shell,
+.phase2-app.build13-app .phase2-campaign-section,
+.phase2-app.build13-app .create-workspace,
+.phase2-app.build13-app .owner-edit-workspace {
+  color: var(--oc33-ink) !important;
+  background: var(--oc33-surface) !important;
+  border-color: var(--oc33-line) !important;
+  box-shadow: 0 1px 2px rgba(13, 14, 16, .03), 0 10px 32px rgba(13, 14, 16, .04) !important;
+}
+
+.phase2-app.build13-app .build13-header.phase2-header {
+  background: rgba(255, 255, 255, .96) !important;
+  border-bottom: 1px solid var(--oc33-line) !important;
+}
+
+.phase2-app.build13-app .phase2-brand .brand-mark {
+  color: #fff !important;
+  background: #0d0e10 !important;
+  border-color: #0d0e10 !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .phase2-brand strong,
+.phase2-app.build13-app .build13-intro h1,
+.phase2-app.build13-app .build13-card-title > span,
+.phase2-app.build13-app .build13-trending-copy strong,
+.phase2-app.build13-app .build13-featured-card h3 {
+  color: var(--oc33-ink) !important;
+}
+
+.phase2-app.build13-app .phase2-brand small,
+.phase2-app.build13-app .build13-intro p,
+.phase2-app.build13-app .build13-community-card p,
+.phase2-app.build13-app .build13-network-stats small,
+.phase2-app.build13-app .build13-featured-card > p {
+  color: var(--oc33-muted) !important;
+}
+
+.phase2-app.build13-app .build13-header .phase2-nav-links button:first-child,
+.phase2-app.build13-app .build13-view-toggle button.is-active {
+  color: #fff !important;
+  background: #0d0e10 !important;
+  border-color: #0d0e10 !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .build13-header .desktop-create,
+.phase2-app.build13-app .button.primary,
+.phase2-app.build13-app .mobile-create-action {
+  color: #fff !important;
+  background: #0d0e10 !important;
+  border-color: #0d0e10 !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .build13-header .desktop-create:hover,
+.phase2-app.build13-app .button.primary:hover {
+  background: #25262a !important;
+  border-color: #25262a !important;
+}
+
+.phase2-app.build13-app .build13-search,
+.phase2-app.build13-app .build13-select,
+.phase2-app.build13-app .build13-view-toggle,
+.phase2-app.build13-app .profile-tab-button {
+  background: #fff !important;
+  border-color: var(--oc33-line) !important;
+  box-shadow: none !important;
+}
+
+.phase2-app.build13-app .build13-text-action {
+  color: var(--oc33-ink) !important;
+  background: #fff !important;
+  border-color: var(--oc33-line-strong) !important;
+}
+
+.phase2-app.build13-app .build13-text-action:hover {
+  color: #fff !important;
+  background: #0d0e10 !important;
+  border-color: #0d0e10 !important;
+}
+
+/*
+ * Artistic map direction: a night concert atlas.
+ * The interface stays quiet while the map carries the emotion.
+ */
+.phase2-app.build13-app .build13-map-stage {
+  overflow: hidden !important;
+  background: var(--oc33-map-night) !important;
+  border: 1px solid #20232c !important;
+  box-shadow: 0 18px 60px rgba(9, 10, 14, .18) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(244, 185, 66, .20) 0 1.3%, rgba(244, 185, 66, .07) 5%, transparent 18%),
+    radial-gradient(circle at 18% 76%, rgba(113, 71, 255, .18), transparent 26%),
+    radial-gradient(circle at 58% 68%, rgba(113, 71, 255, .08), transparent 30%),
+    linear-gradient(180deg, #08090d 0%, #0f1118 48%, #161926 100%) !important;
+}
+
+.phase2-app.build13-app .map-dawn-glow {
+  opacity: .7 !important;
+  background:
+    radial-gradient(circle at 78% 11%, rgba(255, 204, 91, .18), transparent 13rem),
+    radial-gradient(circle at 23% 74%, rgba(125, 83, 255, .14), transparent 21rem) !important;
+}
+
+.phase2-app.build13-app .map-star-field {
+  opacity: .42 !important;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.78) 0 1px, transparent 1.35px),
+    radial-gradient(circle, rgba(255,255,255,.32) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(244,185,66,.35) 0 1px, transparent 1.35px) !important;
+  background-size: 67px 67px, 101px 101px, 137px 137px !important;
+}
+
+/* Ivory landmass: recognizable, editorial, and easy to read against the night field. */
+.phase2-app.build13-app .build13-map-stage .map-coast-shape {
+  background:
+    radial-gradient(circle at 73% 19%, rgba(244, 185, 66, .12), transparent 19rem),
+    radial-gradient(circle at 50% 67%, rgba(113, 71, 255, .10), transparent 25rem),
+    linear-gradient(145deg, #fbfbf8 0%, #ecece7 49%, #dcdcd6 100%) !important;
+  border: 0 !important;
+  filter: drop-shadow(0 26px 42px rgba(0, 0, 0, .32)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.75),
+    inset 0 -28px 55px rgba(13,14,16,.08) !important;
+}
+
+/* Fine cartographic/topographic texture inside the silhouette. */
+.phase2-app.build13-app .build13-map-stage .map-coast-shape::before {
+  opacity: .24 !important;
+  background-image:
+    repeating-linear-gradient(22deg, transparent 0 30px, rgba(13,14,16,.16) 31px, transparent 32px 62px),
+    repeating-linear-gradient(91deg, transparent 0 54px, rgba(13,14,16,.10) 55px, transparent 56px 108px) !important;
+  background-size: auto !important;
+}
+
+.phase2-app.build13-app .map-city-light {
+  opacity: .5 !important;
+  filter: blur(10px) !important;
+  background: radial-gradient(circle, rgba(244,185,66,.22), transparent 66%) !important;
+}
+
+.phase2-app.build13-app .map-music-particles {
+  color: rgba(255,255,255,.22) !important;
+}
+
+/* Routes read as a living concert network rather than decorative hairlines. */
+.phase2-app.build13-app .map-route.route-violet {
+  stroke: #7147ff !important;
+  stroke-width: 1.05 !important;
+  opacity: .42 !important;
+}
+
+.phase2-app.build13-app .map-route.route-gold {
+  stroke: #f4b942 !important;
+  stroke-width: 1.28 !important;
+  opacity: .66 !important;
+}
+
+/* Default city = black/white editorial pin; demand introduces color. */
+.phase2-app.build13-app .map-city-marker .marker-core {
+  color: #fff !important;
+  background: #101114 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 0 3px rgba(13,14,16,.12), 0 5px 12px rgba(13,14,16,.18) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-2 .marker-core,
+.phase2-app.build13-app .map-city-marker.has-demand.intensity-1 .marker-core {
+  background: var(--oc33-violet) !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 0 4px rgba(113,71,255,.16), 0 0 24px rgba(113,71,255,.62) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-3 .marker-core {
+  background: var(--oc33-violet-deep) !important;
+  box-shadow: 0 0 0 4px rgba(86,48,219,.18), 0 0 30px rgba(86,48,219,.72) !important;
+}
+
+.phase2-app.build13-app .map-city-marker.intensity-4 .marker-core,
+.phase2-app.build13-app .map-city-marker.is-selected .marker-core {
+  color: #111 !important;
+  background: var(--oc33-gold) !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 0 4px rgba(244,185,66,.20), 0 0 34px rgba(244,185,66,.76), 0 0 64px rgba(244,185,66,.30) !important;
+}
+
+.phase2-app.build13-app .map-city-marker .marker-aura {
+  opacity: .12 !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label {
+  color: #fff !important;
+  background: rgba(9, 10, 14, .88) !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  box-shadow: 0 8px 20px rgba(0,0,0,.22) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label strong {
+  color: #fff !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .marker-label small {
+  color: rgba(255,255,255,.64) !important;
+}
+
+.phase2-app.build13-app .marker-count {
+  color: #111 !important;
+  background: var(--oc33-gold) !important;
+  border-color: #fff !important;
+}
+
+.phase2-app.build13-app .build13-map-stage .map-network-badge {
+  color: #fff !important;
+  background: rgba(9,10,14,.82) !important;
+  border-color: rgba(255,255,255,.15) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.18) !important;
+}
+
+/* The map's toolbar follows the monochrome shell so the atlas remains the focal point. */
+.phase2-app.build13-app .build13-map-toolbar button,
+.phase2-app.build13-app .build13-map-toolbar select,
+.phase2-app.build13-app .build13-map-toolbar input {
+  color: var(--oc33-ink) !important;
+}
+
+/* How it works: editorial cards, not black legacy tiles. */
+.phase2-app.build13-app .build13-how,
+.phase2-app.build13-app .build13-how .section-intro,
+.phase2-app.build13-app .build13-how .phase2-journey {
+  color: var(--oc33-ink) !important;
+  background: var(--oc33-paper) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li {
+  color: var(--oc33-ink) !important;
+  background: #fff !important;
+  border: 1px solid var(--oc33-line) !important;
+  box-shadow: 0 10px 30px rgba(13,14,16,.035) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > span {
+  color: #d5d5cf !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > svg {
+  color: var(--oc33-violet) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > strong {
+  color: var(--oc33-ink) !important;
+}
+
+.phase2-app.build13-app .build13-how .phase2-journey > li > p {
+  color: var(--oc33-muted) !important;
+}
+
+/*
+ * Compact authentication.
+ * The existing anonymous profile route used a full-height right drawer containing
+ * a second full-page auth gateway. Turn that exact markup into one centered modal.
+ */
+.profile-drawer-layer:has(.auth-drawer) {
+  display: grid !important;
+  place-items: center !important;
+  padding: 18px !important;
+  background: rgba(9,10,14,.56) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.profile-drawer-layer .profile-drawer.auth-drawer {
+  position: relative !important;
+  inset: auto !important;
+  width: min(460px, calc(100vw - 36px)) !important;
+  height: auto !important;
+  max-height: min(760px, calc(100vh - 36px)) !important;
+  overflow: auto !important;
+  border: 1px solid #deded8 !important;
+  border-radius: 22px !important;
+  background: #fff !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,.28) !important;
+}
+
+.profile-drawer-layer .auth-drawer .profile-drawer-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 4 !important;
+  min-height: 70px !important;
+  padding: 16px 18px !important;
+  background: rgba(255,255,255,.97) !important;
+  border-bottom: 1px solid #e8e8e3 !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.profile-drawer-layer .auth-drawer .profile-drawer-header .section-kicker {
+  color: #6f737b !important;
+  font-size: 10px !important;
+  letter-spacing: .12em !important;
+}
+
+.profile-drawer-layer .auth-drawer .profile-drawer-header h2 {
+  margin: 2px 0 0 !important;
+  color: #0d0e10 !important;
+  font-size: 20px !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-gateway {
+  min-height: 0 !important;
+  display: block !important;
+  padding: 0 !important;
+  color: #0d0e10 !important;
+  background: #fff !important;
+}
+
+/* The marketing story belongs on a landing page, not inside a login popup. */
+.profile-drawer-layer .auth-drawer .auth-story {
+  display: none !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-card {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 20px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-card-header {
+  margin-bottom: 16px !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-card-icon {
+  color: #fff !important;
+  background: #0d0e10 !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-tabs {
+  padding: 3px !important;
+  border: 1px solid #deded8 !important;
+  background: #f3f3ef !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-tabs button.active {
+  color: #fff !important;
+  background: #0d0e10 !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer-layer .auth-drawer .credential-form {
+  gap: 12px !important;
+}
+
+.profile-drawer-layer .auth-drawer .credential-form label {
+  margin-bottom: 0 !important;
+  color: #34363b !important;
+}
+
+.profile-drawer-layer .auth-drawer .input-with-icon {
+  min-height: 44px !important;
+  color: #6f737b !important;
+  background: #fff !important;
+  border: 1px solid #cfcfc8 !important;
+  border-radius: 11px !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-submit {
+  min-height: 44px !important;
+  color: #fff !important;
+  background: #0d0e10 !important;
+  border-color: #0d0e10 !important;
+  box-shadow: none !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-divider {
+  margin-block: 16px !important;
+}
+
+.profile-drawer-layer .auth-drawer .auth-providers {
+  gap: 8px !important;
+}
+
+.profile-drawer-layer .auth-drawer .registration-note {
+  display: block !important;
+  margin-top: 14px !important;
+  color: #777b83 !important;
+  line-height: 1.45 !important;
+}
+
+/* Profile verification callout uses status/error text clearly, not green by default. */
+.profile-drawer-layer .verification-callout {
+  color: #2c2f34 !important;
+  background: #f7f7f3 !important;
+  border-color: #dcdcd6 !important;
+}
+
+.profile-drawer-layer .verification-callout > svg {
+  color: var(--oc33-violet) !important;
+}
+
+.profile-drawer-layer .verification-pill.needs-verification {
+  color: #744e00 !important;
+  background: #fff5dd !important;
+  border-color: #efd18a !important;
+}
+
+/* Small screens keep the same modal model rather than reverting to a full page. */
+@media (max-width: 620px) {
+  .profile-drawer-layer:has(.auth-drawer) {
+    padding: 10px !important;
+  }
+
+  .profile-drawer-layer .profile-drawer.auth-drawer {
+    width: min(100%, 440px) !important;
+    max-height: calc(100vh - 20px) !important;
+    border-radius: 18px !important;
+  }
+
+  .profile-drawer-layer .auth-drawer .profile-drawer-header {
+    min-height: 62px !important;
+    padding: 13px 14px !important;
+  }
+
+  .profile-drawer-layer .auth-drawer .auth-card {
+    padding: 16px !important;
+  }
+
+  .phase2-app.build13-app .build13-map-stage .map-perspective-shell {
+    min-height: 430px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase2-app.build13-app .map-music-particles span,
+  .phase2-app.build13-app .map-floating-stage,
+  .phase2-app.build13-app .marker-pulse {
+    animation: none !important;
+  }
+}
