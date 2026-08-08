@@ -1,0 +1,73 @@
+{
+  "purpose": "Seed high-value catalog records for historical reconstruction research. This file stores metadata only and does not grant reuse rights to linked media.",
+  "nyu_fales_nightclubbing": {
+    "collection": "NIGHTCLUBBING Archive by Pat Ivers and Emily Armstrong",
+    "call_number": "MSS.305",
+    "url": "https://findingaids.library.nyu.edu/fales/mss_305/",
+    "rights_class": "D",
+    "rights_note": "NYU states copyright/publicity/privacy rights were not transferred; permission to use materials must be secured from the copyright holder.",
+    "items": [
+      {"catalog_id": "305.0001", "title": "Dead Boys at CBGB", "date": "1977-10", "duration": "53 minutes", "format": "3/4 inch Umatic", "color": "Black & White", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0002", "title": "Dead Boys at CBGB", "date": "1977-10", "duration": "39 minutes", "color": "Black & White", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0006", "title": "Blitz Benefit Edit at CBGB", "date": "1978-05", "duration": "57 minutes", "format": "3/4 inch Umatic", "color": "Black & White", "sound": true, "spatial_value": "very_high"},
+      {"catalog_id": "305.0007", "title": "Blitz Benefit - Cosmo Interview, Two Timers, Corpse Grinders at CBGBs", "date": "1978-05", "duration": "33 minutes", "format": "1/2 inch open reel", "color": "Black & White", "sound": true, "spatial_value": "very_high"},
+      {"catalog_id": "305.0015", "title": "Blitz Benefit - Erasers / backstage ambience at CBGB", "date": "1978-05", "duration": "29 minutes", "format": "1/2 inch open reel", "color": "Black & White", "sound": true, "spatial_value": "very_high"},
+      {"catalog_id": "unresolved-womens-room-blitz", "title": "Blitz Benefit interviews / women's-room ambience at CBGB", "date": "1978-05", "duration": null, "color": "Black & White", "sound": true, "spatial_value": "exceptional", "note": "Exact catalog ID should be resolved from full finding aid before requesting access."},
+      {"catalog_id": "305.0127", "title": "Cuban Heels at CBGB", "date": "1979-04", "duration": "23 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0029", "title": "Stiletto Fads at CBGB", "date": "1979-04", "duration": "12 minutes", "format": "3/4 inch Umatic", "color": "Color / Black & White", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0039", "title": "Voidoids at CBGB", "date": "1979-08", "duration": "00:07:52", "format": "3/4 inch Umatic", "color": "Black & White", "sound": true, "spatial_value": "medium_high"},
+      {"catalog_id": "305.0041", "title": "Destroy All Monsters at CBGB", "date": "1979-09", "duration": "22 minutes", "format": "3/4 inch Umatic", "color": "Black & White", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0042", "title": "Only Ones at CBGB", "date": "1979-09", "duration": "21 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0043", "title": "Only Ones at CBGB", "date": "1979-09", "duration": "10 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0044", "title": "Only Ones at CBGB", "date": "1979-09", "duration": "12 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0054", "title": "Revelons at CBGB 1/2", "date": "1979-09", "duration": "22 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0105", "title": "Revelons at CBGB 2/2", "date": "1979-09", "duration": "10 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0057", "title": "Levi and the Rockats at CBGB 3/3", "date": "1979-10", "duration": "11 minutes", "format": "3/4 inch Umatic", "color": "Black & White and Color", "sound": true, "spatial_value": "medium_high"},
+      {"catalog_id": "305.0107", "title": "Bad Brains at CBGB", "date": "1979-12", "duration": "31 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "very_high"},
+      {"catalog_id": "305.0101", "title": "Pin-ups at CBGB", "date": "1980-02", "duration": "22 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"},
+      {"catalog_id": "305.0063", "title": "Student Teachers at CBGB 1/2", "date": "1980-02", "duration": "7 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "medium"},
+      {"catalog_id": "305.0064", "title": "Student Teachers at CBGB 2/2", "date": "1980-02", "duration": "23 minutes", "format": "3/4 inch Umatic", "color": "Color", "sound": true, "spatial_value": "high"}
+    ]
+  },
+  "cornell_punk_flyers": {
+    "rights_class": "D",
+    "rights_note": "Cornell states images are copyright protected and offered for non-profit educational use; researchers must clear publication/distribution rights.",
+    "items": [
+      {"catalog_id": "RMM08060_0289", "date": "1974-05-05", "venue": "CBGB", "reported_location": "315 Bowery", "performers": ["Television", "The Stilettos"], "url": "https://digital.library.cornell.edu/catalog/ss:21494628"},
+      {"catalog_id": "RMM08107_1170", "date": "1983-04-22", "venue": "CBGB", "reported_location": "317 Bowery", "performers": ["Bad Posture", "Flipper"], "url": "https://digital.library.cornell.edu/catalog/ss:20987169"},
+      {"catalog_id": "RMM08107_1171", "date": "1985-03-31", "venue": "CBGB", "reported_location": "317 Bowery", "performers": ["Cro-Mags", "No Remorse", "Violent Children", "Unwanted"], "url": "https://digital.library.cornell.edu/"}
+    ]
+  },
+  "commons_priority_items": [
+    {"title": "CBGB 2009 Interior.jpg", "period": "2009", "rights_class": "C", "license": "CC BY 2.0", "spatial_value": "very_high"},
+    {"title": "CBGB 2009 Display stage.jpg", "period": "2009", "rights_class": "C", "license": "CC BY 2.0", "spatial_value": "very_high"},
+    {"title": "CBGB toilet.jpg", "period": "2005", "rights_class": "C", "license": "CC BY 2.0", "spatial_value": "high"},
+    {"title": "RamonesCBGB.jpg", "period": "2005", "rights_class": "C", "license": "CC BY 2.0", "spatial_value": "high"},
+    {"title": "CBGB Front Facade.jpg", "period": "2004", "rights_class": "C", "license": "CC BY-SA 2.5", "spatial_value": "high"},
+    {"title": "CBGB club facade.jpg", "period": "2005", "rights_class": "C", "license": "CC BY-SA 3.0 / GFDL", "spatial_value": "high"},
+    {"title": "Metropolis Video at CBGB's 1975.jpg", "period": "1975", "rights_class": "C", "license": "CC BY-SA 3.0", "spatial_value": "exceptional"},
+    {"title": "ExCBGB.jpg", "period": "2008", "rights_class": "C", "license": "Public domain", "spatial_value": "high"}
+  ],
+  "secondary_spatial_leads": [
+    {
+      "source": "Official CBGB history",
+      "claim": "A record store was replaced in the late 1980s by the second performance/art space CB's 313 Gallery.",
+      "confidence": 0.85,
+      "rights_class": "D"
+    },
+    {
+      "source": "2011 real-estate reporting",
+      "claim": "Former CBGB Gallery at 313 Bowery was marketed as about 3,300 sq ft ground floor plus 5,500 sq ft basement, next door to former club space at 315 Bowery.",
+      "confidence": 0.7,
+      "rights_class": "D",
+      "note": "Useful adjacency/scale lead, not a survey of historic configuration."
+    },
+    {
+      "source": "Reddit former-employee/audience memories",
+      "claim": "Street-level narrow entrance, bar to one side, stage deeper in room, bathroom/stair path near/past stage; gallery next door had another stage.",
+      "confidence": 0.35,
+      "rights_class": "D",
+      "note": "Anecdotal only. Use to formulate questions and search targets, never as geometry truth."
+    }
+  ]
+}
