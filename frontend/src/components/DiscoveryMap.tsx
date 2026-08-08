@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Renders the approved surreal watercolor Open Concert atlas as native SVG while preserving real city interactions.
+ * Purpose: Renders the approved surreal watercolor Open Concert atlas as resilient native SVG with real city interactions.
  */
 
 import type { Campaign } from "../types";
@@ -13,28 +13,28 @@ export interface CityMarker {
 }
 
 export const MAJOR_US_CITIES: CityMarker[] = [
-  { city: "Seattle", state: "WA", x: 13, y: 18 },
-  { city: "Portland", state: "OR", x: 12, y: 27 },
-  { city: "San Francisco", state: "CA", x: 11, y: 49 },
-  { city: "Los Angeles", state: "CA", x: 16, y: 68 },
+  { city: "Seattle", state: "WA", x: 12, y: 20 },
+  { city: "Portland", state: "OR", x: 11, y: 29 },
+  { city: "San Francisco", state: "CA", x: 10, y: 50 },
+  { city: "Los Angeles", state: "CA", x: 15, y: 69 },
   { city: "San Diego", state: "CA", x: 18, y: 76 },
   { city: "Las Vegas", state: "NV", x: 25, y: 60 },
   { city: "Phoenix", state: "AZ", x: 30, y: 70 },
   { city: "Salt Lake City", state: "UT", x: 31, y: 44 },
   { city: "Denver", state: "CO", x: 42, y: 49 },
   { city: "Dallas", state: "TX", x: 49, y: 72 },
-  { city: "Austin", state: "TX", x: 47, y: 80 },
-  { city: "Houston", state: "TX", x: 55, y: 81 },
+  { city: "Austin", state: "TX", x: 48, y: 80 },
+  { city: "Houston", state: "TX", x: 56, y: 81 },
   { city: "Minneapolis", state: "MN", x: 58, y: 31 },
   { city: "Chicago", state: "IL", x: 66, y: 42 },
-  { city: "Nashville", state: "TN", x: 67, y: 61 },
-  { city: "New Orleans", state: "LA", x: 59, y: 82 },
-  { city: "Atlanta", state: "GA", x: 74, y: 67 },
-  { city: "Miami", state: "FL", x: 84, y: 87 },
-  { city: "Washington", state: "DC", x: 83, y: 52 },
+  { city: "Nashville", state: "TN", x: 68, y: 62 },
+  { city: "New Orleans", state: "LA", x: 60, y: 82 },
+  { city: "Atlanta", state: "GA", x: 75, y: 67 },
+  { city: "Miami", state: "FL", x: 86, y: 87 },
+  { city: "Washington", state: "DC", x: 84, y: 52 },
   { city: "Philadelphia", state: "PA", x: 87, y: 45 },
-  { city: "New York", state: "NY", x: 90, y: 38 },
-  { city: "Boston", state: "MA", x: 94, y: 28 },
+  { city: "New York", state: "NY", x: 90, y: 40 },
+  { city: "Boston", state: "MA", x: 94, y: 30 },
 ];
 
 const CITY_ALIASES: Record<string, string> = {
@@ -74,36 +74,45 @@ const ROUTES: Array<[string, string]> = [
 ];
 
 const USA_OUTLINE = [
-  "M 8 18",
-  "L 14 15 L 20 17 L 26 18 L 32 20 L 38 18",
-  "L 43 20 L 49 21 L 55 22 L 60 26 L 65 26",
-  "L 70 29 L 75 28 L 79 31 L 82 35 L 84 39",
-  "L 89 41 L 92 45 L 91 50 L 94 54 L 92 58",
-  "L 89 62 L 89 67 L 86 70 L 83 74 L 80 77",
-  "L 82 81 L 84 86 L 87 92 L 84 91 L 81 86",
-  "L 78 81 L 74 78 L 70 79 L 66 82 L 61 82",
-  "L 58 86 L 53 87 L 49 84 L 44 84 L 39 82",
-  "L 34 84 L 29 80 L 24 79 L 20 75 L 17 72",
-  "L 15 66 L 12 62 L 11 56 L 9 51 L 10 45",
-  "L 9 39 L 10 34 L 9 29 L 10 23 Z",
+  "M 8 20",
+  "L 14 17 L 20 18 L 26 20 L 32 21 L 38 19",
+  "L 44 21 L 50 22 L 56 23 L 61 27 L 66 27",
+  "L 71 30 L 76 29 L 80 32 L 83 36 L 85 40",
+  "L 90 42 L 93 46 L 92 51 L 95 55 L 93 59",
+  "L 90 63 L 90 67 L 87 71 L 84 75 L 81 78",
+  "L 83 82 L 85 87 L 88 93 L 85 92 L 82 87",
+  "L 79 82 L 75 79 L 71 80 L 67 83 L 62 83",
+  "L 59 87 L 54 88 L 50 85 L 45 85 L 40 83",
+  "L 35 85 L 30 81 L 25 80 L 21 76 L 18 73",
+  "L 16 67 L 13 63 L 12 57 L 10 52 L 11 46",
+  "L 10 40 L 11 35 L 10 30 L 11 24 Z",
 ].join(" ");
 
 const STATE_LINES = [
-  "M 18 21 C 19 36 20 52 23 73",
-  "M 31 19 C 31 36 32 55 34 81",
-  "M 45 20 C 45 38 45 58 48 84",
-  "M 59 24 C 58 42 58 63 58 84",
-  "M 72 29 C 70 45 71 61 69 78",
-  "M 11 38 C 32 36 55 37 87 41",
-  "M 10 53 C 35 51 63 53 91 56",
-  "M 15 67 C 34 65 61 67 83 72",
+  "M 18 22 C 19 37 20 53 23 74",
+  "M 31 20 C 31 37 32 56 34 82",
+  "M 45 21 C 45 39 45 59 48 85",
+  "M 59 25 C 58 43 58 64 58 85",
+  "M 72 30 C 70 46 71 62 69 79",
+  "M 11 39 C 32 37 55 38 88 42",
+  "M 10 54 C 35 52 64 54 92 57",
+  "M 15 68 C 34 66 61 68 84 73",
 ];
 
 const CONTOURS = [
-  "M 14 29 C 27 24 38 30 48 37 C 58 44 68 36 81 33",
-  "M 13 44 C 27 38 39 45 50 52 C 61 59 74 52 88 47",
-  "M 16 60 C 30 54 42 60 53 68 C 64 75 74 70 83 64",
-  "M 25 74 C 37 70 49 75 59 81 C 67 85 74 82 79 78",
+  "M 14 30 C 27 25 38 31 49 38 C 59 45 69 37 82 34",
+  "M 13 45 C 27 39 39 46 51 53 C 62 60 75 53 89 48",
+  "M 16 61 C 30 55 42 61 54 69 C 65 76 75 71 84 65",
+  "M 25 75 C 37 71 49 76 60 82 C 68 86 75 83 80 79",
+];
+
+const NETWORK_SPARKS: Array<[number, number, number]> = [
+  [14, 30, 0.22], [17, 38, 0.16], [19, 55, 0.2], [23, 66, 0.17], [26, 34, 0.14],
+  [28, 49, 0.2], [31, 62, 0.18], [35, 29, 0.17], [36, 57, 0.23], [39, 73, 0.16],
+  [43, 35, 0.18], [44, 64, 0.22], [48, 55, 0.24], [50, 76, 0.21], [53, 31, 0.14],
+  [56, 47, 0.23], [58, 69, 0.17], [61, 35, 0.2], [62, 57, 0.26], [64, 74, 0.18],
+  [68, 33, 0.19], [70, 50, 0.22], [73, 59, 0.25], [76, 42, 0.19], [78, 70, 0.21],
+  [82, 48, 0.25], [83, 60, 0.2], [87, 53, 0.17], [88, 70, 0.2], [91, 46, 0.17],
 ];
 
 export function inferState(city: string, explicitState?: string): string {
@@ -142,142 +151,172 @@ export function DiscoveryMap({ campaigns, selectedCity, onSelectCity }: Props) {
   const markerByCity = new Map(MAJOR_US_CITIES.map((marker) => [marker.city, marker]));
 
   return (
-    <section className="demand-map-card atlas-v6" aria-label="United States live demand map">
+    <section className="demand-map-card atlas-v6 atlas-approved" aria-label="United States live demand map">
       <div className="atlas-v6-shell">
         <svg className="atlas-v6-art" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id="atlasSky" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="#fffaf4" />
-              <stop offset="33%" stopColor="#f4eaff" />
-              <stop offset="70%" stopColor="#eee7ff" />
-              <stop offset="100%" stopColor="#fff5e9" />
+              <stop offset="30%" stopColor="#f6eaff" />
+              <stop offset="68%" stopColor="#eee7ff" />
+              <stop offset="100%" stopColor="#fff2e5" />
             </linearGradient>
             <radialGradient id="atlasSun" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fffbe9" stopOpacity="1" />
-              <stop offset="45%" stopColor="#ffe7b4" stopOpacity=".75" />
-              <stop offset="100%" stopColor="#ffe7b4" stopOpacity="0" />
+              <stop offset="0%" stopColor="#fffde9" stopOpacity="1" />
+              <stop offset="48%" stopColor="#ffe5ae" stopOpacity=".74" />
+              <stop offset="100%" stopColor="#ffe5ae" stopOpacity="0" />
             </radialGradient>
             <linearGradient id="atlasLand" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#6d55d5" />
-              <stop offset="35%" stopColor="#8f7ae2" />
-              <stop offset="68%" stopColor="#7767d4" />
-              <stop offset="100%" stopColor="#5647ad" />
+              <stop offset="0%" stopColor="#5f4bc9" />
+              <stop offset="28%" stopColor="#8a71dc" />
+              <stop offset="58%" stopColor="#7e68d0" />
+              <stop offset="100%" stopColor="#493a9c" />
             </linearGradient>
             <linearGradient id="atlasLandWash" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity=".20" />
-              <stop offset="55%" stopColor="#d8c9ff" stopOpacity=".09" />
-              <stop offset="100%" stopColor="#43368d" stopOpacity=".16" />
+              <stop offset="0%" stopColor="#ffffff" stopOpacity=".28" />
+              <stop offset="48%" stopColor="#e8d8ff" stopOpacity=".08" />
+              <stop offset="100%" stopColor="#2f256f" stopOpacity=".20" />
             </linearGradient>
             <linearGradient id="routeViolet" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#d8c9ff" stopOpacity=".2" />
-              <stop offset="50%" stopColor="#f0d9ff" stopOpacity=".95" />
-              <stop offset="100%" stopColor="#a17dff" stopOpacity=".3" />
+              <stop offset="0%" stopColor="#b89bff" stopOpacity=".12" />
+              <stop offset="50%" stopColor="#f4e8ff" stopOpacity=".98" />
+              <stop offset="100%" stopColor="#8a5fff" stopOpacity=".22" />
             </linearGradient>
             <linearGradient id="routeGold" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#f5c95e" stopOpacity=".15" />
-              <stop offset="50%" stopColor="#ffe5a3" stopOpacity="1" />
-              <stop offset="100%" stopColor="#f0a73d" stopOpacity=".28" />
+              <stop offset="0%" stopColor="#eaa548" stopOpacity=".12" />
+              <stop offset="50%" stopColor="#ffe7a1" stopOpacity="1" />
+              <stop offset="100%" stopColor="#f3a334" stopOpacity=".24" />
             </linearGradient>
-            <linearGradient id="guitarGold" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#5a45bd" />
-              <stop offset="42%" stopColor="#6d4bc5" />
-              <stop offset="66%" stopColor="#d58f32" />
-              <stop offset="100%" stopColor="#f1b44d" />
+            <linearGradient id="guitarLiquid" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#43349e" />
+              <stop offset="35%" stopColor="#6650c7" />
+              <stop offset="63%" stopColor="#aa6fc9" />
+              <stop offset="80%" stopColor="#e2a348" />
+              <stop offset="100%" stopColor="#f4bf59" />
             </linearGradient>
-            <filter id="atlasSoftGlow" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation=".5" result="blur" />
+            <radialGradient id="islandTop" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stopColor="#b1a3cc" />
+              <stop offset="55%" stopColor="#8d7bb0" />
+              <stop offset="100%" stopColor="#675a8a" />
+            </radialGradient>
+            <filter id="watercolorLand" x="-15%" y="-18%" width="130%" height="136%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.018 0.04" numOctaves={3} seed={9} result="paperNoise" />
+              <feColorMatrix in="paperNoise" type="saturate" values="0" result="grayNoise" />
+              <feComponentTransfer in="grayNoise" result="softNoise">
+                <feFuncA type="table" tableValues="0 .24" />
+              </feComponentTransfer>
+              <feBlend in="SourceGraphic" in2="softNoise" mode="soft-light" result="painted" />
+              <feTurbulence type="fractalNoise" baseFrequency="0.008 0.02" numOctaves={2} seed={4} result="edgeNoise" />
+              <feDisplacementMap in="painted" in2="edgeNoise" scale="0.5" xChannelSelector="R" yChannelSelector="G" result="warped" />
+              <feDropShadow dx="0" dy="1.8" stdDeviation="1.4" floodColor="#3d307f" floodOpacity=".22" />
+            </filter>
+            <filter id="atlasSoftGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation=".75" result="blur" />
               <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
-            <filter id="atlasLandShadow" x="-20%" y="-20%" width="140%" height="150%">
-              <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" floodColor="#372c73" floodOpacity=".22" />
+            <filter id="islandShadow" x="-50%" y="-40%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="2" stdDeviation="1.3" floodColor="#49396c" floodOpacity=".25" />
             </filter>
             <clipPath id="atlasUsaClip"><path d={USA_OUTLINE} /></clipPath>
           </defs>
 
           <rect width="100" height="100" fill="url(#atlasSky)" />
-          <circle cx="79" cy="13" r="19" fill="url(#atlasSun)" opacity=".72" />
-          <path className="atlas-v6-cloud" d="M0 15 C13 8 22 13 31 11 C41 9 47 3 57 8 C65 12 72 5 83 9 C91 12 97 9 100 8 L100 0 L0 0 Z" />
-          <path className="atlas-v6-cloud lower" d="M0 89 C13 82 25 88 35 85 C45 82 54 91 66 86 C76 82 87 89 100 83 L100 100 L0 100 Z" />
+          <circle cx="79" cy="13" r="20" fill="url(#atlasSun)" opacity=".64" />
+          <path className="atlas-v6-cloud" d="M0 15 C13 6 22 13 31 10 C41 7 47 2 58 8 C67 12 73 4 84 8 C92 11 98 8 100 7 L100 0 L0 0 Z" />
+          <path className="atlas-v6-cloud lower" d="M0 90 C14 82 25 89 36 85 C47 81 56 92 67 86 C78 81 88 90 100 82 L100 100 L0 100 Z" />
 
-          <g className="atlas-v6-island island-main">
-            <ellipse cx="50" cy="9" rx="8" ry="1.55" />
-            <path d="M42 9 L45 16 L48 21 L50 29 L52 20 L56 14 L58 9 Z" />
-            <path className="island-grass" d="M42 8.7 C46 7.5 54 7.5 58 8.7 C55 10 45 10 42 8.7 Z" />
-            <path className="island-city" d="M46 8 V4 H47 V8 M48 8 V2 H49 V8 M50 8 V5 H51 V8 M52 8 V1 H53 V8 M54 8 V4 H55 V8" />
+          <g className="atlas-v6-island island-main" filter="url(#islandShadow)">
+            <ellipse cx="49" cy="10" rx="8.7" ry="1.6" fill="url(#islandTop)" />
+            <path className="island-rock" d="M40.3 10 C42 14 44 18 46 24 C47.4 27.8 48.2 31 49.2 34 C50 28 51.2 25 52 20 C54 16 56.8 13 57.7 10 Z" />
+            <path className="island-grass" d="M40.3 9.6 C43.5 8.1 54.3 8.1 57.7 9.6 C55.4 11.2 42.7 11.2 40.3 9.6 Z" />
+            <path className="island-city" d="M44 9 V5 H45.2 V9 M46 9 V3 H47.2 V9 M48 9 V6 H49.1 V9 M50 9 V1.5 H51.1 V9 M52 9 V4 H53.2 V9 M54 9 V2.8 H55.2 V9" />
+            <path className="island-tree" d="M42.5 9 V6.4 M41.7 7 C42.4 5.6 43.3 5.6 44 7 M56 9 V6.6 M55.2 7.2 C55.9 5.8 56.9 5.8 57.6 7.2" />
           </g>
 
-          <g className="atlas-v6-island island-left">
-            <ellipse cx="14" cy="79" rx="4.5" ry="1" />
-            <path d="M9.5 79 L12 84 L14 89 L16 84 L18.5 79 Z" />
-            <path className="island-grass" d="M9.5 78.8 C12 77.9 16 77.9 18.5 78.8 C16 80 12 80 9.5 78.8 Z" />
+          <g className="atlas-v6-island island-left" filter="url(#islandShadow)">
+            <ellipse cx="13" cy="80" rx="4.8" ry="1" fill="url(#islandTop)" />
+            <path className="island-rock" d="M8.2 80 L10.6 84.2 L13 90 L15.2 85 L17.8 80 Z" />
+            <path className="island-grass" d="M8.2 79.7 C10.5 78.5 15.4 78.5 17.8 79.7 C15.6 80.9 10.5 80.9 8.2 79.7 Z" />
+            <path className="island-tree" d="M12.6 79 V75.8 M10.5 79 V77 M9.8 77.5 C10.5 75.8 11.2 75.8 11.8 77.5 M11.6 76.7 C12.5 74.7 13.7 74.7 14.5 76.7" />
           </g>
 
-          <g className="atlas-v6-island island-right">
-            <ellipse cx="88" cy="80" rx="4.6" ry="1" />
-            <path d="M83.4 80 L86 85 L88 90 L90 85 L92.6 80 Z" />
-            <path className="island-grass" d="M83.4 79.8 C86 78.8 90 78.8 92.6 79.8 C90 81 86 81 83.4 79.8 Z" />
+          <g className="atlas-v6-island island-right" filter="url(#islandShadow)">
+            <ellipse cx="90" cy="81" rx="4.9" ry="1" fill="url(#islandTop)" />
+            <path className="island-rock" d="M85.1 81 L87.7 85.6 L90 91 L92.1 85.2 L94.9 81 Z" />
+            <path className="island-grass" d="M85.1 80.7 C87.5 79.4 92.5 79.4 94.9 80.7 C92.8 81.9 87.4 81.9 85.1 80.7 Z" />
+            <path className="island-tree" d="M90.1 80 V76.7 M88 80 V78 M87.4 78.4 C88 76.9 88.9 76.9 89.6 78.4 M89.2 77.6 C90 75.7 91.2 75.7 92 77.6" />
           </g>
 
-          <path d={USA_OUTLINE} fill="url(#atlasLand)" filter="url(#atlasLandShadow)" className="atlas-v6-land" />
+          <path d={USA_OUTLINE} fill="url(#atlasLand)" filter="url(#watercolorLand)" className="atlas-v6-land" />
           <path d={USA_OUTLINE} fill="url(#atlasLandWash)" className="atlas-v6-land-wash" />
 
           <g clipPath="url(#atlasUsaClip)">
             <g className="atlas-v6-state-lines">
-              {STATE_LINES.map((path, index) => <path key={`state-${index}`} d={path} />)}
+              {STATE_LINES.map((path, index) => <path d={path} key={`state-${index}`} />)}
             </g>
             <g className="atlas-v6-contours">
-              {CONTOURS.map((path, index) => <path key={`contour-${index}`} d={path} />)}
+              {CONTOURS.map((path, index) => <path d={path} key={`contour-${index}`} />)}
             </g>
-            {Array.from({ length: 34 }).map((_, index) => {
-              const x = 10 + ((index * 17) % 82);
-              const y = 24 + ((index * 29) % 57);
-              const size = index % 5 === 0 ? .34 : .2;
-              return <circle key={`spark-${index}`} cx={x} cy={y} r={size} className="atlas-v6-spark" />;
-            })}
+            {NETWORK_SPARKS.map(([x, y, r], index) => (
+              <circle key={`spark-${index}`} className="atlas-v6-spark" cx={x} cy={y} r={r} />
+            ))}
           </g>
 
           <g className="atlas-v6-routes" filter="url(#atlasSoftGlow)">
-            {ROUTES.map(([fromName, toName]) => {
+            {ROUTES.map(([fromName, toName], index) => {
               const from = markerByCity.get(fromName);
               const to = markerByCity.get(toName);
               if (!from || !to) return null;
               const fromLive = (demand.get(fromName)?.campaigns ?? 0) > 0;
               const toLive = (demand.get(toName)?.campaigns ?? 0) > 0;
-              const selected = selectedCity === fromName || selectedCity === toName;
-              const hot = selected || (fromLive && toLive);
+              const selectedRoute = selectedCity === fromName || selectedCity === toName;
+              const gold = selectedRoute || (fromLive && toLive) || index % 4 === 1;
               const midX = (from.x + to.x) / 2;
-              const midY = Math.min(from.y, to.y) - Math.max(3, Math.abs(to.x - from.x) * .09);
+              const bend = Math.max(2.8, Math.abs(to.x - from.x) * 0.08);
+              const midY = Math.min(from.y, to.y) - bend;
               return (
                 <path
                   key={`${fromName}-${toName}`}
                   d={`M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`}
-                  className={`atlas-v6-route ${fromLive || toLive ? "is-live" : ""} ${selected ? "is-selected" : ""}`}
-                  stroke={hot ? "url(#routeGold)" : "url(#routeViolet)"}
+                  className={`atlas-v6-route ${fromLive || toLive ? "is-live" : ""} ${selectedRoute ? "is-selected" : ""}`}
+                  stroke={gold ? "url(#routeGold)" : "url(#routeViolet)"}
                 />
               );
             })}
           </g>
 
-          <g className="atlas-v6-music" aria-hidden="true">
-            <path d="M31 12 C43 18 56 13 68 21 C76 26 83 20 91 25" />
-            <text x="33" y="14">♪</text><text x="60" y="20">♫</text><text x="79" y="23">♪</text>
-            <path d="M31 87 C45 82 55 90 70 84 C80 80 88 83 95 78" />
-            <text x="36" y="86">♫</text><text x="67" y="84">♪</text>
+          <g className="atlas-v6-crescent">
+            <circle cx="76" cy="12" r="4.6" />
+            <circle className="crescent-cut" cx="78" cy="10.7" r="4.7" />
           </g>
 
-          <g className="atlas-v6-skyline" aria-hidden="true">
-            <path d="M76 35 V29 H78 V35 M79 35 V23 H81 V35 M82 35 V31 H84 V35 M85 35 V18 H87 V35 M88 35 V26 H90 V35 M91 35 V30 H93 V35" />
-            <path d="M84.7 18 L86 13 L87.3 18" />
+          <g className="atlas-v6-skyline">
+            <path d="M78 38 V32 H79 V38 M80 38 V28 H81 V38 M82 38 V23 H83 V38 M84 38 V29 H85 V38 M86 38 V25 H87 V38 M88 38 V30 H89 V38" />
+            <path d="M82.5 23 L82.5 20.2 M86.5 25 L86.5 22.4" />
           </g>
-          <path className="atlas-v6-birds" d="M89 22 q1 -1 2 0 q1 -1 2 0 M93 26 q.7 -.7 1.4 0 q.7 -.7 1.4 0" />
-          <path className="atlas-v6-crescent" d="M74 13 A5 5 0 1 1 78 17 A4 4 0 1 0 74 13 Z" />
 
-          <g className="atlas-v6-guitar" filter="url(#atlasSoftGlow)" aria-hidden="true">
-            <path className="guitar-body" d="M78 25 C75 30 74 36 76 40 C72 42 70 47 71 51 C72 55 76 56 79 55 C78 60 76 64 77 69 C78 73 82 72 84 68 C87 62 87 54 85 49 C89 47 91 42 90 38 C89 34 86 32 84 33 C85 29 85 24 84 20 C83 17 80 19 78 25 Z" />
-            <path className="guitar-inner" d="M80 29 C78 35 78 41 80 45 C77 48 76 53 78 56 C80 58 83 56 84 53 C85 48 83 44 82 41 C84 37 85 31 84 27 C83 24 81 25 80 29 Z" />
-            <path className="guitar-neck" d="M82 28 C83 21 84 13 85 6 C85.3 3 86 1.5 87 1.2 C88 1 88.4 2.2 88 4 C86.5 11 85 19 84 29 Z" />
-            <path className="guitar-string" d="M84 29 C85 21 86 12 87 3" />
-            <ellipse className="guitar-hole" cx="82" cy="45" rx="2" ry="1.6" />
+          <g className="atlas-v6-birds">
+            <path d="M88 18 q1 -1 2 0 q1 -1 2 0" />
+            <path d="M91 21 q.8 -.8 1.6 0 q.8 -.8 1.6 0" />
+          </g>
+
+          <g className="atlas-v6-music">
+            <path d="M4 18 C21 11 32 17 43 16 C54 15 62 21 71 17" />
+            <path d="M6 21 C23 14 34 20 45 19 C56 18 64 24 73 20" />
+            <path d="M27 91 C42 86 57 91 72 87 C83 84 91 87 99 83" />
+            <text x="17" y="17">♪</text><text x="59" y="22">♫</text><text x="39" y="90">♪</text><text x="72" y="88">♫</text>
+          </g>
+
+          <g className="atlas-v6-guitar" filter="url(#islandShadow)">
+            <path className="guitar-body" d="M69.5 31 C66.4 34.4 67.1 38.2 64.6 41.7 C61.6 46.1 63 50.3 66.5 51.6 C69 52.5 68.1 56.5 65 61.6 C70.1 59.7 73.7 55.4 74.5 51.4 C75.3 47.4 72.6 44.4 74.9 40.1 C77 36 77.4 32.7 75.4 29.6 C73.7 27.2 71.1 28.7 69.5 31 Z" />
+            <path className="guitar-inner" d="M69 38 C66.9 41.1 67.2 44.8 69.3 45.8 C71.6 46.8 72.7 44.3 72.1 42 C71.7 40.4 70.5 39.3 69 38 Z" />
+            <path className="guitar-inner accent" d="M66.4 50 C67.7 52.3 67.5 55.2 66.2 58.1 C69.2 55.9 70.8 53.4 70.7 51.3 C70.5 49.4 68.3 49 66.4 50 Z" />
+            <path className="guitar-neck" d="M72.2 37.5 C75 30.4 77 23.2 79.2 15.8 L81.5 16.5 C79.2 25 77.5 32.4 74.3 40 Z" />
+            <path className="guitar-head" d="M79.1 15.7 C79.8 12.5 80 9.6 82 7.6 C83.2 6.4 84.6 7.3 84 8.8 C83.3 10.4 82.3 12.2 82.1 16.8 Z" />
+            <path className="guitar-string" d="M73.3 39 C76.1 29.5 78.6 20.4 81.4 9.8" />
+            <path className="guitar-string" d="M72.7 39.2 C75.4 29.7 78 20.6 80.8 9.6" />
+            <ellipse className="guitar-hole" cx="70.2" cy="44.4" rx="1.6" ry="1.4" />
+            <path className="guitar-drip" d="M65 61.2 C65.6 64.3 64.2 67.2 62.5 69.8 C65.4 68.1 67.5 65.5 68.3 62.7 Z" />
           </g>
         </svg>
 
@@ -287,7 +326,6 @@ export function DiscoveryMap({ campaigns, selectedCity, onSelectCity }: Props) {
             const active = selectedCity.trim().toLowerCase() === marker.city.toLowerCase();
             const level = demandLevel(stats.supporters, stats.campaigns, stats.progress);
             const prominent = PROMINENT_CITIES.has(marker.city);
-
             return (
               <button
                 key={`${marker.city}-${marker.state}`}
@@ -296,13 +334,13 @@ export function DiscoveryMap({ campaigns, selectedCity, onSelectCity }: Props) {
                 data-prominent={prominent ? "true" : "false"}
                 style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                 onClick={() => onSelectCity(marker.city, marker.state)}
-                aria-label={`${marker.city}, ${marker.state}: ${level.label}${stats.campaigns ? `, ${stats.campaigns} ${stats.campaigns === 1 ? "campaign" : "campaigns"}` : ""}`}
+                aria-label={`${marker.city}, ${marker.state}: ${stats.campaigns} campaigns, ${level.label} demand`}
               >
                 <span className="atlas-v6-city-aura" aria-hidden="true" />
                 <span className="atlas-v6-city-core" aria-hidden="true" />
-                <span className="atlas-v6-city-label">
+                <span className="atlas-v6-city-label" aria-hidden="true">
                   <strong>{marker.city}</strong>
-                  <small>{stats.campaigns ? level.label : prominent ? level.label : marker.state}</small>
+                  <small>{stats.campaigns ? level.label : prominent ? "Open city" : marker.state}</small>
                 </span>
               </button>
             );
