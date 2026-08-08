@@ -1,5 +1,5 @@
 # Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
-# Purpose: Keeps outbound verification email functional and observable when an environment uses a CloudFront hostname and an externally verified SES sender identity.
+# Purpose: Keeps outbound verification email functional, observable, and able to request SES production access for public recipients.
 
 variable "ses_sender_identity" {
   type        = string
@@ -13,6 +13,12 @@ variable "ses_sender_identity" {
     )
     error_message = "ses_sender_identity must be empty or a valid DNS domain name."
   }
+}
+
+variable "request_ses_production_access" {
+  type        = bool
+  description = "Submit an idempotent SES production-access request during apply so public verification email can leave the SES sandbox."
+  default     = false
 }
 
 locals {
@@ -31,6 +37,28 @@ check "verification_email_delivery" {
       local.external_ses_identity_arn != null
     )
     error_message = "Outbound verification email requires Terraform-managed SES DNS, ses_identity_arn, or ses_sender_identity."
+  }
+}
+
+# SES sandbox is regional. Development can request production access as part of
+# the user-triggered apply. The helper is idempotent: it exits successfully when
+# access is already enabled or when AWS is already reviewing the request.
+resource "terraform_data" "request_ses_production_access" {
+  count = var.request_ses_production_access ? 1 : 0
+
+  triggers_replace = [
+    var.aws_region,
+    var.ses_sender_identity,
+  ]
+
+  provisioner "local-exec" {
+    command = "bash ${path.module}/../scripts/request_ses_production_access.sh"
+
+    environment = {
+      AWS_REGION          = var.aws_region
+      SES_WEBSITE_URL     = "https://devopslabinc.com"
+      SES_CONTACT_EMAIL   = "hello@devopslabinc.com"
+    }
   }
 }
 
