@@ -1,6 +1,6 @@
 /**
  * Author: Stan Zvenigorodskiy | DevOps Lab Inc. | https://DevOpsLabInc.com
- * Purpose: Bootstraps React and loads base functionality followed by the final Build 13.4 visual system.
+ * Purpose: Bootstraps React and loads base functionality followed by the final Build 13.5 visual system.
  */
 
 import React from "react";
@@ -19,6 +19,7 @@ import "./build13-acceptance.css";
 import "./build13-art-direction.css";
 import "./build13-email-status.css";
 import "./build13-atlas-v2.css";
+import "./build13-atlas-v3.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
