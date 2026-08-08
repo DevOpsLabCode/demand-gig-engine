@@ -23,6 +23,7 @@ REQUIRED_FILES = {
     "EVIDENCE_GRAPH.md",
     "collect_open_assets.py",
     "collect_public_metadata.py",
+    "collect_nyu_fales_metadata.py",
 }
 
 
