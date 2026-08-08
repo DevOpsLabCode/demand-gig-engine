@@ -1,0 +1,86 @@
+{
+  "purpose": "Seed known archival audio records that can anchor historical events/acoustics. Metadata/reference only until rights are cleared.",
+  "archives": [
+    {
+      "archive": "Peter Dougherty Collection",
+      "institution": "NYU Fales Library and Special Collections",
+      "call_number": "MSS.213",
+      "url": "https://findingaids.library.nyu.edu/fales/mss_213/",
+      "rights_class": "D",
+      "collection_note": "Peter Dougherty attended CBGB and other downtown clubs from the mid-1970s and recorded shows; the collection contains audio/video/ephemera documenting punk and related scenes.",
+      "cbgb_items": [
+        {
+          "media_id": "213.0203",
+          "title": "Television Feb 15th 1975 CBGB",
+          "date": "1975-02-15",
+          "duration": "60 minutes",
+          "format": "1/4 inch audiocassette",
+          "event_value": "very_high",
+          "spatial_value": "low",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0204",
+          "title": "Television June 15th 1975 CBGB 1st with Fred Smith / August 8th 1975 RnR fest",
+          "date": "1975-06-15",
+          "duration": "90 minutes",
+          "format": "1/4 inch audiocassette",
+          "event_value": "very_high",
+          "spatial_value": "low",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0476",
+          "title": "Television Live CBGB",
+          "date": "1976-01-23",
+          "duration": "75 minutes",
+          "event_value": "high",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0477",
+          "title": "Television Live CBGB",
+          "date": "1976-03-11",
+          "duration": "93 minutes",
+          "event_value": "high",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0475",
+          "title": "Television Live CBGB",
+          "date": "1976-05-26",
+          "duration": "88 minutes",
+          "event_value": "high",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0042",
+          "title": "Suicide Max's Dec 28 1978 / CBGB June 2 1979 second set",
+          "date": "1979-06-02",
+          "duration": "90 minute tape containing multiple performances",
+          "event_value": "high",
+          "acoustic_value": "high"
+        },
+        {
+          "media_id": "213.0043",
+          "title": "Suicide / CBGB June 2 1979 second set",
+          "date": "1979-06-02",
+          "duration": "90 minute tape",
+          "event_value": "high",
+          "acoustic_value": "high"
+        }
+      ],
+      "use_rule": "Do not reproduce audio or train/display it in the commercial twin without rights. Catalog records can seed the event graph and rights-acquisition queue. If licensed, original live recordings could later power a historically synchronized performance mode."
+    }
+  ],
+  "future_audio_hunts": [
+    "artist/tour soundboard archives",
+    "former CBGB sound engineer board tapes",
+    "commercial live albums recorded at CBGB",
+    "radio broadcasts and station archives",
+    "NYU Fales related Downtown collections",
+    "label/artist vaults",
+    "fan audience recordings whose rights holders can be identified"
+  ],
+  "acoustic_research_note": "Audio recordings alone cannot establish precise room geometry, but once a metric shell exists, multiple known-source recordings may help tune plausible room reverberation/ambience. Never present an inferred acoustic model as measured without impulse-response or equivalent data."
+}
